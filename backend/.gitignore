@@ -31,3 +31,7 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### JVM crash reports (can contain memory contents) ###
+hs_err_pid*.log
+replay_pid*.log

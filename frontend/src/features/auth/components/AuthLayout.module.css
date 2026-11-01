@@ -1,0 +1,144 @@
+.page {
+  display: flex;
+  min-height: 100vh;
+  background: var(--color-surface);
+}
+
+.reversed {
+  flex-direction: row-reverse;
+}
+
+/* Brand panel (left on login, right on sign up) */
+.brand {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 28px;
+  width: 560px;
+  flex-shrink: 0;
+  padding: 0 72px;
+  overflow: hidden;
+  background: var(--color-cream);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.logoMark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  background: var(--color-primary);
+}
+
+.headline {
+  margin: 0;
+  font-size: 40px;
+  font-weight: 400;
+}
+
+.tagline {
+  margin: 0;
+  font-size: 16px;
+  color: var(--color-text-muted);
+}
+
+.benefits {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.benefit {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: var(--color-primary);
+}
+
+.route {
+  position: absolute;
+  top: 116px;
+  right: 5px;
+}
+
+/* Form side */
+.formSide {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  background: var(--color-page);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 422px;
+  max-width: 100%;
+  padding: 44px 40px;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  color: var(--color-text-muted);
+}
+
+.title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+/* Phones and small tablets: the form alone, like the mobile design */
+@media (max-width: 960px) {
+  .brand {
+    display: none;
+  }
+
+  .formSide {
+    background: var(--color-surface);
+  }
+
+  .card {
+    padding: 32px 24px;
+    box-shadow: none;
+  }
+}

@@ -1,0 +1,39 @@
+/* Design tokens from the SwiftDrop Figma design (login/signup). */
+:root {
+  --color-text: #3f2f1f;
+  --color-text-muted: #6f6258;
+  --color-primary: #f4d58d;
+  --color-cream: #fff7e1;
+  --color-page: #fcf9f0;
+  --color-border: #e3dccb;
+  --color-surface: #ffffff;
+  --color-google: #4285f4;
+  --color-error: #b3261e;
+  --color-success: #2e6b3a;
+
+  --radius-card: 24px;
+  --radius-button: 14px;
+  --radius-input: 12px;
+  --shadow-card: 0 24px 48px rgba(63, 47, 31, 0.1);
+  --shadow-button: 0 10px 12px rgba(63, 47, 31, 0.22);
+
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-page);
+}
+
+button,
+input {
+  font: inherit;
+}

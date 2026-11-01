@@ -1,0 +1,28 @@
+import { useEffect, useState } from 'react';
+
+/**
+ * A tiny router for the few auth screens (no extra dependency). When the app grows, swap it for react-router;
+ * the pages only use navigate() and the path.
+ */
+export const routes = {
+  login: '/login',
+  signup: '/signup',
+  googleCallback: '/auth/callback',
+  verifyEmail: '/verify-email',
+  account: '/account',
+} as const;
+
+export function navigate(path: string): void {
+  window.history.pushState(null, '', path);
+  window.dispatchEvent(new PopStateEvent('popstate'));
+}
+
+export function usePath(): string {
+  const [path, setPath] = useState(window.location.pathname);
+  useEffect(() => {
+    const onChange = () => setPath(window.location.pathname);
+    window.addEventListener('popstate', onChange);
+    return () => window.removeEventListener('popstate', onChange);
+  }, []);
+  return path;
+}
