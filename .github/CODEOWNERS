@@ -1,0 +1,7 @@
+# Who must review changes to these files (GitHub asks them automatically on every pull request).
+# Login, tokens and permissions: reviewed by the auth/architecture owner.
+/backend/src/main/java/com/swiftdrop/backend/security/        @IsuruKavi20
+/backend/src/test/java/com/swiftdrop/backend/security/        @IsuruKavi20
+/frontend/src/features/auth/                                  @IsuruKavi20
+/docs/AUTH.md                                                 @IsuruKavi20
+/.github/CODEOWNERS                                           @IsuruKavi20
