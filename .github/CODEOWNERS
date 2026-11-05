@@ -3,6 +3,5 @@
 /backend/src/main/java/com/swiftdrop/backend/security/        @IsuruKavi20
 /backend/src/test/java/com/swiftdrop/backend/security/        @IsuruKavi20
 /frontend/src/features/auth/                                  @IsuruKavi20
-/frontend/src/config/env.ts                                   @IsuruKavi20
 /docs/AUTH.md                                                 @IsuruKavi20
 /.github/CODEOWNERS                                           @IsuruKavi20
