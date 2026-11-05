@@ -6,6 +6,7 @@ import com.nimbusds.jose.proc.SecurityContext;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -29,7 +30,7 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * Every request needs an access token from the SwiftDrop auth service. The token is checked HERE, without calling
+ * Every request needs an access token from the SwiftDrop auth service, except GET /api/public/** (public tracking). The token is checked HERE, without calling
  * the auth service: RS256 signature against its public keys (JWKS, cached), type "at+jwt", issuer, audience, expiry.
  * The token's "roles" become ROLE_* authorities and its "entitlements" (permissions) become authorities as they are.
  */
@@ -41,7 +42,10 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain api(HttpSecurity http) throws Exception {
         http
-                .authorizeHttpRequests(requests -> requests.anyRequest().authenticated())
+                .authorizeHttpRequests(requests -> requests
+                        // Public parcel tracking: no login, read-only, answers hold no private data
+                        .requestMatchers(HttpMethod.GET, "/api/public/**").permitAll()
+                        .anyRequest().authenticated())
                 .oauth2ResourceServer(server -> server.jwt(jwt -> jwt.jwtAuthenticationConverter(authenticationConverter())))
                 // Tokens, not cookies: no session and nothing for CSRF to abuse
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

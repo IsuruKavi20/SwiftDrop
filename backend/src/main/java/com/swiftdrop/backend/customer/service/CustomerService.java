@@ -81,7 +81,7 @@ public class CustomerService {
     /** The first saved address becomes the default automatically; a new default replaces the old one. */
     public CustomerAddressResponse addAddress(UUID authUserId, CustomerAddressRequest request) {
         Customer customer = requireCustomer(authUserId);
-        boolean makeDefault = request.defaultAddress()
+        boolean makeDefault = request.makeDefault()
                 || addresses.findByCustomerIdOrderByDefaultAddressDescLabelAsc(customer.getId()).isEmpty();
         if (makeDefault) {
             clearDefault(customer.getId());
@@ -95,7 +95,7 @@ public class CustomerService {
 
     public CustomerAddressResponse updateAddress(UUID authUserId, Long addressId, CustomerAddressRequest request) {
         CustomerAddress address = requireAddress(authUserId, addressId);
-        if (request.defaultAddress() && !address.isDefaultAddress()) {
+        if (request.makeDefault() && !address.isDefaultAddress()) {
             clearDefault(address.getCustomer().getId());
         }
         address.setLabel(request.label().trim());
@@ -103,7 +103,7 @@ public class CustomerService {
         address.setCity(request.city().trim());
         address.setDistrict(request.district().trim());
         address.setPostalCode(blankToNull(request.postalCode()));
-        address.setDefaultAddress(request.defaultAddress());
+        address.setDefaultAddress(request.makeDefault());
         return CustomerAddressResponse.from(address);
     }
 
