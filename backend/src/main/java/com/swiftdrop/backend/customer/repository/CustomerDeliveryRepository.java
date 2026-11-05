@@ -36,25 +36,42 @@ public interface CustomerDeliveryRepository extends JpaRepository<Delivery, Long
     Optional<Delivery> findByTrackingNumberAndCustomerId(String trackingNumber, Long customerId);
 
     /**
-     * Delivery search: optional status filter and optional text matched against the tracking number,
-     * the receiver's name and the destination city. Pass null to skip a filter.
+     * Delivery search: optional status filter and optional text matched (case-insensitively, anywhere) against
+     * the tracking number, the receiver's name and the destination city. Pass null or blank to skip a filter.
+     */
+    default Page<Delivery> search(Long customerId, DeliveryStatus status, String text, Pageable pageable) {
+        return searchByPattern(customerId, status, containsPattern(text), pageable);
+    }
+
+    /**
+     * Never binds a null text: PostgreSQL cannot type a null parameter inside lower() and fails with
+     * "function lower(bytea) does not exist". No text becomes the pattern "%", which matches everything.
      */
     @Query(value = """
             select d from Delivery d
             where d.customer.id = :customerId
               and (:status is null or d.status = :status)
-              and (:text is null
-                   or lower(d.trackingNumber) like lower(concat('%', :text, '%'))
+              and (lower(d.trackingNumber) like :pattern escape '\\'
                    or exists (select 1 from DeliveryAddress a
                               where a.delivery = d and a.addressType = com.swiftdrop.backend.customer.entity.AddressType.DESTINATION
-                                and (lower(a.contactName) like lower(concat('%', :text, '%'))
-                                     or lower(a.city) like lower(concat('%', :text, '%')))))
+                                and (lower(a.contactName) like :pattern escape '\\'
+                                     or lower(a.city) like :pattern escape '\\')))
             order by d.createdAt desc
             """)
-    Page<Delivery> search(@Param("customerId") Long customerId,
-                          @Param("status") DeliveryStatus status,
-                          @Param("text") String text,
-                          Pageable pageable);
+    Page<Delivery> searchByPattern(@Param("customerId") Long customerId,
+                                   @Param("status") DeliveryStatus status,
+                                   @Param("pattern") String pattern,
+                                   Pageable pageable);
+
+    /** "Kan_dy" becomes "%kan\_dy%": the user's % and _ are matched literally, not as wildcards. */
+    static String containsPattern(String text) {
+        if (text == null || text.isBlank()) {
+            return "%";
+        }
+        String escaped = text.trim().toLowerCase(java.util.Locale.ROOT)
+                .replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+        return "%" + escaped + "%";
+    }
 
     // ---- Dashboard ----
 

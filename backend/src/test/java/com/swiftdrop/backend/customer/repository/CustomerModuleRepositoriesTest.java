@@ -111,6 +111,14 @@ class CustomerModuleRepositoriesTest {
         assertThat(deliveries.search(alice.getId(), DeliveryStatus.PENDING, null, Pageable.unpaged()))
                 .extracting(Delivery::getTrackingNumber).containsExactly("SD-100002");
         assertThat(deliveries.search(alice.getId(), null, null, Pageable.unpaged())).hasSize(2);
+        assertThat(deliveries.search(alice.getId(), null, "  ", Pageable.unpaged())).hasSize(2);
+    }
+
+    @Test
+    void searchTreatsPercentAndUnderscoreAsPlainCharacters() {
+        assertThat(deliveries.search(alice.getId(), null, "%", Pageable.unpaged())).isEmpty();
+        assertThat(deliveries.search(alice.getId(), null, "SD_1", Pageable.unpaged())).isEmpty();
+        assertThat(CustomerDeliveryRepository.containsPattern(" Kan_dy% ")).isEqualTo("%kan\\_dy\\%%");
     }
 
     @Test
