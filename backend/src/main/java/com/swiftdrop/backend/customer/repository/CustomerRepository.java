@@ -9,9 +9,7 @@ import java.util.UUID;
 public interface CustomerRepository extends JpaRepository<Customer, Long> {
 
     /** The logged-in customer: pass the "sub" claim of their access token. */
-    Optional<Customer> findByAuthUserId(UUID authUserId);
+    Optional<Customer> findByUserId(UUID userId);
 
-    boolean existsByAuthUserId(UUID authUserId);
-
-    boolean existsByEmailIgnoreCase(String email);
+    boolean existsByUserId(UUID userId);
 }

@@ -1,5 +1,8 @@
 package com.swiftdrop.backend.customer.service;
 
+import jakarta.persistence.EntityManager;
+import com.swiftdrop.backend.identity.AppUser;
+import com.swiftdrop.backend.identity.TestPeople;
 import com.swiftdrop.backend.customer.dto.CreateDeliveryRequest;
 import com.swiftdrop.backend.customer.dto.CustomerAddressRequest;
 import com.swiftdrop.backend.customer.dto.CustomerAddressResponse;
@@ -52,6 +55,9 @@ class CustomerModuleServicesTest {
     }
 
     @Autowired
+    private EntityManager em;
+
+    @Autowired
     private CustomerService customerService;
 
     @Autowired
@@ -68,8 +74,10 @@ class CustomerModuleServicesTest {
 
     @BeforeEach
     void registerTwoCustomers() {
-        customerService.register(alice, new RegisterCustomerRequest("Alice", "Fernando", " Alice@Example.com ", "0771111111"));
-        customerService.register(bob, new RegisterCustomerRequest("Bob", "Silva", "bob@example.com", "0772222222"));
+        customerService.register(TestPeople.saved(em, alice, "Alice Fernando", "CUSTOMER"),
+                new RegisterCustomerRequest(" 0771111111 "));
+        customerService.register(TestPeople.saved(em, bob, "Bob Silva", "CUSTOMER"),
+                new RegisterCustomerRequest("0772222222"));
     }
 
     private static CreateDeliveryRequest booking(DeliveryType type, String receiver, String city) {
@@ -84,15 +92,13 @@ class CustomerModuleServicesTest {
     // ---- Registration and profile ----
 
     @Test
-    void registrationStoresANormalisedEmailAndRejectsDuplicates() {
-        assertThat(customerService.getProfile(alice).email()).isEqualTo("alice@example.com");
+    void registrationTakesTheNameFromTheLoginAccountAndRejectsDuplicates() {
+        assertThat(customerService.getProfile(alice).name()).isEqualTo("Alice Fernando");
+        assertThat(customerService.getProfile(alice).phoneNumber()).isEqualTo("0771111111");
 
-        assertThatThrownBy(() -> customerService.register(alice,
-                new RegisterCustomerRequest("A", "F", "other@example.com", "0771111111")))
+        AppUser aliceAgain = em.find(AppUser.class, alice);
+        assertThatThrownBy(() -> customerService.register(aliceAgain, new RegisterCustomerRequest("0771111111")))
                 .isInstanceOf(ConflictException.class).hasMessageContaining("already registered");
-        assertThatThrownBy(() -> customerService.register(UUID.randomUUID(),
-                new RegisterCustomerRequest("A", "F", "ALICE@example.com", "0771111111")))
-                .isInstanceOf(ConflictException.class).hasMessageContaining("email");
     }
 
     @Test
@@ -106,8 +112,7 @@ class CustomerModuleServicesTest {
 
     @Test
     void updatesTheProfile() {
-        customerService.updateProfile(alice, new UpdateCustomerProfileRequest("Alicia", "Fernando", "0773333333"));
-        assertThat(customerService.getProfile(alice).firstName()).isEqualTo("Alicia");
+        customerService.updateProfile(alice, new UpdateCustomerProfileRequest("0773333333"));
         assertThat(customerService.getProfile(alice).phoneNumber()).isEqualTo("0773333333");
     }
 

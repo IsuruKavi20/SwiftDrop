@@ -1,5 +1,6 @@
 package com.swiftdrop.backend.customer.dto;
 
+import com.swiftdrop.backend.identity.TestPeople;
 import com.swiftdrop.backend.customer.entity.AddressType;
 import com.swiftdrop.backend.customer.entity.Customer;
 import com.swiftdrop.backend.customer.entity.Delivery;
@@ -72,14 +73,13 @@ class CustomerModuleDtoTest {
     }
 
     @Test
-    void registrationChecksEmailAndPhone() {
-        assertThat(invalidFields(new RegisterCustomerRequest("Nimal", "Perera", "not-an-email", "077")))
-                .containsExactlyInAnyOrder("email", "phoneNumber");
-        assertThat(invalidFields(new RegisterCustomerRequest("Nimal", "Perera", "nimal@example.com", "0771234567"))).isEmpty();
+    void registrationChecksThePhone() {
+        assertThat(invalidFields(new RegisterCustomerRequest("077"))).containsExactly("phoneNumber");
+        assertThat(invalidFields(new RegisterCustomerRequest("0771234567"))).isEmpty();
     }
 
     private static Delivery bookedDelivery() {
-        Customer customer = new Customer(UUID.randomUUID(), "Nimal", "Perera", "nimal@example.com", "0771234567");
+        Customer customer = new Customer(TestPeople.unsaved("Nimal Perera", "CUSTOMER"), "0771234567");
         Delivery delivery = new Delivery(customer, "SD-000001", "secret-public-token", DeliveryType.EXPRESS);
         delivery.setAddress(new DeliveryAddress(AddressType.PICKUP, "Nimal Perera", "0771234567",
                 "12 Galle Road", "Colombo", "Colombo", null));
@@ -87,7 +87,7 @@ class CustomerModuleDtoTest {
                 "5 Temple Road", "Kandy", "Kandy", null));
         delivery.addParcel(new Parcel("Passport documents", new BigDecimal("0.50"), BigDecimal.TEN, BigDecimal.TEN, BigDecimal.ONE));
         delivery.addTrackingEvent(new TrackingEvent(DeliveryStatus.IN_TRANSIT, "Left Colombo hub", "Colombo",
-                Instant.parse("2026-11-02T08:00:00Z"), UUID.randomUUID()));
+                Instant.parse("2026-11-02T08:00:00Z"), TestPeople.unsaved("Kasun Silva", "COURIER")));
         return delivery;
     }
 

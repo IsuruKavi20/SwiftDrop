@@ -11,11 +11,11 @@ import com.swiftdrop.backend.customer.exception.ConflictException;
 import com.swiftdrop.backend.customer.exception.NotFoundException;
 import com.swiftdrop.backend.customer.repository.CustomerAddressRepository;
 import com.swiftdrop.backend.customer.repository.CustomerRepository;
+import com.swiftdrop.backend.identity.AppUser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 
 /**
@@ -36,16 +36,12 @@ public class CustomerService {
 
     // ---- Registration and profile ----
 
-    public CustomerResponse register(UUID authUserId, RegisterCustomerRequest request) {
-        String email = request.email().trim().toLowerCase(Locale.ROOT);
-        if (customers.existsByAuthUserId(authUserId)) {
+    /** @param user the caller, from {@code UserDirectory.caller(token)} */
+    public CustomerResponse register(AppUser user, RegisterCustomerRequest request) {
+        if (customers.existsByUserId(user.getId())) {
             throw new ConflictException("You are already registered as a customer");
         }
-        if (customers.existsByEmailIgnoreCase(email)) {
-            throw new ConflictException("This email is already registered");
-        }
-        Customer customer = new Customer(authUserId, request.firstName().trim(), request.lastName().trim(),
-                email, request.phoneNumber().trim());
+        Customer customer = new Customer(user, request.phoneNumber().trim());
         return CustomerResponse.from(customers.save(customer));
     }
 
@@ -56,8 +52,6 @@ public class CustomerService {
 
     public CustomerResponse updateProfile(UUID authUserId, UpdateCustomerProfileRequest request) {
         Customer customer = requireCustomer(authUserId);
-        customer.setFirstName(request.firstName().trim());
-        customer.setLastName(request.lastName().trim());
         customer.setPhoneNumber(request.phoneNumber().trim());
         return CustomerResponse.from(customers.saveAndFlush(customer));
     }
@@ -65,7 +59,7 @@ public class CustomerService {
     /** The caller's customer record; 404 if they have not registered as a customer yet. Used by the other services. */
     @Transactional(readOnly = true)
     public Customer requireCustomer(UUID authUserId) {
-        return customers.findByAuthUserId(authUserId)
+        return customers.findByUserId(authUserId)
                 .orElseThrow(() -> new NotFoundException("Customer profile not found. Please complete registration first."));
     }
 

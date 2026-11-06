@@ -1,6 +1,7 @@
 package com.swiftdrop.backend.identity;
 
 import jakarta.persistence.EntityManager;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,6 +54,25 @@ public class UserDirectory {
     @Transactional
     public AppUser require(UUID id) {
         return get(id).filter(AppUser::isActive).orElseThrow(() -> new UnknownUserException(id));
+    }
+
+    /**
+     * The person calling us, from their access token. The first time we see them (or while their row is still a
+     * placeholder), they are copied from the token's own claims, so this works even when the directory is off.
+     * A valid token means auth considers them usable right now; the refresh fills in the rest (photo etc.).
+     */
+    @Transactional
+    public AppUser caller(Jwt token) {
+        UUID id = UUID.fromString(token.getSubject());
+        Optional<AppUser> local = users.findById(id);
+        if (local.isPresent() && local.get().getStatus() != AppUserStatus.PENDING_SYNC) {
+            return local.get();
+        }
+        List<String> roles = token.getClaimAsStringList("roles");
+        writer.save(new DirectoryPerson(id, token.getClaimAsString("name"), null, AppUserStatus.ACTIVE, true,
+                roles, null, null));
+        local.ifPresent(entityManager::detach);
+        return users.findById(id).orElseThrow();
     }
 
     /** Active people with this role, from the local copy, e.g. listByRole("COURIER"). */

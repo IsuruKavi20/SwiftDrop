@@ -59,6 +59,15 @@ public class AppUser {
         // for JPA
     }
 
+    /** Only for tests in this package (see TestPeople); real rows come from the auth service via AppUserWriter. */
+    AppUser(UUID id, String name, AppUserStatus status, boolean active, Set<String> roles) {
+        this.id = id;
+        this.name = name;
+        this.status = status;
+        this.active = active;
+        this.roles = Set.copyOf(roles);
+    }
+
     public UUID getId() { return id; }
 
     /** Empty when we don't know it yet or the person deleted their account. */

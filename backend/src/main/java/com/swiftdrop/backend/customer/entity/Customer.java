@@ -6,19 +6,21 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import com.swiftdrop.backend.identity.AppUser;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 /**
- * A customer's profile. Login is handled by the SwiftDrop auth service, so there is no password here:
- * {@code authUserId} is the "sub" claim of the customer's access token and links the token to this record.
+ * A customer's delivery profile. Who the person is (name, photo, login email) belongs to the auth service and is
+ * read through {@link AppUser}; this record keeps only what deliveries need (phone, saved addresses).
  */
 @Entity
 @Table(name = "customer")
@@ -29,17 +31,10 @@ public class Customer {
     @Column(name = "customer_id")
     private Long id;
 
-    @Column(name = "auth_user_id", nullable = false, unique = true, updatable = false)
-    private UUID authUserId;
-
-    @Column(name = "first_name", nullable = false, length = 100)
-    private String firstName;
-
-    @Column(name = "last_name", nullable = false, length = 100)
-    private String lastName;
-
-    @Column(nullable = false, unique = true, length = 150)
-    private String email;
+    /** The login account (auth service). Its id is the "sub" claim of the customer's access token. */
+    @OneToOne(optional = false)
+    @JoinColumn(name = "auth_user_id", nullable = false, unique = true, updatable = false)
+    private AppUser user;
 
     @Column(name = "phone_number", nullable = false, length = 20)
     private String phoneNumber;
@@ -59,11 +54,8 @@ public class Customer {
         // for JPA
     }
 
-    public Customer(UUID authUserId, String firstName, String lastName, String email, String phoneNumber) {
-        this.authUserId = authUserId;
-        this.firstName = firstName;
-        this.lastName = lastName;
-        this.email = email;
+    public Customer(AppUser user, String phoneNumber) {
+        this.user = user;
         this.phoneNumber = phoneNumber;
     }
 
@@ -78,13 +70,7 @@ public class Customer {
     }
 
     public Long getId() { return id; }
-    public UUID getAuthUserId() { return authUserId; }
-    public String getFirstName() { return firstName; }
-    public void setFirstName(String firstName) { this.firstName = firstName; }
-    public String getLastName() { return lastName; }
-    public void setLastName(String lastName) { this.lastName = lastName; }
-    public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
+    public AppUser getUser() { return user; }
     public String getPhoneNumber() { return phoneNumber; }
     public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
     public Instant getCreatedAt() { return createdAt; }
