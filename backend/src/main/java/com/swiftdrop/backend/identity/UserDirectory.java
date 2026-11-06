@@ -1,0 +1,68 @@
+package com.swiftdrop.backend.identity;
+
+import jakarta.persistence.EntityManager;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+/**
+ * The one thing other modules use to find people. Reads the local copy first (fast, works while auth is down);
+ * asks the auth service only for someone we haven't copied yet.
+ *
+ * <pre>{@code
+ * AppUser courier = userDirectory.require(courierId);   // exists and may be used, or UnknownUserException
+ * }</pre>
+ */
+@Service
+public class UserDirectory {
+
+    private final AppUserRepository users;
+    private final AppUserWriter writer;
+    private final DirectoryClient directory;
+    private final EntityManager entityManager;
+
+    UserDirectory(AppUserRepository users, AppUserWriter writer, DirectoryClient directory,
+                  EntityManager entityManager) {
+        this.users = users;
+        this.writer = writer;
+        this.directory = directory;
+        this.entityManager = entityManager;
+    }
+
+    /** The person, copying them from auth the first time. Empty if auth doesn't know them. */
+    @Transactional
+    public Optional<AppUser> get(UUID id) {
+        Optional<AppUser> local = users.findById(id);
+        if (local.isPresent() && local.get().getStatus() != AppUserStatus.PENDING_SYNC) {
+            return local;
+        }
+        Optional<DirectoryPerson> remote = directory.get(id, false);
+        if (remote.isEmpty()) {
+            return Optional.empty();
+        }
+        writer.save(remote.get());
+        // The writer uses SQL, so JPA's remembered placeholder is now old: forget it and read the fresh row
+        local.ifPresent(entityManager::detach);
+        return users.findById(id);
+    }
+
+    /** The person if they exist and may be used (not blocked or deleted); otherwise UnknownUserException. */
+    @Transactional
+    public AppUser require(UUID id) {
+        return get(id).filter(AppUser::isActive).orElseThrow(() -> new UnknownUserException(id));
+    }
+
+    /** Active people with this role, from the local copy, e.g. listByRole("COURIER"). */
+    @Transactional(readOnly = true)
+    public List<AppUser> listByRole(String role) {
+        return users.findByRolesContainingAndActiveTrue(role);
+    }
+
+    /** Asked live, never stored: only call it when you are about to send an email. */
+    public Optional<String> email(UUID id) {
+        return directory.get(id, true).map(DirectoryPerson::email);
+    }
+}
