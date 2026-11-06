@@ -5,5 +5,3 @@
 /frontend/src/features/auth/                                  @IsuruKavi20
 /docs/AUTH.md                                                 @IsuruKavi20
 /.github/CODEOWNERS                                           @IsuruKavi20
-/backend/src/main/java/com/swiftdrop/backend/identity/        @IsuruKavi20
-/backend/src/test/java/com/swiftdrop/backend/identity/        @IsuruKavi20
