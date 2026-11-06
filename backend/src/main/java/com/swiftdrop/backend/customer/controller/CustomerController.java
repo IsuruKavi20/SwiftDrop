@@ -7,6 +7,7 @@ import com.swiftdrop.backend.customer.dto.RegisterCustomerRequest;
 import com.swiftdrop.backend.customer.dto.UpdateCustomerProfileRequest;
 import com.swiftdrop.backend.customer.service.CustomerService;
 import jakarta.validation.Valid;
+import com.swiftdrop.backend.identity.UserDirectory;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -33,16 +34,18 @@ import java.util.List;
 class CustomerController {
 
     private final CustomerService customers;
+    private final UserDirectory userDirectory;
 
-    CustomerController(CustomerService customers) {
+    CustomerController(CustomerService customers, UserDirectory userDirectory) {
         this.customers = customers;
+        this.userDirectory = userDirectory;
     }
 
     /** Called once after the user signs up at the auth service: creates their customer profile. */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     CustomerResponse register(@Valid @RequestBody RegisterCustomerRequest request, @AuthenticationPrincipal Jwt user) {
-        return customers.register(CurrentUser.id(user), request);
+        return customers.register(userDirectory.caller(user), request);
     }
 
     @GetMapping

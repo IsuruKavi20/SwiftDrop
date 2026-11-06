@@ -12,8 +12,9 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
+import com.swiftdrop.backend.identity.AppUser;
+
 import java.time.Instant;
-import java.util.UUID;
 
 /** One step in a delivery's tracking timeline. Add it through {@link Delivery#addTrackingEvent}. */
 @Entity
@@ -42,15 +43,16 @@ public class TrackingEvent {
     @Column(name = "event_time", nullable = false, updatable = false)
     private Instant eventTime;
 
-    /** User id (auth service) of the courier or admin who recorded the event; null for system events. */
-    @Column(name = "recorded_by", updatable = false)
-    private UUID recordedBy;
+    /** The courier or admin who recorded the event; null for system events. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "recorded_by", updatable = false)
+    private AppUser recordedBy;
 
     protected TrackingEvent() {
         // for JPA
     }
 
-    public TrackingEvent(DeliveryStatus status, String description, String locationName, Instant eventTime, UUID recordedBy) {
+    public TrackingEvent(DeliveryStatus status, String description, String locationName, Instant eventTime, AppUser recordedBy) {
         this.status = status;
         this.description = description;
         this.locationName = locationName;
@@ -65,5 +67,5 @@ public class TrackingEvent {
     public String getDescription() { return description; }
     public String getLocationName() { return locationName; }
     public Instant getEventTime() { return eventTime; }
-    public UUID getRecordedBy() { return recordedBy; }
+    public AppUser getRecordedBy() { return recordedBy; }
 }

@@ -1,5 +1,6 @@
 package com.swiftdrop.backend.customer.entity;
 
+import com.swiftdrop.backend.identity.TestPeople;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceException;
 import org.junit.jupiter.api.Test;
@@ -27,7 +28,7 @@ class CustomerModuleEntitiesTest {
 
     @Test
     void savesAndReadsBackACompleteBooking() {
-        Customer customer = new Customer(UUID.randomUUID(), "Nimal", "Perera", "nimal@example.com", "0771234567");
+        Customer customer = new Customer(TestPeople.saved(em, "Nimal Perera", "CUSTOMER"), "0771234567");
         CustomerAddress home = new CustomerAddress("Home", "12 Galle Road", "Colombo", "Colombo", "00300");
         home.setDefaultAddress(true);
         customer.addAddress(home);
@@ -47,7 +48,7 @@ class CustomerModuleEntitiesTest {
         em.clear();
 
         Delivery saved = em.find(Delivery.class, delivery.getId());
-        assertThat(saved.getCustomer().getEmail()).isEqualTo("nimal@example.com");
+        assertThat(saved.getCustomer().getUser().getName()).contains("Nimal Perera");
         assertThat(saved.getStatus()).isEqualTo(DeliveryStatus.PICKED_UP);
         assertThat(saved.getCreatedAt()).isNotNull();
         assertThat(saved.getPickupAddress()).get().extracting(DeliveryAddress::getCity).isEqualTo("Colombo");
@@ -60,7 +61,7 @@ class CustomerModuleEntitiesTest {
 
     @Test
     void editingASavedAddressDoesNotChangePastDeliveries() {
-        Customer customer = new Customer(UUID.randomUUID(), "Nimal", "Perera", "nimal2@example.com", "0771234567");
+        Customer customer = new Customer(TestPeople.saved(em, "Nimal Perera", "CUSTOMER"), "0771234567");
         CustomerAddress home = new CustomerAddress("Home", "12 Galle Road", "Colombo", "Colombo", null);
         customer.addAddress(home);
         em.persist(customer);
@@ -78,8 +79,21 @@ class CustomerModuleEntitiesTest {
     }
 
     @Test
+    void theDatabaseRefusesACourierWhoIsNotAKnownPerson() {
+        Customer customer = new Customer(TestPeople.saved(em, "Nimal Perera", "CUSTOMER"), "0771234567");
+        em.persist(customer);
+        Delivery delivery = new Delivery(customer, "SD-000004", UUID.randomUUID().toString(), DeliveryType.STANDARD);
+        delivery.assignCourier(TestPeople.unsaved("Not In app_users", "COURIER"));
+
+        assertThatThrownBy(() -> {
+            em.persist(delivery);
+            em.flush();
+        }).isInstanceOf(RuntimeException.class);
+    }
+
+    @Test
     void trackingNumbersAreUnique() {
-        Customer customer = new Customer(UUID.randomUUID(), "Nimal", "Perera", "nimal3@example.com", "0771234567");
+        Customer customer = new Customer(TestPeople.saved(em, "Nimal Perera", "CUSTOMER"), "0771234567");
         em.persist(customer);
         em.persist(new Delivery(customer, "SD-000003", UUID.randomUUID().toString(), DeliveryType.STANDARD));
         Delivery duplicate = new Delivery(customer, "SD-000003", UUID.randomUUID().toString(), DeliveryType.STANDARD);

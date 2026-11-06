@@ -104,6 +104,21 @@ class UserDirectoryTest {
         assertThat(userDirectory.listByRole("COURIER")).extracting(AppUser::getId).contains(kasun);
     }
 
+    @Test
+    void theCallerIsCopiedFromTheirTokenWithoutAskingAuth() {
+        UUID nimal = UUID.randomUUID();
+        org.springframework.security.oauth2.jwt.Jwt token = org.springframework.security.oauth2.jwt.Jwt
+                .withTokenValue("t").header("alg", "RS256").subject(nimal.toString())
+                .claim("name", "Nimal Perera").claim("roles", List.of("CUSTOMER")).build();
+
+        AppUser caller = userDirectory.caller(token);
+
+        assertThat(caller.getName()).contains("Nimal Perera");
+        assertThat(caller.hasRole("CUSTOMER")).isTrue();
+        assertThat(caller.isActive()).isTrue();
+        verify(directory, never()).get(any(), anyBoolean());
+    }
+
     private void insertStale(UUID id, String name) {
         jdbc.update("INSERT INTO app_users (id, name, status, active, synced_at) VALUES (?, ?, 'ACTIVE', TRUE, ?)",
                 id, name, java.sql.Timestamp.from(Instant.parse("2020-01-01T00:00:00Z")));

@@ -55,7 +55,7 @@ public class DeliveryBookingService {
         delivery.setAddress(toDeliveryAddress(AddressType.DESTINATION, request.destination()));
         request.parcels().forEach(parcel -> delivery.addParcel(toParcel(parcel)));
         delivery.addTrackingEvent(new TrackingEvent(DeliveryStatus.PENDING, "Booking created, awaiting confirmation",
-                null, clock.instant(), authUserId));
+                null, clock.instant(), customer.getUser()));
 
         return DeliveryDetailsResponse.from(deliveries.save(delivery));
     }
@@ -69,7 +69,7 @@ public class DeliveryBookingService {
             throw new ConflictException("Only a pending booking can be confirmed; this one is " + delivery.getStatus());
         }
         delivery.addTrackingEvent(new TrackingEvent(DeliveryStatus.CONFIRMED, "Booking confirmed", null,
-                clock.instant(), authUserId));
+                clock.instant(), customer.getUser()));
         return DeliveryDetailsResponse.from(deliveries.saveAndFlush(delivery));
     }
 
