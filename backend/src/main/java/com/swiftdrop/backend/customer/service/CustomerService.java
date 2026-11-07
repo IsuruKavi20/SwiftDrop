@@ -41,7 +41,8 @@ public class CustomerService {
         if (customers.existsByUserId(user.getId())) {
             throw new ConflictException("You are already registered as a customer");
         }
-        Customer customer = new Customer(user, request.phoneNumber().trim());
+        Customer customer = new Customer(user, request.firstName().trim(), request.lastName().trim(),
+                request.email().trim(), request.phoneNumber().trim());
         return CustomerResponse.from(customers.save(customer));
     }
 
@@ -53,6 +54,10 @@ public class CustomerService {
     public CustomerResponse updateProfile(UUID authUserId, UpdateCustomerProfileRequest request) {
         Customer customer = requireCustomer(authUserId);
         customer.setPhoneNumber(request.phoneNumber().trim());
+        customer.setDetails(
+                keepIfBlank(request.firstName(), customer.getFirstName()),
+                keepIfBlank(request.lastName(), customer.getLastName()),
+                keepIfBlank(request.email(), customer.getEmail()));
         return CustomerResponse.from(customers.saveAndFlush(customer));
     }
 
@@ -115,6 +120,10 @@ public class CustomerService {
 
     private void clearDefault(Long customerId) {
         addresses.findByCustomerIdAndDefaultAddressTrue(customerId).ifPresent(current -> current.setDefaultAddress(false));
+    }
+
+    private static String keepIfBlank(String value, String current) {
+        return value == null || value.isBlank() ? current : value.trim();
     }
 
     static String blankToNull(String value) {

@@ -40,7 +40,7 @@ public class AppUser {
     @Column(nullable = false, length = 20)
     private AppUserStatus status;
 
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "BOOLEAN DEFAULT FALSE")
     private boolean active;
 
     @Column(name = "last_modified")

@@ -73,9 +73,9 @@ class CustomerModuleDtoTest {
     }
 
     @Test
-    void registrationChecksThePhone() {
-        assertThat(invalidFields(new RegisterCustomerRequest("077"))).containsExactly("phoneNumber");
-        assertThat(invalidFields(new RegisterCustomerRequest("0771234567"))).isEmpty();
+    void registrationChecksTheEmailAndPhone() {
+        assertThat(invalidFields(new RegisterCustomerRequest("Nimal", "Perera", "not-an-email", "077"))).containsExactlyInAnyOrder("email", "phoneNumber");
+        assertThat(invalidFields(new RegisterCustomerRequest("Nimal", "Perera", "nimal@example.com", "0771234567"))).isEmpty();
     }
 
     private static Delivery bookedDelivery() {

@@ -3,7 +3,7 @@ import lockIcon from '../../../assets/auth/icon-lock.svg';
 import mailIcon from '../../../assets/auth/icon-mail.svg';
 import userIcon from '../../../assets/auth/icon-user.svg';
 import { navigate, routes } from '../../../app/router';
-import { AuthError, signUp, startGoogleLogin } from '../api/authApi';
+import { AuthError, logIn, signUp, startGoogleLogin } from '../api/authApi';
 import { AuthLayout } from '../components/AuthLayout';
 import { Alert, Divider, GoogleButton, PrimaryButton, TextField } from '../components/FormControls';
 import styles from '../components/FormControls.module.css';
@@ -31,7 +31,15 @@ export function SignupPage() {
     try {
       // Full name is in the design but not stored yet: the auth service accepts only email + password
       await signUp(email, password);
-      setDone(true);
+      // Sign the new customer straight in and open their dashboard. If the auth service won't log them in yet
+      // (for example the email still needs confirming), fall back to the "check your inbox" message.
+      try {
+        await logIn(email, password);
+        navigate(routes.customerDashboard);
+        return;
+      } catch {
+        setDone(true);
+      }
     } catch (failure) {
       setError(failure instanceof AuthError ? failure.message : 'Cannot reach SwiftDrop. Check your connection.');
     } finally {
