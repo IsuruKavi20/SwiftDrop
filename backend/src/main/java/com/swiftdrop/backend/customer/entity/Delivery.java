@@ -14,6 +14,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import com.swiftdrop.backend.identity.AppUser;
 import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -42,9 +43,10 @@ public class Delivery {
     @JoinColumn(name = "customer_id", nullable = false, updatable = false)
     private Customer customer;
 
-    /** The assigned courier's user id in the auth service; null until a courier is assigned. */
-    @Column(name = "courier_id")
-    private UUID courierId;
+    /** The assigned courier (a person from the auth service); null until a courier is assigned. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "courier_id")
+    private AppUser courier;
 
     @Column(name = "tracking_number", nullable = false, unique = true, updatable = false, length = 30)
     private String trackingNumber;
@@ -146,8 +148,9 @@ public class Delivery {
 
     public Long getId() { return id; }
     public Customer getCustomer() { return customer; }
-    public UUID getCourierId() { return courierId; }
-    public void setCourierId(UUID courierId) { this.courierId = courierId; }
+    public AppUser getCourier() { return courier; }
+    /** Get the courier with UserDirectory.require(id) first: it checks they exist and are not blocked. */
+    public void assignCourier(AppUser courier) { this.courier = courier; }
     public String getTrackingNumber() { return trackingNumber; }
     public String getPublicTrackingToken() { return publicTrackingToken; }
     public DeliveryType getDeliveryType() { return deliveryType; }

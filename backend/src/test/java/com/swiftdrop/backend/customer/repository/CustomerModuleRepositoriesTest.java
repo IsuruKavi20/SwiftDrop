@@ -1,5 +1,7 @@
 package com.swiftdrop.backend.customer.repository;
 
+import jakarta.persistence.EntityManager;
+import com.swiftdrop.backend.identity.TestPeople;
 import com.swiftdrop.backend.customer.entity.AddressType;
 import com.swiftdrop.backend.customer.entity.Customer;
 import com.swiftdrop.backend.customer.entity.CustomerAddress;
@@ -27,6 +29,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 class CustomerModuleRepositoriesTest {
 
     @Autowired
+    private EntityManager em;
+
+    @Autowired
     private CustomerRepository customers;
 
     @Autowired
@@ -46,13 +51,13 @@ class CustomerModuleRepositoriesTest {
 
     @BeforeEach
     void twoCustomersWithDeliveries() {
-        alice = new Customer(UUID.randomUUID(), "Alice", "Fernando", "alice@example.com", "0771111111");
+        alice = new Customer(TestPeople.saved(em, "Alice Fernando", "CUSTOMER"), "0771111111");
         alice.addAddress(new CustomerAddress("Office", "1 Main St", "Colombo", "Colombo", null));
         CustomerAddress home = new CustomerAddress("Home", "2 Lake Rd", "Colombo", "Colombo", null);
         home.setDefaultAddress(true);
         alice.addAddress(home);
         customers.save(alice);
-        bob = customers.save(new Customer(UUID.randomUUID(), "Bob", "Silva", "bob@example.com", "0772222222"));
+        bob = customers.save(new Customer(TestPeople.saved(em, "Bob Silva", "CUSTOMER"), "0772222222"));
 
         aliceToKandy = delivery(alice, "SD-100001", "Kamal Perera", "Kandy");
         aliceToKandy.addTrackingEvent(new TrackingEvent(DeliveryStatus.CONFIRMED, "Booking confirmed", null,
@@ -72,8 +77,9 @@ class CustomerModuleRepositoriesTest {
 
     @Test
     void findsTheLoggedInCustomerByTheirTokenSubject() {
-        assertThat(customers.findByAuthUserId(alice.getAuthUserId())).get().extracting(Customer::getEmail).isEqualTo("alice@example.com");
-        assertThat(customers.existsByEmailIgnoreCase("ALICE@example.com")).isTrue();
+        assertThat(customers.findByUserId(alice.getUser().getId())).get().extracting(Customer::getPhoneNumber)
+                .isEqualTo("0771111111");
+        assertThat(customers.existsByUserId(bob.getUser().getId())).isTrue();
     }
 
     @Test
