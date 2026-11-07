@@ -10,6 +10,7 @@ export const routes = {
   googleCallback: '/auth/callback',
   verifyEmail: '/verify-email',
   account: '/account',
+  customerDashboard: '/customer/dashboard',
 } as const;
 
 export function navigate(path: string): void {

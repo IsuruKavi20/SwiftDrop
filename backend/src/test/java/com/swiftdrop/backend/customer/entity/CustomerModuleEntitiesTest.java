@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * The Flyway migration creates the tables (Hibernate validates the entities against them at startup);
+ * Hibernate creates the tables from the entities at startup;
  * these tests save and read back a whole booking through the entities.
  */
 @SpringBootTest

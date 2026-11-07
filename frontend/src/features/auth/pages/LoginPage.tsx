@@ -3,6 +3,7 @@ import lockIcon from '../../../assets/auth/icon-lock.svg';
 import mailIcon from '../../../assets/auth/icon-mail.svg';
 import { navigate, routes } from '../../../app/router';
 import { AuthError, logIn, startGoogleLogin } from '../api/authApi';
+import { landingPage } from '../lib/landing';
 import { AuthLayout } from '../components/AuthLayout';
 import { Alert, Divider, GoogleButton, PrimaryButton, TextField } from '../components/FormControls';
 import styles from '../components/FormControls.module.css';
@@ -20,7 +21,7 @@ export function LoginPage() {
     setBusy(true);
     try {
       await logIn(email, password);
-      navigate(routes.account);
+      navigate(landingPage());
     } catch (failure) {
       // The service answers wrong email and wrong password the same way (no hint which one was wrong)
       setError(failure instanceof AuthError ? failure.message : 'Cannot reach SwiftDrop. Check your connection.');

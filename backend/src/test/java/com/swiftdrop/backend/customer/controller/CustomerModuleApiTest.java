@@ -55,7 +55,8 @@ class CustomerModuleApiTest {
     private void register(UUID userId, String email) throws Exception {
         mockMvc.perform(post("/api/customers/me").with(customer(userId)).contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"phoneNumber":"0771234567"}"""))
+                                {"firstName":"Alice","lastName":"Fernando","email":"%s","phoneNumber":"0771234567"}"""
+                                .formatted(email)))
                 .andExpect(status().isCreated());
     }
 
@@ -119,7 +120,9 @@ class CustomerModuleApiTest {
 
         mockMvc.perform(get("/api/customers/me").with(customer(alice)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value("Test User"));
+                .andExpect(jsonPath("$.firstName").value("Alice"))
+                .andExpect(jsonPath("$.lastName").value("Fernando"))
+                .andExpect(jsonPath("$.email").value("alice@example.com"));
         mockMvc.perform(put("/api/customers/me").with(customer(alice)).contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"phoneNumber":"+94773333333"}"""))
@@ -132,7 +135,7 @@ class CustomerModuleApiTest {
         register(alice, "alice@example.com");
         mockMvc.perform(post("/api/customers/me").with(customer(alice)).contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"phoneNumber":"0771234567"}"""))
+                                {"firstName":"Alice","lastName":"Fernando","email":"alice@example.com","phoneNumber":"0771234567"}"""))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.detail").value("You are already registered as a customer"));
     }
