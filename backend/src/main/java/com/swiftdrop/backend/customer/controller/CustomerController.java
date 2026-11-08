@@ -7,7 +7,7 @@ import com.swiftdrop.backend.customer.dto.RegisterCustomerRequest;
 import com.swiftdrop.backend.customer.dto.UpdateCustomerProfileRequest;
 import com.swiftdrop.backend.customer.service.CustomerService;
 import jakarta.validation.Valid;
-import com.swiftdrop.backend.identity.UserDirectory;
+import com.swiftdrop.backend.identity.service.UserDirectory;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;

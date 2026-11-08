@@ -45,6 +45,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(requests -> requests
                         // Public parcel tracking: no login, read-only, answers hold no private data
                         .requestMatchers(HttpMethod.GET, "/api/public/**").permitAll()
+                        // Identity events from the auth service: no login, the SET's own signature is the proof
+                        // (checked by the identity module's SetVerifier); rate-limited there
+                        .requestMatchers(HttpMethod.POST, "/internal/identity-events").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(server -> server.jwt(jwt -> jwt.jwtAuthenticationConverter(authenticationConverter())))
                 // Tokens, not cookies: no session and nothing for CSRF to abuse

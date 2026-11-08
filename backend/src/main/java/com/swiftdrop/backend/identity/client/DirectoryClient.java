@@ -1,5 +1,8 @@
-package com.swiftdrop.backend.identity;
+package com.swiftdrop.backend.identity.client;
 
+import com.swiftdrop.backend.identity.config.IdentityProperties;
+import com.swiftdrop.backend.identity.entity.AppUserStatus;
+import com.swiftdrop.backend.identity.exception.DirectoryUnavailableException;
 import tools.jackson.databind.JsonNode;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
@@ -22,11 +25,12 @@ import java.util.UUID;
  * until shortly before it ends, and reads people from the Directory API. Any failure becomes
  * {@link DirectoryUnavailableException}, so callers have one thing to handle.
  */
-class DirectoryClient {
+public class DirectoryClient {
 
-    static final int MAX_LOOKUP = 100;
+    public static final int MAX_LOOKUP = 100;
     private static final Duration RENEW_BEFORE_EXPIRY = Duration.ofSeconds(60);
     private static final String USERS = "/api/v1/directory/users";
+    private static final String EVENTS_POLL = "/api/v1/events/poll";
 
     private final RestClient http;
     private final IdentityProperties properties;
@@ -34,14 +38,14 @@ class DirectoryClient {
     private String token;
     private Instant tokenExpiresAt = Instant.MIN;
 
-    DirectoryClient(RestClient http, IdentityProperties properties, Clock clock) {
+    public DirectoryClient(RestClient http, IdentityProperties properties, Clock clock) {
         this.http = http;
         this.properties = properties;
         this.clock = clock;
     }
 
     /** Empty when the auth service doesn't know this id (404). */
-    Optional<DirectoryPerson> get(UUID id, boolean withEmail) {
+    public Optional<DirectoryPerson> get(UUID id, boolean withEmail) {
         try {
             JsonNode body = http.get().uri(USERS + "/{id}", id)
                     .headers(headers -> headers.setBearerAuth(token()))
@@ -58,7 +62,7 @@ class DirectoryClient {
     }
 
     /** People for these ids (at most 100). Unknown ids are simply missing from the answer. */
-    List<DirectoryPerson> lookup(Collection<UUID> ids) {
+    public List<DirectoryPerson> lookup(Collection<UUID> ids) {
         if (ids.isEmpty()) {
             return List.of();
         }
@@ -80,6 +84,32 @@ class DirectoryClient {
         } catch (RestClientException failure) {
             throw new DirectoryUnavailableException("Directory lookup failed", failure);
         }
+    }
+
+    /**
+     * RFC 8936 poll: acknowledges what we processed (and reports SETs we refused), then returns up to maxEvents new
+     * SETs (jti → serialized SET). Needs the permission events:read on our service client.
+     */
+    public PollAnswer pollEvents(List<String> ack, Map<String, Map<String, String>> setErrs, int maxEvents) {
+        try {
+            JsonNode body = http.post().uri(EVENTS_POLL)
+                    .headers(headers -> headers.setBearerAuth(token()))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("ack", List.copyOf(ack), "setErrs", Map.copyOf(setErrs), "maxEvents", maxEvents))
+                    .retrieve()
+                    .body(JsonNode.class);
+            Map<String, String> sets = new java.util.LinkedHashMap<>();
+            if (body != null) {
+                body.path("sets").properties().forEach(entry -> sets.put(entry.getKey(), entry.getValue().asString()));
+            }
+            return new PollAnswer(sets, body != null && body.path("moreAvailable").asBoolean(false));
+        } catch (RestClientException failure) {
+            throw new DirectoryUnavailableException("Event poll failed", failure);
+        }
+    }
+
+    /** @param sets jti → serialized SET, in the order auth sent them */
+    public record PollAnswer(Map<String, String> sets, boolean moreAvailable) {
     }
 
     private synchronized String token() {

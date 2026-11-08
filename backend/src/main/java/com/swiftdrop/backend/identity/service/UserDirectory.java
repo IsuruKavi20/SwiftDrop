@@ -1,10 +1,18 @@
-package com.swiftdrop.backend.identity;
+package com.swiftdrop.backend.identity.service;
 
+import com.swiftdrop.backend.identity.client.DirectoryClient;
+import com.swiftdrop.backend.identity.client.DirectoryPerson;
+import com.swiftdrop.backend.identity.entity.AppUser;
+import com.swiftdrop.backend.identity.entity.AppUserStatus;
+import com.swiftdrop.backend.identity.exception.UnknownUserException;
+import com.swiftdrop.backend.identity.repository.AppUserRepository;
+import com.swiftdrop.backend.identity.repository.AppUserWriter;
 import jakarta.persistence.EntityManager;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -40,11 +48,12 @@ public class UserDirectory {
         if (local.isPresent() && local.get().getStatus() != AppUserStatus.PENDING_SYNC) {
             return local;
         }
+        Instant lookedUpAt = Instant.now();
         Optional<DirectoryPerson> remote = directory.get(id, false);
         if (remote.isEmpty()) {
             return Optional.empty();
         }
-        writer.save(remote.get());
+        writer.saveFromDirectory(remote.get(), lookedUpAt);
         // The writer uses SQL, so JPA's remembered placeholder is now old: forget it and read the fresh row
         local.ifPresent(entityManager::detach);
         return users.findById(id);

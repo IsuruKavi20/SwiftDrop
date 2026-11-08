@@ -1,8 +1,8 @@
 package com.swiftdrop.backend.customer.service;
 
 import jakarta.persistence.EntityManager;
-import com.swiftdrop.backend.identity.AppUser;
-import com.swiftdrop.backend.identity.TestPeople;
+import com.swiftdrop.backend.identity.entity.AppUser;
+import com.swiftdrop.backend.identity.entity.TestPeople;
 import com.swiftdrop.backend.customer.dto.CreateDeliveryRequest;
 import com.swiftdrop.backend.customer.dto.CustomerAddressRequest;
 import com.swiftdrop.backend.customer.dto.CustomerAddressResponse;

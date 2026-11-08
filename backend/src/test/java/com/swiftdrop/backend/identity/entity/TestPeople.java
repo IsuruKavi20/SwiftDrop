@@ -1,4 +1,4 @@
-package com.swiftdrop.backend.identity;
+package com.swiftdrop.backend.identity.entity;
 
 import jakarta.persistence.EntityManager;
 

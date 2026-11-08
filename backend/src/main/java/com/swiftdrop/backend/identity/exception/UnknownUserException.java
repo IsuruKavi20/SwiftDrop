@@ -1,4 +1,4 @@
-package com.swiftdrop.backend.identity;
+package com.swiftdrop.backend.identity.exception;
 
 import java.util.UUID;
 

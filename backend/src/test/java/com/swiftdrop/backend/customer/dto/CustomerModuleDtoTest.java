@@ -1,6 +1,6 @@
 package com.swiftdrop.backend.customer.dto;
 
-import com.swiftdrop.backend.identity.TestPeople;
+import com.swiftdrop.backend.identity.entity.TestPeople;
 import com.swiftdrop.backend.customer.entity.AddressType;
 import com.swiftdrop.backend.customer.entity.Customer;
 import com.swiftdrop.backend.customer.entity.Delivery;
