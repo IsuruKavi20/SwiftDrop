@@ -1,7 +1,7 @@
 package com.swiftdrop.backend.dispatcher.entity;
 
 import com.swiftdrop.backend.customer.entity.Delivery;
-import com.swiftdrop.backend.identity.AppUser;
+import com.swiftdrop.backend.identity.entity.AppUser;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
