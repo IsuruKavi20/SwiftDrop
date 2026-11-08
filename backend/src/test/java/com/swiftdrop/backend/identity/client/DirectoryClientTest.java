@@ -1,5 +1,7 @@
-package com.swiftdrop.backend.identity;
+package com.swiftdrop.backend.identity.client;
 
+import com.swiftdrop.backend.identity.config.IdentityProperties;
+import com.swiftdrop.backend.identity.exception.DirectoryUnavailableException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -23,7 +25,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
-class DirectoryClientTest {
+public class DirectoryClientTest {
 
     private static final String AUTH = "https://auth.test";
     private static final UUID KASUN = UUID.fromString("7f3a0000-0000-0000-0000-000000000001");

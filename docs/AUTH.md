@@ -120,7 +120,39 @@ Hiding a button is only for looks. **The backend is what really blocks** people 
 
 Put new pages in `src/features/<feature>/pages/` and their API calls in `src/features/<feature>/api/`.
 
-## 7. Settings (you normally don't change these)
+## 7. When a user changes (deleted, blocked, lost a role)
+The `identity` module keeps people up to date and tells your module through 3 messages:
+
+| Message | Means |
+|---|---|
+| `UserDeleted(userId)` | the person deleted their account |
+| `UserDeactivated(userId)` | an admin blocked the person |
+| `RoleRevoked(userId, role)` | the person lost a role (e.g. `COURIER`) |
+
+**Your module stores personal data (phone, addresses, notes)?** Listen to `UserDeleted` and erase or anonymise that
+person's rows. This is the privacy law, not optional.
+```java
+@TransactionalEventListener
+void on(UserDeleted event) {
+    customers.anonymise(event.userId());
+}
+```
+
+**Your module assigns couriers or work?** Listen to `UserDeactivated` and `RoleRevoked`, e.g. unassign their open
+deliveries.
+```java
+@TransactionalEventListener
+void on(RoleRevoked event) {
+    if ("COURIER".equals(event.role())) deliveries.unassignOpen(event.userId());
+}
+```
+
+Use `@TransactionalEventListener` (not `@EventListener`): you only react once the change is really saved.
+Get people through `AppUser` and `userDirectory`, and never write the `app_users` tables yourself.
+Very rarely (the server crashes at exactly the wrong moment) a message can be missed. So when you use a person
+for something important, also check `AppUser.isActive()` (or use `userDirectory.require(id)`).
+
+## 8. Settings (you normally don't change these)
 | Where | Setting | Default |
 |---|---|---|
 | backend | `SWIFTDROP_AUTH_ISSUER` | `https://auth.getswiftdrop.me` |

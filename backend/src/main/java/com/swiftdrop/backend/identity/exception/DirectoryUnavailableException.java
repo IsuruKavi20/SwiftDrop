@@ -1,4 +1,4 @@
-package com.swiftdrop.backend.identity;
+package com.swiftdrop.backend.identity.exception;
 
 /** The auth service's Directory API can't be reached, refused us, or isn't configured. */
 public class DirectoryUnavailableException extends RuntimeException {

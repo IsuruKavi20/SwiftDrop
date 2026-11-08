@@ -28,8 +28,8 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 /** Always answers the same way whether or not the email is new (the service hides which emails exist). */
-export function signUp(email: string, password: string): Promise<void> {
-  return post<void>('/api/v1/auth/signup', { email, password });
+export function signUp(name: string, email: string, password: string): Promise<void> {
+  return post<void>('/api/v1/auth/signup', { name, email, password });
 }
 
 export async function logIn(email: string, password: string): Promise<void> {

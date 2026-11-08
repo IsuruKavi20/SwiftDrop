@@ -1,4 +1,4 @@
-package com.swiftdrop.backend.identity;
+package com.swiftdrop.backend.identity.entity;
 
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
@@ -40,7 +40,7 @@ public class AppUser {
     @Column(nullable = false, length = 20)
     private AppUserStatus status;
 
-    @Column(nullable = false, columnDefinition = "BOOLEAN DEFAULT FALSE")
+    @Column(nullable = false)
     private boolean active;
 
     @Column(name = "last_modified")

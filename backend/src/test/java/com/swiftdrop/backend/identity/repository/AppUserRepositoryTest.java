@@ -1,5 +1,7 @@
-package com.swiftdrop.backend.identity;
+package com.swiftdrop.backend.identity.repository;
 
+import com.swiftdrop.backend.identity.entity.AppUser;
+import com.swiftdrop.backend.identity.entity.AppUserStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @Transactional
-class AppUserRepositoryTest {
+public class AppUserRepositoryTest {
 
     private static final UUID COURIER = UUID.randomUUID();
     private static final UUID BLOCKED_COURIER = UUID.randomUUID();

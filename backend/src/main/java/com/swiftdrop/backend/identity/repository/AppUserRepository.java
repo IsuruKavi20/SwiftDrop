@@ -1,5 +1,6 @@
-package com.swiftdrop.backend.identity;
+package com.swiftdrop.backend.identity.repository;
 
+import com.swiftdrop.backend.identity.entity.AppUser;
 import org.springframework.data.repository.Repository;
 
 import java.util.Collection;
@@ -11,7 +12,7 @@ import java.util.UUID;
  * Read-only on purpose: it extends {@link Repository}, not JpaRepository, so there is no save() or delete().
  * Package-private: other modules use the UserDirectory service (step 2), never this repository.
  */
-interface AppUserRepository extends Repository<AppUser, UUID> {
+public interface AppUserRepository extends Repository<AppUser, UUID> {
 
     Optional<AppUser> findById(UUID id);
 

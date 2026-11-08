@@ -1,6 +1,6 @@
 package com.swiftdrop.backend.customer.dto;
 
-import com.swiftdrop.backend.identity.TestPeople;
+import com.swiftdrop.backend.identity.entity.TestPeople;
 import com.swiftdrop.backend.customer.entity.AddressType;
 import com.swiftdrop.backend.customer.entity.Customer;
 import com.swiftdrop.backend.customer.entity.Delivery;
@@ -73,9 +73,9 @@ class CustomerModuleDtoTest {
     }
 
     @Test
-    void registrationChecksTheEmailAndPhone() {
-        assertThat(invalidFields(new RegisterCustomerRequest("Nimal", "Perera", "not-an-email", "077"))).containsExactlyInAnyOrder("email", "phoneNumber");
-        assertThat(invalidFields(new RegisterCustomerRequest("Nimal", "Perera", "nimal@example.com", "0771234567"))).isEmpty();
+    void registrationChecksThePhone() {
+        assertThat(invalidFields(new RegisterCustomerRequest("077"))).containsExactly("phoneNumber");
+        assertThat(invalidFields(new RegisterCustomerRequest("0771234567"))).isEmpty();
     }
 
     private static Delivery bookedDelivery() {

@@ -14,7 +14,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
-import com.swiftdrop.backend.identity.AppUser;
+import com.swiftdrop.backend.identity.entity.AppUser;
 import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -24,7 +24,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
+
 
 /**
  * A delivery booking and its current state. Its pickup and destination are {@link DeliveryAddress} rows, its

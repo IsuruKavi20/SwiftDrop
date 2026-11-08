@@ -1,5 +1,10 @@
-package com.swiftdrop.backend.identity;
+package com.swiftdrop.backend.identity.service;
 
+import com.swiftdrop.backend.identity.client.DirectoryClient;
+import com.swiftdrop.backend.identity.client.DirectoryPerson;
+import com.swiftdrop.backend.identity.entity.AppUser;
+import com.swiftdrop.backend.identity.entity.AppUserStatus;
+import com.swiftdrop.backend.identity.exception.UnknownUserException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -22,7 +27,7 @@ import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @Transactional
-class UserDirectoryTest {
+public class UserDirectoryTest {
 
     @Autowired
     private UserDirectory userDirectory;
@@ -90,7 +95,7 @@ class UserDirectoryTest {
 
         assertThat(userDirectory.get(kasun).orElseThrow().isActive()).isFalse();
         AppUser deleted = userDirectory.get(gone).orElseThrow();
-        assertThat(deleted.getName()).as("a deleted person's name is wiped").isEmpty();
+        assertThat(deleted.getName()).as("a deleted person shows as Deleted user").contains("Deleted user");
         assertThat(deleted.getRoles()).isEmpty();
         verify(directory, never()).get(any(), anyBoolean());   // both were already copied
     }

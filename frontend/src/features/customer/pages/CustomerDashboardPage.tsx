@@ -165,7 +165,7 @@ export function CustomerDashboardPage() {
           <div className={styles.navbarTitle}>
             <h1 className={styles.pageTitle}>Customer Dashboard</h1>
             <p className={styles.welcome}>
-              {profile ? <>Welcome back, <strong>{profile.firstName} {profile.lastName}</strong></> : 'Welcome back'}
+              {profile ? <>Welcome back, <strong>{displayName(profile)}</strong></> : 'Welcome back'}
             </p>
           </div>
 
@@ -239,7 +239,7 @@ function ProfileMenu({ profile, onLogOut }: { profile: CustomerProfile | null; o
     };
   }, [open]);
 
-  const name = profile ? `${profile.firstName} ${profile.lastName}` : 'My account';
+  const name = profile ? displayName(profile) : 'My account';
 
   return (
     <div className={styles.profileMenu} ref={menuRef}>
@@ -252,7 +252,7 @@ function ProfileMenu({ profile, onLogOut }: { profile: CustomerProfile | null; o
       >
         <span className={styles.avatar} aria-hidden="true">
           {profile
-            ? `${profile.firstName.charAt(0)}${profile.lastName.charAt(0)}`.toUpperCase()
+            ? initials(displayName(profile))
             : <img src={userIcon} width={18} height={18} alt="" />}
         </span>
         <span className={styles.userName}>{name}</span>
@@ -267,7 +267,7 @@ function ProfileMenu({ profile, onLogOut }: { profile: CustomerProfile | null; o
           {profile && (
             <div className={styles.dropdownHeader}>
               <span className={styles.dropdownName}>{name}</span>
-              <span className={styles.dropdownEmail}>{profile.email}</span>
+              <span className={styles.dropdownEmail}>{loginEmail()}</span>
             </div>
           )}
           {/* No settings page yet: enable and navigate once it exists */}
@@ -360,4 +360,24 @@ function DashboardView({ dashboard }: { dashboard: Dashboard }) {
       </section>
     </>
   );
+}
+
+// Name and email belong to the login account: the profile has the name, the token has the email
+function displayName(profile: CustomerProfile): string {
+  return profile.name ?? readNameFromToken() ?? 'My account';
+}
+
+function readNameFromToken(): string | undefined {
+  const token = getAccessToken();
+  return token ? readClaims(token).name : undefined;
+}
+
+function loginEmail(): string {
+  const token = getAccessToken();
+  return (token ? readClaims(token).email : undefined) ?? '';
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return ((parts[0]?.charAt(0) ?? '') + (parts.length > 1 ? parts[parts.length - 1].charAt(0) : '')).toUpperCase();
 }

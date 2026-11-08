@@ -1,4 +1,4 @@
-package com.swiftdrop.backend.identity;
+package com.swiftdrop.backend.identity.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
