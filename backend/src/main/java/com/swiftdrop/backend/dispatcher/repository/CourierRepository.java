@@ -32,7 +32,7 @@ public interface CourierRepository extends JpaRepository<Courier, Long> {
             select c from Courier c join c.user u
             where c.availability = com.swiftdrop.backend.dispatcher.entity.CourierAvailability.AVAILABLE
               and u.active = true
-              and u.status = com.swiftdrop.backend.identity.AppUserStatus.ACTIVE
+              and u.status = com.swiftdrop.backend.identity.entity.AppUserStatus.ACTIVE
               and 'COURIER' member of u.roles
             order by c.id asc
             """)

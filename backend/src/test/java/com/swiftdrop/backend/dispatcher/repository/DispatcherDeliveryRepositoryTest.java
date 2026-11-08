@@ -6,7 +6,7 @@ import com.swiftdrop.backend.customer.entity.Delivery;
 import com.swiftdrop.backend.customer.entity.DeliveryAddress;
 import com.swiftdrop.backend.customer.entity.DeliveryStatus;
 import com.swiftdrop.backend.customer.entity.DeliveryType;
-import com.swiftdrop.backend.identity.TestPeople;
+import com.swiftdrop.backend.identity.entity.TestPeople;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import org.junit.jupiter.api.BeforeEach;

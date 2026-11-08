@@ -2,7 +2,7 @@ package com.swiftdrop.backend.dispatcher.repository;
 
 import com.swiftdrop.backend.dispatcher.entity.Courier;
 import com.swiftdrop.backend.dispatcher.entity.CourierAvailability;
-import com.swiftdrop.backend.identity.TestPeople;
+import com.swiftdrop.backend.identity.entity.TestPeople;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import org.junit.jupiter.api.Test;
