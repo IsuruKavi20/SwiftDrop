@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { navigate, routes } from '../../../app/router';
 import { AuthError, finishGoogleLogin } from '../api/authApi';
+import { landingPage } from '../lib/landing';
 import { AuthLayout } from '../components/AuthLayout';
 import { Alert } from '../components/FormControls';
 
@@ -23,7 +24,7 @@ export function GoogleCallbackPage() {
     if (!code || started.current) return;
     started.current = true;
     finishGoogleLogin(code)
-      .then(() => navigate(routes.account))
+      .then(() => navigate(landingPage()))
       .catch((failure) => setError(failure instanceof AuthError ? failure.message : 'Google login failed.'));
   }, [code]);
 
