@@ -6,6 +6,7 @@ import com.swiftdrop.backend.identity.event.UserDeactivated;
 import com.swiftdrop.backend.identity.event.UserDeleted;
 import com.swiftdrop.backend.identity.repository.AppUserWriter;
 import com.swiftdrop.backend.identity.security.VerifiedSet;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
