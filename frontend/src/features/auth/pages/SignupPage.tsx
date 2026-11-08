@@ -27,10 +27,14 @@ export function SignupPage() {
       setError(`Use at least ${MIN_PASSWORD_LENGTH} characters, for example a few words: "blue river lamp cactus".`);
       return;
     }
+    if (!fullName.trim()) {
+      setError('Please enter your full name.');
+      return;
+    }
     setBusy(true);
     try {
-      // Full name is in the design but not stored yet: the auth service accepts only email + password
-      await signUp(email, password);
+      // The name is stored in the login account: every SwiftDrop module reads it from there (AppUser)
+      await signUp(fullName.trim(), email, password);
       // Sign the new customer straight in and open their dashboard. If the auth service won't log them in yet
       // (for example the email still needs confirming), fall back to the "check your inbox" message.
       try {
@@ -62,7 +66,7 @@ export function SignupPage() {
       ) : (
         <form className={styles.form} onSubmit={onSubmit} noValidate>
           {error && <Alert kind="error">{error}</Alert>}
-          <TextField id="fullName" label="Full name" icon={userIcon} autoComplete="name"
+          <TextField id="fullName" label="Full name" icon={userIcon} autoComplete="name" required
             placeholder="e.g. Isuru Perera" value={fullName} onChange={(e) => setFullName(e.target.value)} />
           <TextField id="email" label="Email" icon={mailIcon} type="email" autoComplete="email" required
             placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
