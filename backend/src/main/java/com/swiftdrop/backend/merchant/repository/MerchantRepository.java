@@ -1,4 +1,3 @@
-
 package com.swiftdrop.backend.merchant.repository;
 
 import com.swiftdrop.backend.merchant.entity.Merchant;
@@ -9,7 +8,6 @@ import java.util.UUID;
 
 public interface MerchantRepository extends JpaRepository<Merchant, Long> {
 
-    Optional<Merchant> findByAuthUserId(UUID authUserId);
-
-    boolean existsByAuthUserId(UUID authUserId);
+    /** The business owned by this person (their token's "sub"). */
+    Optional<Merchant> findByOwnerId(UUID ownerId);
 }
