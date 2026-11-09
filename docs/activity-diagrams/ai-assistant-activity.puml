@@ -1,0 +1,63 @@
+@startuml
+title AI Delivery Assistant - Activity Diagram
+
+skinparam defaultFontName "Segoe UI", Arial, sans-serif
+skinparam defaultFontSize 12
+skinparam shadowing false
+skinparam roundCorner 8
+
+skinparam activity {
+    BackgroundColor #F4F8FC
+    BorderColor #315B7D
+    FontColor #0F172A
+    ArrowColor #315B7D
+}
+
+skinparam diamond {
+    BackgroundColor #F1F5F9
+    BorderColor #315B7D
+    FontColor #0F172A
+}
+
+|User (Customer / Merchant / Courier / Admin)|
+start
+:User enters natural language query;
+
+|AI Assistant Service|
+:Attach active session context & user role metadata;
+:Submit prompt + tool definitions to LLM;
+
+|LLM Engine|
+:Analyze user intent & query parameters;
+
+if (Tool invocation required?) then (yes)
+    :Return Tool Call request with arguments;
+
+    |Core Delivery APIs / MCP Tools|
+    if (Requested action) then (Track Parcel)
+        :Query Parcel Service for tracking history & ETA;
+    else if (Estimate Fee)
+        :Calculate shipping rate from weight & zones;
+    else if (Merchant Orders)
+        :Fetch merchant parcel list and states;
+    else if (Courier Runs)
+        :Fetch courier daily assigned deliveries;
+    else (Admin / Dispatcher Analytics)
+        :Fetch system workloads & delivery metrics;
+    endif
+    :Return JSON data payload to AI Service;
+
+    |LLM Engine|
+    :Synthesize natural language response using fetched data;
+else (general policy / FAQ query)
+    :Formulate direct contextual reply;
+endif
+
+|AI Assistant Service|
+:Append response to conversation history;
+
+|User (Customer / Merchant / Courier / Admin)|
+:Display formatted response & interactive status cards;
+stop
+
+@enduml
