@@ -19,8 +19,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A customer's delivery profile. Who the person is (name, photo, login email) belongs to the auth service and is
- * read through {@link AppUser}; this record keeps only what deliveries need (phone, saved addresses).
+ * A customer's delivery profile: the full name they entered, phone and saved addresses. Photo and login email
+ * belong to the auth service and are read through {@link AppUser}.
  */
 @Entity
 @Table(name = "customer")
@@ -35,6 +35,14 @@ public class Customer {
     @OneToOne(optional = false)
     @JoinColumn(name = "auth_user_id", nullable = false, unique = true, updatable = false)
     private AppUser user;
+
+    /** Entered by the customer when they create their profile, e.g. "Nimal Perera". Empty only for old rows. */
+    @Column(name = "full_name", length = 150)
+    private String fullName;
+
+    /** The login email, copied from the access token (the auth service owns it). Empty until first copied. */
+    @Column(name = "email", length = 150)
+    private String email;
 
     @Column(name = "phone_number", nullable = false, length = 20)
     private String phoneNumber;
@@ -54,9 +62,15 @@ public class Customer {
         // for JPA
     }
 
-    public Customer(AppUser user, String phoneNumber) {
+    public Customer(AppUser user, String fullName, String phoneNumber) {
         this.user = user;
+        this.fullName = fullName;
         this.phoneNumber = phoneNumber;
+    }
+
+    /** Uses the login account's name as the full name (if it has one). */
+    public Customer(AppUser user, String phoneNumber) {
+        this(user, user.getName().orElse(null), phoneNumber);
     }
 
     public void addAddress(CustomerAddress address) {
@@ -71,6 +85,10 @@ public class Customer {
 
     public Long getId() { return id; }
     public AppUser getUser() { return user; }
+    public String getFullName() { return fullName; }
+    public void setFullName(String fullName) { this.fullName = fullName; }
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
     public String getPhoneNumber() { return phoneNumber; }
     public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
     public Instant getCreatedAt() { return createdAt; }

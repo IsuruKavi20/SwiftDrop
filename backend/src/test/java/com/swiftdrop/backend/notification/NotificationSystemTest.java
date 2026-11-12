@@ -1,6 +1,6 @@
 package com.swiftdrop.backend.notification;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.swiftdrop.backend.notification.entity.MerchantWebhookConfig;
 import com.swiftdrop.backend.notification.entity.NotificationChannel;
 import com.swiftdrop.backend.notification.entity.NotificationTemplate;

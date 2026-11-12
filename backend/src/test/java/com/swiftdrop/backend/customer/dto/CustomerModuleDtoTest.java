@@ -73,9 +73,11 @@ class CustomerModuleDtoTest {
     }
 
     @Test
-    void registrationChecksThePhone() {
-        assertThat(invalidFields(new RegisterCustomerRequest("077"))).containsExactly("phoneNumber");
-        assertThat(invalidFields(new RegisterCustomerRequest("0771234567"))).isEmpty();
+    void registrationChecksTheNameAndPhone() {
+        assertThat(invalidFields(new RegisterCustomerRequest("Nimal Perera", "077"))).containsExactly("phoneNumber");
+        assertThat(invalidFields(new RegisterCustomerRequest(" ", "0771234567"))).containsExactly("fullName");
+        assertThat(invalidFields(new RegisterCustomerRequest("x".repeat(151), "0771234567"))).containsExactly("fullName");
+        assertThat(invalidFields(new RegisterCustomerRequest("Nimal Perera", "0771234567"))).isEmpty();
     }
 
     private static Delivery bookedDelivery() {

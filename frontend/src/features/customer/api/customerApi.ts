@@ -27,15 +27,18 @@ export interface Dashboard {
 
 export interface CustomerProfile {
   id: number;
-  /** From the login account (auth service) */
+  /** The full name the customer entered when registering */
   name: string | null;
+  /** The login email, stored when the customer registered */
+  email: string | null;
   pictureUrl: string | null;
   phoneNumber: string;
   createdAt: string;
 }
 
-/** Only what SwiftDrop needs: name and email already come from the login account. */
+/** What the customer enters once: the email already comes from the login account. */
 export interface RegisterCustomer {
+  fullName: string;
   phoneNumber: string;
 }
 

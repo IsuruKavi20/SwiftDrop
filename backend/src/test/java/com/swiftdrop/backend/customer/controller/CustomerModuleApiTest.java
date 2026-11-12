@@ -41,7 +41,7 @@ class CustomerModuleApiTest {
 
     /** A CUSTOMER token: the role's permissions from docs/AUTH.md. */
     private static RequestPostProcessor customer(UUID userId) {
-        return jwt().jwt(token -> token.subject(userId.toString()).claim("name", "Test User")
+        return jwt().jwt(token -> token.subject(userId.toString()).claim("name", "Test User").claim("email", userId + "@example.com")
                         .claim("roles", java.util.List.of("CUSTOMER")))
                 .authorities(new SimpleGrantedAuthority("parcel:create"), new SimpleGrantedAuthority("parcel:read-own"));
     }
@@ -55,7 +55,7 @@ class CustomerModuleApiTest {
     private void register(UUID userId, String email) throws Exception {
         mockMvc.perform(post("/api/customers/me").with(customer(userId)).contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"phoneNumber":"0771234567"}"""))
+                                {"fullName":"Alice Fernando","phoneNumber":"0771234567"}"""))
                 .andExpect(status().isCreated());
     }
 
@@ -119,7 +119,8 @@ class CustomerModuleApiTest {
 
         mockMvc.perform(get("/api/customers/me").with(customer(alice)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value("Test User"));
+                .andExpect(jsonPath("$.name").value("Alice Fernando"))
+                .andExpect(jsonPath("$.email").value(alice + "@example.com"));
         mockMvc.perform(put("/api/customers/me").with(customer(alice)).contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"phoneNumber":"+94773333333"}"""))
@@ -132,7 +133,7 @@ class CustomerModuleApiTest {
         register(alice, "alice@example.com");
         mockMvc.perform(post("/api/customers/me").with(customer(alice)).contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"phoneNumber":"0771234567"}"""))
+                                {"fullName":"Alice Fernando","phoneNumber":"0771234567"}"""))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.detail").value("You are already registered as a customer"));
     }
