@@ -11,6 +11,7 @@ export const routes = {
   verifyEmail: '/verify-email',
   account: '/account',
   customerDashboard: '/customer/dashboard',
+  customerNotifications: '/customer/notifications',
 } as const;
 
 export function navigate(path: string): void {

@@ -35,6 +35,7 @@ class DeliveryBookingController {
 
     @PostMapping("/{deliveryId}/confirm")
     DeliveryDetailsResponse confirmDelivery(@PathVariable Long deliveryId, @AuthenticationPrincipal Jwt user) {
-        return booking.confirmDelivery(CurrentUser.id(user), deliveryId);
+        String email = user != null ? user.getClaimAsString("email") : null;
+        return booking.confirmDelivery(CurrentUser.id(user), deliveryId, email);
     }
 }

@@ -112,5 +112,47 @@ class NotificationSystemTest {
         verify(smsSender, times(1)).send(eq("+94771234567"), anyString());
         verify(logRepository, atLeast(2)).save(any());
     }
+
+    @Test
+    void statusChangeEventWithRecipientPhoneNotifiesBothSenderAndRecipient() {
+        DeliveryStatusChangedEvent event = new DeliveryStatusChangedEvent(
+                1L,
+                "SD-12345",
+                "token-abc",
+                "OUT_FOR_DELIVERY",
+                "Parcel out for delivery",
+                "Colombo Hub",
+                "Kamal Silva",
+                "kamal@example.com",
+                "+94771234567",
+                "Sunil Courier",
+                null,
+                null,
+                Instant.now(),
+                Map.of("destinationPhone", "+94779876543")
+        );
+
+        when(templateRepository.findByEventTypeAndChannelAndActiveTrue(any(), any()))
+                .thenReturn(Optional.empty());
+
+        listener.handleDeliveryStatusChanged(event);
+
+        verify(emailSender, times(1)).send(eq("kamal@example.com"), anyString(), anyString());
+        verify(smsSender, times(1)).send(eq("+94771234567"), anyString());
+        verify(smsSender, times(1)).send(eq("+94779876543"), anyString());
+        verify(logRepository, atLeast(3)).save(any());
+    }
+
+    @Test
+    void templateInitializerSeedsMissingTemplates() {
+        when(templateRepository.findByEventTypeAndChannelAndActiveTrue(any(), any()))
+                .thenReturn(Optional.empty());
+
+        com.swiftdrop.backend.notification.config.NotificationTemplateDataInitializer initializer =
+                new com.swiftdrop.backend.notification.config.NotificationTemplateDataInitializer(templateRepository);
+        initializer.seedTemplates();
+
+        verify(templateRepository, atLeast(6)).save(any(NotificationTemplate.class));
+    }
 }
 

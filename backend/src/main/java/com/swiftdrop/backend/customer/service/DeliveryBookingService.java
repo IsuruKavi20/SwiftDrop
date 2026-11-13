@@ -15,6 +15,8 @@ import com.swiftdrop.backend.customer.entity.TrackingEvent;
 import com.swiftdrop.backend.customer.exception.ConflictException;
 import com.swiftdrop.backend.customer.exception.NotFoundException;
 import com.swiftdrop.backend.customer.repository.CustomerDeliveryRepository;
+import com.swiftdrop.backend.notification.service.NotificationPublisherService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,13 +38,22 @@ public class DeliveryBookingService {
     private final CustomerDeliveryRepository deliveries;
     private final TrackingCodeGenerator codes;
     private final Clock clock;
+    private final NotificationPublisherService notificationPublisher;
 
+    @Autowired
     public DeliveryBookingService(CustomerService customerService, CustomerDeliveryRepository deliveries,
-                                  TrackingCodeGenerator codes, Clock clock) {
+                                  TrackingCodeGenerator codes, Clock clock,
+                                  NotificationPublisherService notificationPublisher) {
         this.customerService = customerService;
         this.deliveries = deliveries;
         this.codes = codes;
         this.clock = clock;
+        this.notificationPublisher = notificationPublisher;
+    }
+
+    public DeliveryBookingService(CustomerService customerService, CustomerDeliveryRepository deliveries,
+                                  TrackingCodeGenerator codes, Clock clock) {
+        this(customerService, deliveries, codes, clock, null);
     }
 
     public DeliveryDetailsResponse createDelivery(UUID authUserId, CreateDeliveryRequest request) {
@@ -62,15 +73,26 @@ public class DeliveryBookingService {
 
     /** Review and Confirmation: only the booking's own customer, and only while it is still PENDING. */
     public DeliveryDetailsResponse confirmDelivery(UUID authUserId, Long deliveryId) {
+        return confirmDelivery(authUserId, deliveryId, null);
+    }
+
+    public DeliveryDetailsResponse confirmDelivery(UUID authUserId, Long deliveryId, String customerEmail) {
         Customer customer = customerService.requireCustomer(authUserId);
         Delivery delivery = deliveries.findByIdAndCustomerId(deliveryId, customer.getId())
                 .orElseThrow(() -> new NotFoundException("Delivery not found"));
         if (delivery.getStatus() != DeliveryStatus.PENDING) {
             throw new ConflictException("Only a pending booking can be confirmed; this one is " + delivery.getStatus());
         }
-        delivery.addTrackingEvent(new TrackingEvent(DeliveryStatus.CONFIRMED, "Booking confirmed", null,
-                clock.instant(), customer.getUser()));
-        return DeliveryDetailsResponse.from(deliveries.saveAndFlush(delivery));
+        TrackingEvent event = new TrackingEvent(DeliveryStatus.CONFIRMED, "Booking confirmed", null,
+                clock.instant(), customer.getUser());
+        delivery.addTrackingEvent(event);
+        Delivery saved = deliveries.saveAndFlush(delivery);
+
+        if (notificationPublisher != null) {
+            notificationPublisher.publishDeliveryStatusChanged(saved, event, customerEmail);
+        }
+
+        return DeliveryDetailsResponse.from(saved);
     }
 
     /** Tracking numbers are random; on the rare clash with an existing one, draw again. */
@@ -101,9 +123,10 @@ public class DeliveryBookingService {
     }
 
     private static Parcel toParcel(ParcelRequest request) {
-        Parcel parcel = new Parcel(request.description().trim(), request.weightKg(), request.lengthCm(),
-                request.widthCm(), request.heightCm());
-        parcel.setDeclaredValue(request.declaredValue());
+        Parcel parcel = new Parcel(request.description(), request.weightKg(), request.lengthCm(), request.widthCm(), request.heightCm());
+        if (request.declaredValue() != null) {
+            parcel.setDeclaredValue(request.declaredValue());
+        }
         return parcel;
     }
 }
