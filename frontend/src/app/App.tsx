@@ -3,6 +3,7 @@ import { GoogleCallbackPage } from '../features/auth/pages/GoogleCallbackPage';
 import { LoginPage } from '../features/auth/pages/LoginPage';
 import { SignupPage } from '../features/auth/pages/SignupPage';
 import { CustomerPortal, PublicTrackingPage } from '../features/customer/pages/CustomerPortal';
+import { MerchantApplyPage } from '../features/merchant/pages/MerchantApplyPage';
 import { VerifyEmailPage } from '../features/auth/pages/VerifyEmailPage';
 import { ProtectedMerchantRoute } from '../features/merchant/components/ProtectedMerchantRoute';
 import { MerchantPortal } from '../features/merchant/MerchantPortal';
@@ -33,6 +34,8 @@ export default function App() {
       return <VerifyEmailPage />;
     case routes.account:
       return <AccountPage />;
+    case routes.merchantApply:
+      return <MerchantApplyPage />;
     default:
       return <LoginPage />;
   }

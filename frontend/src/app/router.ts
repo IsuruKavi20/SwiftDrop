@@ -19,6 +19,7 @@ export const routes = {
   customerAccount: '/customer/profile',
   customerSupport: '/customer/support',
   publicTrack: '/track',
+  merchantApply: '/merchant/apply',
 } as const;
 
 export function navigate(path: string, { replace = false } = {}): void {
