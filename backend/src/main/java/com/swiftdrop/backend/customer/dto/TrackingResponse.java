@@ -35,4 +35,28 @@ public record TrackingResponse(
                 delivery.getDeliveredAt(),
                 delivery.getTrackingEvents().stream().map(TrackingEventResponse::from).toList());
     }
+
+    /** Public links must never leak arbitrary courier notes or detailed location names. */
+    public static TrackingResponse publicFrom(Delivery delivery) {
+        TrackingResponse details = from(delivery);
+        List<TrackingEventResponse> safeEvents = details.events().stream()
+                .map(event -> new TrackingEventResponse(event.status(), publicDescription(event.status()), null,
+                        event.eventTime())).toList();
+        return new TrackingResponse(details.trackingNumber(), details.deliveryType(), details.status(),
+                details.fromCity(), details.toCity(), details.estimatedDeliveryDate(),
+                details.deliveredAt(), safeEvents);
+    }
+
+    private static String publicDescription(DeliveryStatus status) {
+        return switch (status) {
+            case PENDING -> "Booking created";
+            case CONFIRMED -> "Booking confirmed";
+            case PICKED_UP -> "Parcel picked up";
+            case IN_TRANSIT -> "Parcel in transit";
+            case OUT_FOR_DELIVERY -> "Out for delivery";
+            case DELIVERED -> "Parcel delivered";
+            case FAILED -> "Delivery attempt unsuccessful";
+            case CANCELLED -> "Booking cancelled";
+        };
+    }
 }

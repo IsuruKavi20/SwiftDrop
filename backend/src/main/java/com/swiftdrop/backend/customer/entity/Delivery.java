@@ -21,6 +21,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -65,6 +66,12 @@ public class Delivery {
 
     @Column(name = "special_instructions", length = 500)
     private String specialInstructions;
+
+    @Column(name = "estimated_fee", precision = 12, scale = 2)
+    private BigDecimal estimatedFee;
+
+    @Column(name = "cancellation_reason", length = 200)
+    private String cancellationReason;
 
     @Column(name = "estimated_delivery_date")
     private LocalDate estimatedDeliveryDate;
@@ -164,6 +171,10 @@ public class Delivery {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
     public Instant getDeliveredAt() { return deliveredAt; }
+    public String getCancellationReason() { return cancellationReason; }
+    public void setCancellationReason(String cancellationReason) { this.cancellationReason = cancellationReason; }
+    public BigDecimal getEstimatedFee() { return estimatedFee; }
+    public void setEstimatedFee(BigDecimal estimatedFee) { this.estimatedFee = estimatedFee; }
     public List<DeliveryAddress> getAddresses() { return addresses; }
     public List<Parcel> getParcels() { return parcels; }
     public List<TrackingEvent> getTrackingEvents() { return trackingEvents; }
