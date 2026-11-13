@@ -48,6 +48,8 @@ export function CustomerPortal() {
       else {setError(message(e));setState('error')}
     }
   },[]);
+  // load() only sets state after an await (a data fetch on mount), which is what effects are for
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(()=>{void load()},[load]);
   async function logout(){await logOut();navigate(routes.login)}
   const nav=[['Overview',routes.customerDashboard],['Send a parcel',routes.customerBook],['My deliveries',routes.customerDeliveries],['Track parcel',routes.customerTrack],['My account',routes.customerAccount],['Help & support',routes.customerSupport]] as const;
@@ -76,7 +78,7 @@ export function CustomerPortal() {
         </>}
       </main>
     </div>
-    <nav aria-label="Mobile customer navigation" className={s.mobileNav}>{nav.slice(0,5).map(([label,to],i)=><button type="button" key={to} className={selected===to?s.mobileActive:''} onClick={()=>navigate(to)}><span>{['▦','◫','▤','◎','◯','?'][i]}</span><small>{['Home','Send','Deliveries','Track','Account'][i]}</small></button>)}</nav>
+    <nav aria-label="Mobile customer navigation" className={s.mobileNav}>{nav.slice(0,5).map(([,to],i)=><button type="button" key={to} className={selected===to?s.mobileActive:''} onClick={()=>navigate(to)}><span>{['▦','◫','▤','◎','◯','?'][i]}</span><small>{['Home','Send','Deliveries','Track','Account'][i]}</small></button>)}</nav>
   </div>;
 }
 
@@ -171,8 +173,10 @@ function BookingPage(){
 function Summary({label,name,address}:{label:string;name:string;address:string}){return <div className={s.summary}><span>{label}</span><strong>{name}</strong><small>{address}</small></div>}
 
 function DeliveriesPage(){
-  const [data,setData]=useState<PagedDeliveries|null>(null),[status,setStatus]=useState(''),[search,setSearch]=useState(''),[page,setPage]=useState(0),[error,setError]=useState(''),[loading,setLoading]=useState(false);
-  useEffect(()=>{let active=true;setLoading(true);listDeliveries({page,status,search}).then(p=>{if(active)setData(p)}).catch(e=>{if(active)setError(message(e))}).finally(()=>{if(active)setLoading(false)});return()=>{active=false}},[page,status,search]);
+  const [data,setData]=useState<PagedDeliveries|null>(null),[status,setStatus]=useState(''),[search,setSearch]=useState(''),[page,setPage]=useState(0),[error,setError]=useState('');
+  // Loading = the last finished request was for other filters (derived, so the effect never sets state synchronously)
+  const requestKey=`${page}|${status}|${search}`;const [doneKey,setDoneKey]=useState<string|null>(null);const loading=doneKey!==requestKey;
+  useEffect(()=>{let active=true;listDeliveries({page,status,search}).then(p=>{if(active)setData(p)}).catch(e=>{if(active)setError(message(e))}).finally(()=>{if(active)setDoneKey(`${page}|${status}|${search}`)});return()=>{active=false}},[page,status,search]);
   return <div className={s.stack}><div className={s.headingRow}><div><h2>All your deliveries</h2><p>Search, review and track every booking in one place.</p></div>{link(routes.customerBook,'+ New delivery',s.primary)}</div><section className={s.card}><div className={s.filterRow}><label className={s.field}><span>Search deliveries</span><input value={search} onChange={e=>{setSearch(e.target.value);setPage(0)}} placeholder="Tracking, recipient or city" /></label><label className={s.field}><span>Status</span><select value={status} onChange={e=>{setStatus(e.target.value);setPage(0)}}><option value="">All statuses</option>{Object.entries(STATUS_LABELS).map(([k,v])=><option value={k} key={k}>{v}</option>)}</select></label></div>{error&&<Notice error>{error}</Notice>}{loading?<Spinner/>:<DeliveryTable rows={data?.content??[]}/>}<div className={s.pagination}><span>{data?.totalElements??0} deliveries</span><div><button className={s.secondary} disabled={page===0} onClick={()=>setPage(n=>n-1)}>Previous</button><span> Page {page+1} of {Math.max(1,data?.totalPages??1)} </span><button className={s.secondary} disabled={page+1>=(data?.totalPages??1)} onClick={()=>setPage(n=>n+1)}>Next</button></div></div></section></div>
 }
 
@@ -246,7 +250,10 @@ function PrivateTrackingSearch(){
 export function PublicTrackingPage(){
   const path=usePath();const initial=path.startsWith('/track/')?decodeURIComponent(path.split('/').slice(2).join('/')):'';
   const [number,setNumber]=useState(initial);const [data,setData]=useState<Tracking|null>(null),[error,setError]=useState(''),[loading,setLoading]=useState(false);
-  useEffect(()=>{setNumber(initial);setData(null);setError('');if(!initial)return;let live=true;const run=()=>trackPublic(initial).then(d=>{if(live){setData(d);setError('')}}).catch(e=>{if(live)setError(message(e))});void run();const timer=window.setInterval(()=>void run(),15000);return()=>{live=false;clearInterval(timer)}},[initial]);
+  // A new tracking number in the address resets the page while rendering (React's "adjust state on prop change")
+  const [shownFor,setShownFor]=useState(initial);
+  if(shownFor!==initial){setShownFor(initial);setNumber(initial);setData(null);setError('')}
+  useEffect(()=>{if(!initial)return;let live=true;const run=()=>trackPublic(initial).then(d=>{if(live){setData(d);setError('')}}).catch(e=>{if(live)setError(message(e))});void run();const timer=window.setInterval(()=>void run(),15000);return()=>{live=false;clearInterval(timer)}},[initial]);
   async function search(e:FormEvent){e.preventDefault();setLoading(true);setError('');try{const result=await trackPublic(number);setData(result);navigate(`/track/${encodeURIComponent(number.trim())}`)}catch(e){setData(null);setError(message(e))}finally{setLoading(false)}}
   return <div className={s.publicPage}><div className={s.publicHeader}><button className={s.publicBrand} onClick={()=>navigate(routes.publicTrack)}><span className={s.brandMark}>S</span><strong>SwiftDrop</strong></button><div>{link(routes.login,'Customer login',s.secondary)}</div></div><main className={s.publicBody}><div className={s.publicIntro}><span className={s.eyebrow}>PARCEL TRACKING</span><h1>Know where your parcel is.</h1><p>Track SwiftDrop deliveries using the tracking number supplied by your sender.</p></div><section className={s.card}><form className={s.searchBar} onSubmit={e=>void search(e)}><input aria-label="Tracking number" required placeholder="Enter tracking number · SD-XXXXXXXXXX" value={number} onChange={e=>setNumber(e.target.value)}/><button className={s.primary} disabled={loading}>{loading?'Searching…':'Track parcel'}</button></form>{error&&<Notice error>{error}</Notice>}</section>
   {data&&<section className={s.card}><div className={s.cardHead}><div><span className={s.eyebrow}>TRACKING NUMBER</span><h2 className={s.mono}>{data.trackingNumber}</h2></div><Status value={data.status}/></div><div className={s.route}><div><small>FROM</small><strong>{data.fromCity||'—'}</strong></div><span>→</span><div><small>TO</small><strong>{data.toCity||'—'}</strong></div></div><TrackingTimeline status={data.status} events={data.events}/><p className={s.smallNote}>Updates refresh automatically. Personal contact details and addresses are not shown publicly.</p></section>}
