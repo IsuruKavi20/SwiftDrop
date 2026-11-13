@@ -2,6 +2,8 @@ package com.swiftdrop.backend.customer.controller;
 
 import com.swiftdrop.backend.customer.dto.CreateDeliveryRequest;
 import com.swiftdrop.backend.customer.dto.DeliveryDetailsResponse;
+import com.swiftdrop.backend.customer.dto.FeeEstimateResponse;
+import com.swiftdrop.backend.customer.service.CustomerPricingService;
 import com.swiftdrop.backend.customer.service.DeliveryBookingService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -22,9 +24,17 @@ import org.springframework.web.bind.annotation.RestController;
 class DeliveryBookingController {
 
     private final DeliveryBookingService booking;
+    private final CustomerPricingService pricing;
 
-    DeliveryBookingController(DeliveryBookingService booking) {
+    DeliveryBookingController(DeliveryBookingService booking, CustomerPricingService pricing) {
         this.booking = booking;
+        this.pricing = pricing;
+    }
+
+    /** Quote before booking; no parcel is persisted. */
+    @PostMapping("/estimate")
+    FeeEstimateResponse estimate(@Valid @RequestBody CreateDeliveryRequest request) {
+        return pricing.estimate(request);
     }
 
     @PostMapping

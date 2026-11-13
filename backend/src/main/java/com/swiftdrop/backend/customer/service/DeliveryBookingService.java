@@ -35,14 +35,16 @@ public class DeliveryBookingService {
     private final CustomerService customerService;
     private final CustomerDeliveryRepository deliveries;
     private final TrackingCodeGenerator codes;
+    private final CustomerPricingService pricing;
     private final Clock clock;
 
     public DeliveryBookingService(CustomerService customerService, CustomerDeliveryRepository deliveries,
-                                  TrackingCodeGenerator codes, Clock clock) {
+                                  TrackingCodeGenerator codes, Clock clock, CustomerPricingService pricing) {
         this.customerService = customerService;
         this.deliveries = deliveries;
         this.codes = codes;
         this.clock = clock;
+        this.pricing = pricing;
     }
 
     public DeliveryDetailsResponse createDelivery(UUID authUserId, CreateDeliveryRequest request) {
@@ -50,6 +52,7 @@ public class DeliveryBookingService {
 
         Delivery delivery = new Delivery(customer, uniqueTrackingNumber(), codes.newPublicTrackingToken(), request.deliveryType());
         delivery.setSpecialInstructions(CustomerService.blankToNull(request.specialInstructions()));
+        delivery.setEstimatedFee(pricing.estimate(request).totalFee());
         delivery.setEstimatedDeliveryDate(estimatedDeliveryDate(request.deliveryType()));
         delivery.setAddress(toDeliveryAddress(AddressType.PICKUP, request.pickup()));
         delivery.setAddress(toDeliveryAddress(AddressType.DESTINATION, request.destination()));

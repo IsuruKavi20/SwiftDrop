@@ -11,6 +11,11 @@ export const routes = {
   verifyEmail: '/verify-email',
   account: '/account',
   customerDashboard: '/customer/dashboard',
+  customerBook: '/customer/deliveries/new',
+  customerDeliveries: '/customer/deliveries',
+  customerTrack: '/customer/track',
+  customerAccount: '/customer/profile',
+  publicTrack: '/track',
 } as const;
 
 export function navigate(path: string): void {

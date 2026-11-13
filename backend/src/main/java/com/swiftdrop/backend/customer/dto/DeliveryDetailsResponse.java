@@ -5,6 +5,7 @@ import com.swiftdrop.backend.customer.entity.DeliveryStatus;
 import com.swiftdrop.backend.customer.entity.DeliveryType;
 
 import java.time.Instant;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -19,6 +20,7 @@ public record DeliveryDetailsResponse(
         DeliveryType deliveryType,
         DeliveryStatus status,
         String specialInstructions,
+        BigDecimal estimatedFee,
         LocalDate estimatedDeliveryDate,
         Instant createdAt,
         Instant deliveredAt,
@@ -36,6 +38,7 @@ public record DeliveryDetailsResponse(
                 delivery.getDeliveryType(),
                 delivery.getStatus(),
                 delivery.getSpecialInstructions(),
+                delivery.getEstimatedFee(),
                 delivery.getEstimatedDeliveryDate(),
                 delivery.getCreatedAt(),
                 delivery.getDeliveredAt(),

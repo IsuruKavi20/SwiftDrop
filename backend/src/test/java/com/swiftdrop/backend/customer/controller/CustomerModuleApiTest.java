@@ -262,4 +262,26 @@ class CustomerModuleApiTest {
                 .andExpect(jsonPath("$.events[*].status", hasItem("PENDING")))
                 .andExpect(jsonPath("$.events[*].status", not(hasItem("DELIVERED"))));
     }
+    @Test
+    void quoteNeedsAuthentication() throws Exception {
+        mockMvc.perform(post("/api/customers/me/deliveries/estimate")
+                .contentType(MediaType.APPLICATION_JSON).content(BOOKING))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void customerCanEstimateBeforeBookingAndCannotDownloadReceiptBeforeDelivery() throws Exception {
+        register(alice, "alice@example.com");
+        mockMvc.perform(post("/api/customers/me/deliveries/estimate").with(customer(alice))
+                .contentType(MediaType.APPLICATION_JSON).content(BOOKING))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currency").value("LKR"))
+                .andExpect(jsonPath("$.totalFee").value(1180.0));
+        String booked=book(alice);
+        Integer id=JsonPath.read(booked,"$.id");
+        mockMvc.perform(get("/api/customers/me/deliveries/{id}/receipt",id).with(customer(alice)))
+                .andExpect(status().isConflict());
+        mockMvc.perform(get("/api/customers/me/deliveries/{id}/receipt",id).with(customer(bob)))
+                .andExpect(status().isNotFound());
+    }
 }

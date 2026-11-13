@@ -93,3 +93,50 @@ export const STATUS_LABELS: Record<DeliveryStatus, string> = {
   FAILED: 'Failed',
   CANCELLED: 'Cancelled',
 };
+
+
+// Customer booking and delivery contracts mirror existing Spring Boot endpoints.
+export interface DeliveryAddressInput { contactName: string; contactPhone: string; street: string; city: string; district: string; postalCode: string }
+export interface ParcelInput { description: string; weightKg: number; lengthCm: number; widthCm: number; heightCm: number; declaredValue?: number }
+export interface BookingInput { deliveryType: DeliveryType; pickup: DeliveryAddressInput; destination: DeliveryAddressInput; parcels: ParcelInput[]; specialInstructions?: string }
+export interface FeeEstimate { currency: string; baseFee: number; weightCharge: number; serviceCharge: number; totalFee: number; explanation: string }
+export interface TrackingEvent { status: DeliveryStatus; description: string; locationName: string | null; eventTime: string }
+export interface Tracking { trackingNumber: string; deliveryType: DeliveryType; status: DeliveryStatus; fromCity: string | null; toCity: string | null; estimatedDeliveryDate: string | null; deliveredAt: string | null; events: TrackingEvent[] }
+export interface DeliveryDetails {
+  id: number; trackingNumber: string; publicTrackingToken: string; deliveryType: DeliveryType;
+  status: DeliveryStatus; specialInstructions: string | null; estimatedFee: number | null;
+  estimatedDeliveryDate: string | null; createdAt: string; deliveredAt: string | null;
+  pickup: DeliveryAddressInput; destination: DeliveryAddressInput; parcels: (ParcelInput & {id: number})[];
+  trackingEvents: TrackingEvent[];
+}
+export interface PagedDeliveries { content: DeliverySummary[]; page: number; size: number; totalElements: number; totalPages: number }
+export interface SavedAddress { id: number; label: string; street: string; city: string; district: string; postalCode: string | null; defaultAddress: boolean }
+export interface SavedAddressInput { label: string; street: string; city: string; district: string; postalCode?: string; defaultAddress: boolean }
+export const estimateDelivery = (details: BookingInput) => request<FeeEstimate>('/api/customers/me/deliveries/estimate', {method:'POST', body:JSON.stringify(details)});
+export const createDelivery = (details: BookingInput) => request<DeliveryDetails>('/api/customers/me/deliveries', {method:'POST', body:JSON.stringify(details)});
+export const confirmDelivery = (id: number) => request<DeliveryDetails>(`/api/customers/me/deliveries/${id}/confirm`, {method:'POST'});
+export const listDeliveries = (args: {page?:number;status?:string;search?:string}={}) => {
+  const qs = new URLSearchParams({page:String(args.page??0),size:'10'});
+  if(args.status)qs.set('status',args.status);
+  if(args.search?.trim())qs.set('search',args.search.trim());
+  return request<PagedDeliveries>(`/api/customers/me/deliveries?${qs}`);
+};
+export const getDelivery = (id: number) => request<DeliveryDetails>(`/api/customers/me/deliveries/${id}`);
+export const trackMine = (code: string) => request<Tracking>(`/api/customers/me/tracking/${encodeURIComponent(code)}`);
+export async function trackPublic(code: string): Promise<Tracking> {
+  // Public endpoint must never be sent an expired authorization header.
+  const response = await fetch(`${env.apiUrl}/api/public/tracking/${encodeURIComponent(code.trim())}`);
+  if (!response.ok) throw new ApiError(response.status, response.status===404?'Tracking number not found.':'Unable to track this parcel.');
+  return response.json() as Promise<Tracking>;
+}
+export async function downloadReceipt(id: number): Promise<void> {
+  const response=await authorizedFetch(`${env.apiUrl}/api/customers/me/deliveries/${id}/receipt`);
+  if(!response.ok) {const p=await response.json().catch(()=>null); throw new ApiError(response.status,p?.detail??'Receipt not available.');}
+  const url=URL.createObjectURL(await response.blob());
+  const link=document.createElement('a');link.href=url;link.download=`SwiftDrop-receipt-${id}.pdf`;
+  document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
+export const updateCustomer = (phoneNumber:string) => request<CustomerProfile>('/api/customers/me',{method:'PUT',body:JSON.stringify({phoneNumber})});
+export const getSavedAddresses = () => request<SavedAddress[]>('/api/customers/me/addresses');
+export const addSavedAddress = (address:SavedAddressInput) => request<SavedAddress>('/api/customers/me/addresses',{method:'POST',body:JSON.stringify(address)});
+export const deleteSavedAddress = (id:number) => request<void>(`/api/customers/me/addresses/${id}`,{method:'DELETE'});
