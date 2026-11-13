@@ -11,10 +11,16 @@ export const routes = {
   verifyEmail: '/verify-email',
   account: '/account',
   customerDashboard: '/customer/dashboard',
+  merchantDashboard: '/merchant/dashboard',
+  merchantPreview: '/merchant/preview',
 } as const;
 
-export function navigate(path: string): void {
-  window.history.pushState(null, '', path);
+export function navigate(path: string, { replace = false } = {}): void {
+  if (replace) {
+    window.history.replaceState(null, '', path);
+  } else {
+    window.history.pushState(null, '', path);
+  }
   window.dispatchEvent(new PopStateEvent('popstate'));
 }
 
