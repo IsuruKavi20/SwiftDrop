@@ -15,6 +15,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import com.swiftdrop.backend.identity.entity.AppUser;
+import com.swiftdrop.backend.merchant.entity.Merchant;
 import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -39,9 +40,13 @@ public class Delivery {
     @Column(name = "delivery_id")
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "customer_id", nullable = false, updatable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_id", updatable = false)
     private Customer customer;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "merchant_id", updatable = false)
+    private Merchant merchant;
 
     /** The assigned courier (a person from the auth service); null until a courier is assigned. */
     @ManyToOne(fetch = FetchType.LAZY)
@@ -103,6 +108,13 @@ public class Delivery {
         this.deliveryType = deliveryType;
     }
 
+    public Delivery(Merchant merchant, String trackingNumber, String publicTrackingToken, DeliveryType deliveryType) {
+        this.merchant = merchant;
+        this.trackingNumber = trackingNumber;
+        this.publicTrackingToken = publicTrackingToken;
+        this.deliveryType = deliveryType;
+    }
+
     /** Sets the pickup or destination address. Throws if this delivery already has one of that type. */
     public void setAddress(DeliveryAddress address) {
         if (findAddress(address.getAddressType()).isPresent()) {
@@ -148,6 +160,7 @@ public class Delivery {
 
     public Long getId() { return id; }
     public Customer getCustomer() { return customer; }
+    public Merchant getMerchant() { return merchant; }
     public AppUser getCourier() { return courier; }
     /** Get the courier with UserDirectory.require(id) first: it checks they exist and are not blocked. */
     public void assignCourier(AppUser courier) { this.courier = courier; }

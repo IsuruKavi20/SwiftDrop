@@ -3,6 +3,7 @@ package com.swiftdrop.backend.notification.service;
 import com.swiftdrop.backend.customer.entity.Customer;
 import com.swiftdrop.backend.customer.entity.Delivery;
 import com.swiftdrop.backend.customer.entity.TrackingEvent;
+import com.swiftdrop.backend.merchant.entity.Merchant;
 import com.swiftdrop.backend.notification.config.RabbitMqConfig;
 import com.swiftdrop.backend.notification.event.CourierAssignedEvent;
 import com.swiftdrop.backend.notification.event.DeliveryStatusChangedEvent;
@@ -30,6 +31,7 @@ public class NotificationPublisherService {
      */
     public void publishDeliveryStatusChanged(Delivery delivery, TrackingEvent event) {
         Customer customer = delivery.getCustomer();
+        Merchant merchant = delivery.getMerchant();
 
         String customerName = "Customer";
         String customerEmail = null;
@@ -40,6 +42,10 @@ public class NotificationPublisherService {
                 customerName = customer.getUser().getName().orElse("Customer");
             }
             customerPhone = customer.getPhoneNumber();
+        } else if (merchant != null) {
+            customerName = merchant.getBusinessName() != null ? merchant.getBusinessName() : "Merchant";
+            customerEmail = merchant.getBusinessEmail();
+            customerPhone = merchant.getContactNumber();
         }
 
         // If recipient address has a contact name and phone, that can also be used
@@ -67,7 +73,7 @@ public class NotificationPublisherService {
                 customerPhone,
                 courierName,
                 null,
-                null, // merchantId if applicable
+                merchant != null ? merchant.getId() : null,
                 event != null ? event.getEventTime() : Instant.now(),
                 Map.of()
         );
