@@ -1,0 +1,60 @@
+# CI: every pull request and every push to main is built and tested. A PR that breaks the build can't be merged once
+# "Backend tests" and "Frontend build" are required checks (GitHub → Settings → Branches → main).
+# Actions are pinned to commit SHAs (a moved tag can't inject code); Dependabot proposes updates (.github/dependabot.yml).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+# Nothing by default; each job asks only for what it needs
+permissions: {}
+
+# A newer push to the same branch or PR cancels the outdated run
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      # Compiles and runs every test: Flyway migrations (V1, V2, ...) run on the test database, so a missing or
+      # clashing migration fails here, before it reaches main
+      - run: ./mvnw -B verify
+
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The runner already has Node and npm: no extra action needed
+      - run: node --version && npm --version
+      - run: npm ci
+      - run: npm run lint
+      # Type check (tsc -b) + production build
+      - run: npm run build
