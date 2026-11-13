@@ -16,6 +16,7 @@ const EMPTY_ADDRESS: AddressInput = { label: 'Home', street: '', city: '', distr
  */
 export function CompleteProfileForm({ onRegistered }: { onRegistered: (profile: CustomerProfile) => void }) {
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [fullName, setFullName] = useState('');
   const [address, setAddress] = useState<AddressInput>(EMPTY_ADDRESS);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -31,6 +32,7 @@ export function CompleteProfileForm({ onRegistered }: { onRegistered: (profile: 
     setBusy(true);
     const details: RegisterCustomer = {
       phoneNumber,
+      fullName: fullName.trim() || undefined,
       address: { ...address, postalCode: address.postalCode?.trim() || undefined },
     };
     try {
@@ -60,6 +62,11 @@ export function CompleteProfileForm({ onRegistered }: { onRegistered: (profile: 
       </p>
       <form className={formStyles.form} onSubmit={onSubmit} noValidate>
         {error && <Alert kind="error">{error}</Alert>}
+        <div>
+          <TextField id="fullName" label="Full name (optional)" icon={userIcon} type="text" autoComplete="name"
+            placeholder="Nimal Perera" value={fullName} onChange={(event) => setFullName(event.target.value)} />
+          {fieldError('fullName')}
+        </div>
         <div>
           <TextField id="phoneNumber" label="Phone number" icon={userIcon} type="tel" autoComplete="tel" required
             placeholder="0771234567" value={phoneNumber} onChange={(event) => setPhoneNumber(event.target.value)} />

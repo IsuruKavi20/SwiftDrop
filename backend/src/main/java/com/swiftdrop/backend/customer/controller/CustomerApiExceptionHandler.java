@@ -30,6 +30,11 @@ class CustomerApiExceptionHandler extends ResponseEntityExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    ProblemDetail badInput(IllegalArgumentException exception) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+    }
+
     @ExceptionHandler(ConflictException.class)
     ProblemDetail conflict(ConflictException exception) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());

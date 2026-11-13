@@ -1,0 +1,36 @@
+.orders {
+  padding: clamp(1rem, 3vw, 2rem);
+  border: 1px solid var(--merchant-line);
+  border-radius: 1rem;
+  background: var(--color-surface);
+}
+
+.heading, .actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.heading { justify-content: space-between; margin-bottom: 1rem; }
+.heading h2 { margin: 0; font-size: 1.25rem; }
+.orders p { color: var(--merchant-secondary); line-height: 1.5; }
+.orders > p { margin-bottom: 0; }
+.orders p a { color: var(--merchant-accent); }
+.tableRegion { overflow-x: auto; border: 1px solid var(--merchant-line); border-radius: 0.75rem; }
+.table { width: 100%; min-width: 39rem; border-collapse: collapse; text-align: start; }
+.table th { padding: 0.8rem; background: var(--merchant-pale); text-align: start; }
+.empty { padding: 1.25rem; border-top: 1px solid var(--merchant-line); }
+.empty p { margin: 0.35rem 0 0; }
+.select {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--merchant-line);
+  border-radius: 0.6rem;
+  background: var(--color-surface);
+  color: var(--merchant-text);
+  font: inherit;
+}
+.fieldError { color: var(--color-error); font-size: 0.8rem; }
+.orderForm input[aria-invalid='true'], .select[aria-invalid='true'] { border-color: var(--color-error); }

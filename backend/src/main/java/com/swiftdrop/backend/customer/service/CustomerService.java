@@ -38,10 +38,18 @@ public class CustomerService {
 
     /** @param user the caller, from {@code UserDirectory.caller(token)} */
     public CustomerResponse register(AppUser user, RegisterCustomerRequest request) {
+        return register(user, request, null);
+    }
+
+    /** Email is read only from a validated login token, never from the customer-submitted body. */
+    public CustomerResponse register(AppUser user, RegisterCustomerRequest request, String loginEmail) {
         if (customers.existsByUserId(user.getId())) {
             throw new ConflictException("You are already registered as a customer");
         }
         Customer customer = new Customer(user, request.phoneNumber().trim());
+        String fullName = blankToNull(request.fullName());
+        customer.setFullName(fullName == null ? user.getName().orElse(null) : fullName.trim());
+        if (loginEmail != null && loginEmail.length() <= 150) customer.setEmail(blankToNull(loginEmail));
         // The first address is saved together with the profile (one transaction) and is the default
         CustomerAddressRequest first = request.address();
         CustomerAddress address = new CustomerAddress(first.label().trim(), first.street().trim(),
@@ -59,6 +67,11 @@ public class CustomerService {
     public CustomerResponse updateProfile(UUID authUserId, UpdateCustomerProfileRequest request) {
         Customer customer = requireCustomer(authUserId);
         customer.setPhoneNumber(request.phoneNumber().trim());
+        if (request.fullName() != null) {
+            String name = blankToNull(request.fullName());
+            if (name == null) throw new IllegalArgumentException("Full name cannot be blank");
+            customer.setFullName(name.trim());
+        }
         return CustomerResponse.from(customers.saveAndFlush(customer));
     }
 

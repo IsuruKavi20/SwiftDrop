@@ -1,6 +1,10 @@
 package com.swiftdrop.backend.customer.controller;
 
 import com.jayway.jsonpath.JsonPath;
+import com.swiftdrop.backend.customer.entity.DeliveryStatus;
+import com.swiftdrop.backend.customer.entity.TrackingEvent;
+import com.swiftdrop.backend.customer.repository.CustomerDeliveryRepository;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -35,6 +39,9 @@ class CustomerModuleApiTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private CustomerDeliveryRepository deliveryRepository;
 
     private final UUID alice = UUID.randomUUID();
     private final UUID bob = UUID.randomUUID();
@@ -290,4 +297,140 @@ class CustomerModuleApiTest {
                 .andExpect(jsonPath("$.events[*].status", hasItem("PENDING")))
                 .andExpect(jsonPath("$.events[*].status", not(hasItem("DELIVERED"))));
     }
+    @Test
+    void quoteNeedsAuthentication() throws Exception {
+        mockMvc.perform(post("/api/customers/me/deliveries/estimate")
+                .contentType(MediaType.APPLICATION_JSON).content(BOOKING))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void deliveredCustomerCanDownloadValidPdfReceiptButOtherCustomerCannot() throws Exception {
+        register(alice, "alice@example.com");
+        register(bob, "bob@example.com");
+        String booked = book(alice);
+        Integer id = JsonPath.read(booked, "$.id");
+        mockMvc.perform(post("/api/customers/me/deliveries/{id}/confirm", id).with(customer(alice)))
+                .andExpect(status().isOk());
+        var delivery = deliveryRepository.findById(id.longValue()).orElseThrow();
+        delivery.addTrackingEvent(new TrackingEvent(DeliveryStatus.DELIVERED,
+                "Delivered to recipient", null, Instant.now(), null));
+        deliveryRepository.saveAndFlush(delivery);
+
+        mockMvc.perform(get("/api/customers/me/deliveries/{id}/receipt", id).with(customer(alice)))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF))
+                .andExpect(result -> org.junit.jupiter.api.Assertions.assertTrue(
+                        result.getResponse().getContentAsByteArray().length > 100 &&
+                        new String(result.getResponse().getContentAsByteArray(), 0, 4,
+                                java.nio.charset.StandardCharsets.US_ASCII).equals("%PDF")));
+        mockMvc.perform(get("/api/customers/me/deliveries/{id}/receipt", id).with(customer(bob)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void customerCanEstimateBeforeBookingAndCannotDownloadReceiptBeforeDelivery() throws Exception {
+        register(alice, "alice@example.com");
+        mockMvc.perform(post("/api/customers/me/deliveries/estimate").with(customer(alice))
+                .contentType(MediaType.APPLICATION_JSON).content(BOOKING))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currency").value("LKR"))
+                .andExpect(jsonPath("$.totalFee").value(1180.0));
+        String booked=book(alice);
+        Integer id=JsonPath.read(booked,"$.id");
+        mockMvc.perform(get("/api/customers/me/deliveries/{id}/receipt",id).with(customer(alice)))
+                .andExpect(status().isConflict());
+        mockMvc.perform(get("/api/customers/me/deliveries/{id}/receipt",id).with(customer(bob)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void customerCancelsOwnBookingAndCannotConfirmItAfterCancellation() throws Exception {
+        register(alice, "alice@example.com");
+        register(bob, "bob@example.com");
+        Integer id = JsonPath.read(book(alice), "$.id");
+        mockMvc.perform(post("/api/customers/me/deliveries/{id}/cancel", id)
+                        .with(customer(alice)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Wrong pickup address\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.trackingEvents.length()").value(2));
+        mockMvc.perform(post("/api/customers/me/deliveries/{id}/confirm", id).with(customer(alice)))
+                .andExpect(status().isConflict());
+        mockMvc.perform(post("/api/customers/me/deliveries/{id}/cancel", id)
+                        .with(customer(bob)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Not mine\"}"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/customers/me/deliveries/{id}/cancel", id)
+                        .with(customer(alice)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Again\"}"))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void supportTicketIsStoredAndPrivateToItsCustomer() throws Exception {
+        register(alice, "alice@example.com");
+        register(bob, "bob@example.com");
+        Integer deliveryId = JsonPath.read(book(alice), "$.id");
+        String created = mockMvc.perform(post("/api/customers/me/support")
+                        .with(customer(alice)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"category\":\"DELAY\",\"subject\":\"Delivery delay\",\"message\":\"Can you check this delivery?\",\"deliveryId\":%d}".formatted(deliveryId)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("OPEN"))
+                .andExpect(jsonPath("$.messages[0].senderRole").value("CUSTOMER"))
+                .andReturn().getResponse().getContentAsString();
+        Integer ticketId = JsonPath.read(created, "$.id");
+        mockMvc.perform(post("/api/customers/me/support/{id}/messages", ticketId)
+                        .with(customer(alice)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"Any new information?\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.messages.length()").value(2));
+        mockMvc.perform(get("/api/customers/me/support").with(customer(alice)))
+                .andExpect(jsonPath("$.length()").value(1));
+        mockMvc.perform(get("/api/customers/me/support").with(customer(bob)))
+                .andExpect(jsonPath("$.length()").value(0));
+        mockMvc.perform(get("/api/customers/me/support/{id}", ticketId).with(customer(bob)))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/customers/me/support/{id}/messages", ticketId)
+                        .with(customer(bob)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"Not my ticket\"}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void cannotFileSupportForSomeoneElsesBookingOrSubmitInvalidInput() throws Exception {
+        register(alice, "alice@example.com");
+        register(bob, "bob@example.com");
+        Integer deliveryId = JsonPath.read(book(alice), "$.id");
+        mockMvc.perform(post("/api/customers/me/support").with(customer(bob))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"category\":\"OTHER\",\"subject\":\"Help\",\"message\":\"Hello there\",\"deliveryId\":%d}".formatted(deliveryId)))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/customers/me/support").with(customer(alice))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"category\":\"OTHER\",\"subject\":\"\",\"message\":\"\"}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/api/customers/me/support")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"category\":\"OTHER\",\"subject\":\"Question\",\"message\":\"Help\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+
+    @Test
+    void customerProfileNameAndPhoneArePersistedAndScoped() throws Exception {
+        register(alice, "alice@example.com");
+        register(bob, "bob@example.com");
+        mockMvc.perform(put("/api/customers/me").with(customer(alice))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"phoneNumber\":\"0775555555\",\"fullName\":\"Nimal Perera\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Nimal Perera"))
+                .andExpect(jsonPath("$.phoneNumber").value("0775555555"));
+        mockMvc.perform(get("/api/customers/me").with(customer(alice)))
+                .andExpect(jsonPath("$.name").value("Nimal Perera"));
+        mockMvc.perform(get("/api/customers/me").with(customer(bob)))
+                .andExpect(jsonPath("$.phoneNumber").value("0771234567"));
+    }
+
 }

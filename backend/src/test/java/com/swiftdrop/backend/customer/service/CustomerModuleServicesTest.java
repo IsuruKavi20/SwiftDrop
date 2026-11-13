@@ -75,9 +75,9 @@ class CustomerModuleServicesTest {
     @BeforeEach
     void registerTwoCustomers() {
         customerService.register(TestPeople.saved(em, alice, "Alice Fernando", "CUSTOMER"),
-                new RegisterCustomerRequest(" 0771111111 ", new CustomerAddressRequest("Home", "2 Lake Rd", "Colombo", "Colombo", null, null)));
+                new RegisterCustomerRequest(" 0771111111 ", null, new CustomerAddressRequest("Home", "2 Lake Rd", "Colombo", "Colombo", null, null)));
         customerService.register(TestPeople.saved(em, bob, "Bob Silva", "CUSTOMER"),
-                new RegisterCustomerRequest("0772222222", new CustomerAddressRequest("Home", "2 Lake Rd", "Colombo", "Colombo", null, null)));
+                new RegisterCustomerRequest("0772222222", null, new CustomerAddressRequest("Home", "2 Lake Rd", "Colombo", "Colombo", null, null)));
     }
 
     private static CreateDeliveryRequest booking(DeliveryType type, String receiver, String city) {
@@ -97,7 +97,7 @@ class CustomerModuleServicesTest {
         assertThat(customerService.getProfile(alice).phoneNumber()).isEqualTo("0771111111");
 
         AppUser aliceAgain = em.find(AppUser.class, alice);
-        assertThatThrownBy(() -> customerService.register(aliceAgain, new RegisterCustomerRequest("0771111111", new CustomerAddressRequest("Home", "2 Lake Rd", "Colombo", "Colombo", null, null))))
+        assertThatThrownBy(() -> customerService.register(aliceAgain, new RegisterCustomerRequest("0771111111", null, new CustomerAddressRequest("Home", "2 Lake Rd", "Colombo", "Colombo", null, null))))
                 .isInstanceOf(ConflictException.class).hasMessageContaining("already registered");
     }
 

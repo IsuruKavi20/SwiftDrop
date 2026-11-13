@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import logoIcon from '../../../assets/auth/logo-box.svg';
 import userIcon from '../../../assets/auth/icon-user.svg';
 import { navigate, routes } from '../../../app/router';
-import { logOut, refresh } from '../../auth/api/authApi';
+import { fetchAccountName, logOut, refresh } from '../../auth/api/authApi';
 import { Alert } from '../../auth/components/FormControls';
 import { getAccessToken, readClaims } from '../../auth/lib/session';
 import {
@@ -77,6 +77,8 @@ function formatDate(value: string | null): string {
 /** The customer's home page after login: delivery counts, recent deliveries and the way to every customer feature. */
 export function CustomerDashboardPage() {
   const [state, setState] = useState<State>({ kind: 'loading' });
+  // The name from the auth service's userinfo, fetched only when neither the profile nor the token has one
+  const [fetchedName, setFetchedName] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setState({ kind: 'loading' });
@@ -104,6 +106,9 @@ export function CustomerDashboardPage() {
         navigate(routes.account); // logged in, but not a customer
         return;
       }
+      if (!readNameFromToken()) {
+        void fetchAccountName().then(setFetchedName);
+      }
       await load();
     })();
   }, [load]);
@@ -114,6 +119,8 @@ export function CustomerDashboardPage() {
   }
 
   const profile = state.kind === 'ready' ? state.profile : null;
+  // The full name the customer entered; before the profile exists, the login account's name if it has one
+  const name = profile?.name || readNameFromToken() || fetchedName;
 
   return (
     <div className={styles.page}>
@@ -165,7 +172,7 @@ export function CustomerDashboardPage() {
           <div className={styles.navbarTitle}>
             <h1 className={styles.pageTitle}>Customer Dashboard</h1>
             <p className={styles.welcome}>
-              {profile ? <>Welcome back, <strong>{displayName(profile)}</strong></> : 'Welcome back'}
+              {name ? <>Welcome back, <strong>{name}</strong></> : 'Welcome back'}
             </p>
           </div>
 
@@ -174,7 +181,7 @@ export function CustomerDashboardPage() {
             <button type="button" className={styles.iconButton} aria-label="Notifications" title="No new notifications">
               <LineIcon paths={ICONS.bell} />
             </button>
-            <ProfileMenu profile={profile} onLogOut={() => void onLogOut()} />
+            <ProfileMenu name={name} onLogOut={() => void onLogOut()} />
           </div>
         </header>
 
@@ -219,7 +226,7 @@ export function CustomerDashboardPage() {
  * Avatar button that opens the account menu (Settings, Log out). Always shown, even before the profile loads,
  * so a customer without a profile can still log out. Closes on an outside click or Escape.
  */
-function ProfileMenu({ profile, onLogOut }: { profile: CustomerProfile | null; onLogOut: () => void }) {
+function ProfileMenu({ name, onLogOut }: { name: string | null; onLogOut: () => void }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -239,8 +246,6 @@ function ProfileMenu({ profile, onLogOut }: { profile: CustomerProfile | null; o
     };
   }, [open]);
 
-  const name = profile ? displayName(profile) : 'My account';
-
   return (
     <div className={styles.profileMenu} ref={menuRef}>
       <button
@@ -251,11 +256,11 @@ function ProfileMenu({ profile, onLogOut }: { profile: CustomerProfile | null; o
         onClick={() => setOpen((value) => !value)}
       >
         <span className={styles.avatar} aria-hidden="true">
-          {profile
-            ? initials(displayName(profile))
+          {name
+            ? initials(name)
             : <img src={userIcon} width={18} height={18} alt="" />}
         </span>
-        <span className={styles.userName}>{name}</span>
+        <span className={styles.userName}>{name ?? 'Account'}</span>
         <svg className={styles.caret} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="m6 9 6 6 6-6" />
@@ -264,7 +269,7 @@ function ProfileMenu({ profile, onLogOut }: { profile: CustomerProfile | null; o
 
       {open && (
         <div className={styles.dropdown} role="menu">
-          {profile && (
+          {name && (
             <div className={styles.dropdownHeader}>
               <span className={styles.dropdownName}>{name}</span>
               <span className={styles.dropdownEmail}>{loginEmail()}</span>
@@ -362,14 +367,10 @@ function DashboardView({ dashboard }: { dashboard: Dashboard }) {
   );
 }
 
-// Name and email belong to the login account: the profile has the name, the token has the email
-function displayName(profile: CustomerProfile): string {
-  return profile.name ?? readNameFromToken() ?? 'My account';
-}
-
+// Name and email belong to the login account: the profile or token has the name, the token has the email
 function readNameFromToken(): string | undefined {
   const token = getAccessToken();
-  return token ? readClaims(token).name : undefined;
+  return (token ? readClaims(token).name?.trim() : undefined) || undefined;
 }
 
 function loginEmail(): string {

@@ -1,9 +1,9 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import lockIcon from '../../../assets/auth/icon-lock.svg';
 import mailIcon from '../../../assets/auth/icon-mail.svg';
 import { navigate, routes } from '../../../app/router';
 import { AuthError, logIn, startGoogleLogin } from '../api/authApi';
-import { landingPage } from '../lib/landing';
+import { landingPage, rememberNextFromUrl, withNext } from '../lib/landing';
 import { AuthLayout } from '../components/AuthLayout';
 import { Alert, Divider, GoogleButton, PrimaryButton, TextField } from '../components/FormControls';
 import styles from '../components/FormControls.module.css';
@@ -11,6 +11,8 @@ import styles from '../components/FormControls.module.css';
 /** Figma "SwiftDrop desktop login" / "mobile login". */
 export function LoginPage() {
   const [email, setEmail] = useState('');
+  // "?next=" (e.g. from "Sell with SwiftDrop") is remembered for after the login, also across Google login
+  useEffect(rememberNextFromUrl, []);
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -54,6 +56,13 @@ export function LoginPage() {
       <p className={styles.footer}>
         New here?{' '}
         <button type="button" className={styles.link} onClick={() => navigate(routes.signup)}>Create an account</button>
+      </p>
+      <p className={styles.footer}>
+        Are you a business?{' '}
+        <button type="button" className={styles.link}
+          onClick={() => navigate(withNext(routes.signup, routes.merchantApply))}>
+          Sell with SwiftDrop
+        </button>
       </p>
     </AuthLayout>
   );

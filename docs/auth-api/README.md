@@ -9,6 +9,7 @@ Base URL: `https://auth.getswiftdrop.me`
 | [role-applications.md](role-applications.md) | "Become a courier / dispatcher" + approving them |
 | [admin.md](admin.md) | admin portal: users, block, roles, audit log, merchants |
 | [merchants.md](merchants.md) | merchant application and merchant API keys |
+| [merchant-screens.md](merchant-screens.md) | which merchant screen calls which API (frontend guide) |
 
 ## Rules for every call
 - Use the JSON field names **exactly as written** in these files (most are snake_case like `refresh_token`).
