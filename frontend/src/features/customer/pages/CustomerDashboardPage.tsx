@@ -251,9 +251,13 @@ function ProfileMenu({ profile, onLogOut }: { profile: CustomerProfile | null; o
         onClick={() => setOpen((value) => !value)}
       >
         <span className={styles.avatar} aria-hidden="true">
-          {profile
-            ? initials(displayName(profile))
-            : <img src={userIcon} width={18} height={18} alt="" />}
+          {profile?.pictureUrl
+            // The photo from the login account (e.g. Google); no-referrer: Google may refuse images requested
+            // with another site's address, and it keeps our URLs private
+            ? <img className={styles.avatarPhoto} src={profile.pictureUrl} alt="" referrerPolicy="no-referrer" />
+            : profile
+              ? initials(displayName(profile))
+              : <img src={userIcon} width={18} height={18} alt="" />}
         </span>
         <span className={styles.userName}>{name}</span>
         <svg className={styles.caret} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
