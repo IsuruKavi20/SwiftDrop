@@ -15,6 +15,7 @@ export const routes = {
   customerDeliveries: '/customer/deliveries',
   customerTrack: '/customer/track',
   customerAccount: '/customer/profile',
+  customerSupport: '/customer/support',
   publicTrack: '/track',
 } as const;
 

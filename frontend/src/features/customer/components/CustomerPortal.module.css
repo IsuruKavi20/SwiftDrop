@@ -16,3 +16,18 @@
 @media (max-width:700px){.sidebar{display:none}.topbar{min-height:85px;padding:12px 16px}.topbar h1{font-size:20px}.topActions .primarySmall{display:none}.content{padding:22px 14px 104px}.mobileNav{position:fixed;bottom:0;left:0;right:0;z-index:9;display:flex;justify-content:space-around;gap:4px;background:#fff;border-top:1px solid #e8dfcd;padding:8px 4px calc(8px + env(safe-area-inset-bottom))}.mobileNav button{background:none;border:0;display:grid;justify-items:center;gap:2px;color:#887864;font-size:24px;cursor:pointer;min-width:54px}.mobileNav button.mobileActive{color:#684b1b}.mobileNav small{font-size:10px;font-weight:700}.headingRow{align-items:flex-start}.headingRow h2{font-size:20px}.headingRow>.primary{font-size:11px;padding:10px}.stats{gap:9px}.stat{padding:15px}.stat strong{font-size:26px}.card{padding:19px 16px;border-radius:15px}.formGrid{grid-template-columns:1fr}.wide{grid-column:auto}.filterRow{flex-direction:column}.filterRow>.field:last-child{max-width:none}.pagination{align-items:flex-start;flex-direction:column}.searchBar{flex-direction:column}.publicHeader{padding:0 16px}.publicBody{padding:45px 14px}.publicIntro h1{font-size:27px}.route strong{font-size:14px}.trackBox strong{font-size:18px}.centerButtons{flex-wrap:wrap}.actions{flex-wrap:wrap}.total strong{font-size:17px}}
 
 .inlineActions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+/* Customer support and multi-parcel booking refinements */
+.supportList{display:grid;gap:10px}
+.supportItem{display:grid;gap:6px;text-align:left;border:1px solid #e8dfd0;background:#fffaf1;padding:14px;border-radius:12px;cursor:pointer;color:#493b2c;font:inherit}
+.supportItem strong{font-size:13px;overflow-wrap:anywhere}
+.supportItem span{font-size:11px;color:#857565;text-transform:capitalize}
+.supportItem:hover,.supportSelected{border-color:#d3b66e;background:#fff4d9}
+.supportMessages{display:grid;gap:10px;max-height:400px;overflow-y:auto;margin:18px 0}
+.supportMessage{background:#fffaf1;border:1px solid #eee3d0;border-radius:11px;padding:12px 15px;overflow-wrap:anywhere}
+.supportMessage p{margin:7px 0 0;font-size:13px;white-space:pre-wrap}
+.supportMessage small{font-size:10px;color:#857565}
+.parcelCard{border:1px solid #ece2d4;border-radius:12px;padding:17px;margin:12px 0;display:grid;gap:13px}
+.parcelCard h4{margin:0;font-size:13px}
+.destructive{border:1px solid #ebbcad;background:#fff3ef;color:#a43c31;border-radius:9px;padding:10px 14px;cursor:pointer;font-size:12px;font-weight:650}
+.destructive:disabled{cursor:not-allowed;opacity:.5}

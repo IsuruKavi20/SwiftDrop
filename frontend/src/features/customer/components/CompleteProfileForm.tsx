@@ -5,37 +5,26 @@ import formStyles from '../../auth/components/FormControls.module.css';
 import { ApiError, registerCustomer, type CustomerProfile, type RegisterCustomer } from '../api/customerApi';
 import styles from './CustomerLayout.module.css';
 
-interface CompleteProfileFormProps {
-  /** The login account's name, if known: fills in the full name field until the customer edits it */
-  suggestedName?: string | null;
-  onRegistered: (profile: CustomerProfile) => void;
-}
-
 /**
  * Shown on the first visit: the account exists at the auth service, but SwiftDrop has no customer profile yet.
- * Asks for the customer's full name (shown on their dashboard) and phone. The email comes from the login account.
+ * Name and email already come from the login account, so only the phone number is asked.
  */
-export function CompleteProfileForm({ suggestedName, onRegistered }: CompleteProfileFormProps) {
-  // null = not edited yet, so the suggested name (which may arrive after the form opens) is shown
-  const [fullName, setFullName] = useState<string | null>(null);
-  const [phoneNumber, setPhoneNumber] = useState('');
+export function CompleteProfileForm({ onRegistered }: { onRegistered: (profile: CustomerProfile) => void }) {
+  const [details, setDetails] = useState<RegisterCustomer>({ phoneNumber: '', fullName: '' });
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
-  const shownName = fullName ?? suggestedName ?? '';
+  const update = (field: keyof RegisterCustomer) => (event: { target: { value: string } }) =>
+    setDetails({ ...details, [field]: event.target.value });
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
     setFieldErrors({});
-    if (!shownName.trim()) {
-      setFieldErrors({ fullName: 'Please enter your full name' });
-      return;
-    }
     setBusy(true);
     try {
-      onRegistered(await registerCustomer({ fullName: shownName.trim(), phoneNumber }));
+      onRegistered(await registerCustomer(details));
     } catch (failure) {
       if (failure instanceof ApiError) {
         setError(failure.message);
@@ -54,18 +43,17 @@ export function CompleteProfileForm({ suggestedName, onRegistered }: CompletePro
   return (
     <section className={styles.card}>
       <h2 className={styles.cardTitle}>Complete your profile</h2>
-      <p className={styles.muted}>Welcome to SwiftDrop! Add your name and phone number to start sending parcels.</p>
+      <p className={styles.muted}>Welcome to SwiftDrop! Add your full name and contact number to start sending parcels.</p>
       <form className={formStyles.form} onSubmit={onSubmit} noValidate>
         {error && <Alert kind="error">{error}</Alert>}
         <div>
           <TextField id="fullName" label="Full name" icon={userIcon} type="text" autoComplete="name" required
-            maxLength={150} placeholder="Nimal Perera" value={shownName}
-            onChange={(event) => setFullName(event.target.value)} />
+            placeholder="Nimal Perera" value={details.fullName ?? ''} onChange={update('fullName')} />
           {fieldError('fullName')}
         </div>
         <div>
           <TextField id="phoneNumber" label="Phone number" icon={userIcon} type="tel" autoComplete="tel" required
-            placeholder="0771234567" value={phoneNumber} onChange={(event) => setPhoneNumber(event.target.value)} />
+            placeholder="0771234567" value={details.phoneNumber} onChange={update('phoneNumber')} />
           {fieldError('phoneNumber')}
         </div>
         <PrimaryButton type="submit" disabled={busy}>{busy ? 'Saving…' : 'Continue to dashboard'}</PrimaryButton>

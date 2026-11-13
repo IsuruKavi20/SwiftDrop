@@ -3,6 +3,7 @@ package com.swiftdrop.backend.customer.controller;
 import com.swiftdrop.backend.customer.dto.CreateDeliveryRequest;
 import com.swiftdrop.backend.customer.dto.DeliveryDetailsResponse;
 import com.swiftdrop.backend.customer.dto.FeeEstimateResponse;
+import com.swiftdrop.backend.customer.dto.CancelDeliveryRequest;
 import com.swiftdrop.backend.customer.service.CustomerPricingService;
 import com.swiftdrop.backend.customer.service.DeliveryBookingService;
 import jakarta.validation.Valid;
@@ -46,5 +47,11 @@ class DeliveryBookingController {
     @PostMapping("/{deliveryId}/confirm")
     DeliveryDetailsResponse confirmDelivery(@PathVariable Long deliveryId, @AuthenticationPrincipal Jwt user) {
         return booking.confirmDelivery(CurrentUser.id(user), deliveryId);
+    }
+
+    @PostMapping("/{deliveryId}/cancel")
+    DeliveryDetailsResponse cancelDelivery(@PathVariable Long deliveryId, @Valid @RequestBody CancelDeliveryRequest request,
+                                           @AuthenticationPrincipal Jwt user) {
+        return booking.cancelDelivery(CurrentUser.id(user), deliveryId, request.reason());
     }
 }

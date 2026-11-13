@@ -29,6 +29,7 @@ export interface CustomerProfile {
   id: number;
   /** From the login account (auth service) */
   name: string | null;
+  email: string | null;
   pictureUrl: string | null;
   phoneNumber: string;
   createdAt: string;
@@ -37,6 +38,7 @@ export interface CustomerProfile {
 /** Only what SwiftDrop needs: name and email already come from the login account. */
 export interface RegisterCustomer {
   phoneNumber: string;
+  fullName?: string;
 }
 
 /** A backend error: its "detail" message, and for invalid forms the message per field. */
@@ -101,7 +103,7 @@ export interface TrackingEvent { status: DeliveryStatus; description: string; lo
 export interface Tracking { trackingNumber: string; deliveryType: DeliveryType; status: DeliveryStatus; fromCity: string | null; toCity: string | null; estimatedDeliveryDate: string | null; deliveredAt: string | null; events: TrackingEvent[] }
 export interface DeliveryDetails {
   id: number; trackingNumber: string; publicTrackingToken: string; deliveryType: DeliveryType;
-  status: DeliveryStatus; specialInstructions: string | null; estimatedFee: number | null;
+  status: DeliveryStatus; specialInstructions: string | null; cancellationReason: string | null; estimatedFee: number | null;
   estimatedDeliveryDate: string | null; createdAt: string; deliveredAt: string | null;
   pickup: DeliveryAddressInput; destination: DeliveryAddressInput; parcels: (ParcelInput & {id: number})[];
   trackingEvents: TrackingEvent[];
@@ -133,8 +135,44 @@ export async function downloadReceipt(id: number): Promise<void> {
   const link=document.createElement('a');link.href=url;link.download=`SwiftDrop-receipt-${id}.pdf`;
   document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
 }
-export const updateCustomer = (phoneNumber:string) => request<CustomerProfile>('/api/customers/me',{method:'PUT',body:JSON.stringify({phoneNumber})});
+export const updateCustomer = (phoneNumber:string, fullName:string) => request<CustomerProfile>('/api/customers/me',{method:'PUT',body:JSON.stringify({phoneNumber,fullName})});
 export const getSavedAddresses = () => request<SavedAddress[]>('/api/customers/me/addresses');
 export const addSavedAddress = (address:SavedAddressInput) => request<SavedAddress>('/api/customers/me/addresses',{method:'POST',body:JSON.stringify(address)});
 export const updateSavedAddress = (id:number,address:SavedAddressInput) => request<SavedAddress>(`/api/customers/me/addresses/${id}`,{method:'PUT',body:JSON.stringify(address)});
 export const deleteSavedAddress = (id:number) => request<void>(`/api/customers/me/addresses/${id}`,{method:'DELETE'});
+
+
+/** Customer-owned booking cancellation; backend enforces status/assignment restrictions. */
+export const cancelDelivery = (id: number, reason: string) =>
+  request<DeliveryDetails>(`/api/customers/me/deliveries/${id}/cancel`, {
+    method: 'POST', body: JSON.stringify({ reason }),
+  });
+
+/** Support cases are private to the signed-in customer. */
+export type SupportCategory = 'DELIVERY_STATUS' | 'DELAY' | 'DAMAGED_PARCEL' | 'BILLING' | 'OTHER';
+export type SupportTicketStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
+export interface SupportTicket {
+  id: number;
+  category: SupportCategory;
+  status: SupportTicketStatus;
+  subject: string;
+  deliveryId: number | null;
+  trackingNumber: string | null;
+  createdAt: string;
+  updatedAt: string;
+  messages: { id: number; senderRole: string; message: string; createdAt: string }[];
+}
+export interface CreateSupportTicket {
+  category: SupportCategory;
+  subject: string;
+  message: string;
+  deliveryId?: number;
+}
+export const listSupportTickets = () => request<SupportTicket[]>('/api/customers/me/support');
+export const getSupportTicket = (id: number) => request<SupportTicket>(`/api/customers/me/support/${id}`);
+export const createSupportTicket = (details: CreateSupportTicket) =>
+  request<SupportTicket>('/api/customers/me/support', { method: 'POST', body: JSON.stringify(details) });
+export const addSupportReply = (id: number, message: string) =>
+  request<SupportTicket>(`/api/customers/me/support/${id}/messages`, {
+    method: 'POST', body: JSON.stringify({ message }),
+  });

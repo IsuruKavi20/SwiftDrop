@@ -36,17 +36,20 @@ public class CustomerService {
 
     // ---- Registration and profile ----
 
-    /**
-     * @param user  the caller, from {@code UserDirectory.caller(token)}
-     * @param email the login email from the caller's access token (may be null)
-     */
-    public CustomerResponse register(AppUser user, String email, RegisterCustomerRequest request) {
+    /** @param user the caller, from {@code UserDirectory.caller(token)} */
+    public CustomerResponse register(AppUser user, RegisterCustomerRequest request) {
+        return register(user, request, null);
+    }
+
+    /** Email is read only from a validated login token, never from the customer-submitted body. */
+    public CustomerResponse register(AppUser user, RegisterCustomerRequest request, String loginEmail) {
         if (customers.existsByUserId(user.getId())) {
             throw new ConflictException("You are already registered as a customer");
         }
-        String fullName = request.fullName().trim().replaceAll("\\s+", " ");
-        Customer customer = new Customer(user, fullName, request.phoneNumber().trim());
-        customer.setEmail(email);
+        Customer customer = new Customer(user, request.phoneNumber().trim());
+        String fullName = blankToNull(request.fullName());
+        customer.setFullName(fullName == null ? user.getName().orElse(null) : fullName.trim());
+        if (loginEmail != null && loginEmail.length() <= 150) customer.setEmail(blankToNull(loginEmail));
         return CustomerResponse.from(customers.save(customer));
     }
 
@@ -55,21 +58,14 @@ public class CustomerService {
         return CustomerResponse.from(requireCustomer(authUserId));
     }
 
-    /**
-     * The profile, also keeping the stored email in step with the login account: fills it in for customers
-     * registered before emails were stored, and updates it after the customer changes their login email.
-     */
-    public CustomerResponse getProfile(UUID authUserId, String tokenEmail) {
-        Customer customer = requireCustomer(authUserId);
-        if (tokenEmail != null && !tokenEmail.equals(customer.getEmail())) {
-            customer.setEmail(tokenEmail);
-        }
-        return CustomerResponse.from(customer);
-    }
-
     public CustomerResponse updateProfile(UUID authUserId, UpdateCustomerProfileRequest request) {
         Customer customer = requireCustomer(authUserId);
         customer.setPhoneNumber(request.phoneNumber().trim());
+        if (request.fullName() != null) {
+            String name = blankToNull(request.fullName());
+            if (name == null) throw new IllegalArgumentException("Full name cannot be blank");
+            customer.setFullName(name.trim());
+        }
         return CustomerResponse.from(customers.saveAndFlush(customer));
     }
 

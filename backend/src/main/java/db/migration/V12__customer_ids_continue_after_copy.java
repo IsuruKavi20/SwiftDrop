@@ -11,7 +11,7 @@ import java.sql.Statement;
  * highest copied one, so ids are never reused. "RESTART WITH" needs a fixed number, which is why this is Java:
  * it reads the current maximum first. Works on PostgreSQL and on the tests' H2 database.
  */
-public class V11__customer_ids_continue_after_copy extends BaseJavaMigration {
+public class V12__customer_ids_continue_after_copy extends BaseJavaMigration {
 
     @Override
     public void migrate(Context context) throws Exception {

@@ -19,8 +19,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A customer's delivery profile: the full name they entered, phone and saved addresses. Photo and login email
- * belong to the auth service and are read through {@link AppUser}.
+ * A customer's delivery profile. Who the person is (name, photo, login email) belongs to the auth service and is
+ * read through {@link AppUser}; this record keeps only what deliveries need (phone, saved addresses).
  */
 @Entity
 @Table(name = "customer")
@@ -36,11 +36,9 @@ public class Customer {
     @JoinColumn(name = "auth_user_id", nullable = false, unique = true, updatable = false)
     private AppUser user;
 
-    /** Entered by the customer when they create their profile, e.g. "Nimal Perera". Empty only for old rows. */
     @Column(name = "full_name", length = 150)
     private String fullName;
 
-    /** The login email, copied from the access token (the auth service owns it). Empty until first copied. */
     @Column(name = "email", length = 150)
     private String email;
 
@@ -62,15 +60,9 @@ public class Customer {
         // for JPA
     }
 
-    public Customer(AppUser user, String fullName, String phoneNumber) {
-        this.user = user;
-        this.fullName = fullName;
-        this.phoneNumber = phoneNumber;
-    }
-
-    /** Uses the login account's name as the full name (if it has one). */
     public Customer(AppUser user, String phoneNumber) {
-        this(user, user.getName().orElse(null), phoneNumber);
+        this.user = user;
+        this.phoneNumber = phoneNumber;
     }
 
     public void addAddress(CustomerAddress address) {

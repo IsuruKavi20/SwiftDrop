@@ -45,12 +45,12 @@ class CustomerController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     CustomerResponse register(@Valid @RequestBody RegisterCustomerRequest request, @AuthenticationPrincipal Jwt user) {
-        return customers.register(userDirectory.caller(user), CurrentUser.email(user), request);
+        return customers.register(userDirectory.caller(user), request, user.getClaimAsString("email"));
     }
 
     @GetMapping
     CustomerResponse getProfile(@AuthenticationPrincipal Jwt user) {
-        return customers.getProfile(CurrentUser.id(user), CurrentUser.email(user));
+        return customers.getProfile(CurrentUser.id(user));
     }
 
     @PutMapping
