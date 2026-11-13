@@ -15,6 +15,7 @@ public class RabbitMqConfig {
     public static final String EXCHANGE_DLX = "swiftdrop.dlx";
 
     public static final String QUEUE_DELIVERY_NOTIFICATIONS = "swiftdrop.delivery.notifications";
+    public static final String QUEUE_COURIER_ASSIGNMENTS = "swiftdrop.courier.assignments";
     public static final String QUEUE_MERCHANT_WEBHOOKS = "swiftdrop.merchant.webhooks";
     public static final String QUEUE_DEAD_LETTER = "swiftdrop.dead-letter";
 
@@ -42,6 +43,14 @@ public class RabbitMqConfig {
     }
 
     @Bean
+    public Queue courierAssignmentQueue() {
+        return QueueBuilder.durable(QUEUE_COURIER_ASSIGNMENTS)
+                .withArgument("x-dead-letter-exchange", EXCHANGE_DLX)
+                .withArgument("x-dead-letter-routing-key", ROUTING_KEY_DEAD_LETTER)
+                .build();
+    }
+
+    @Bean
     public Queue merchantWebhookQueue() {
         return QueueBuilder.durable(QUEUE_MERCHANT_WEBHOOKS)
                 .withArgument("x-dead-letter-exchange", EXCHANGE_DLX)
@@ -60,8 +69,8 @@ public class RabbitMqConfig {
     }
 
     @Bean
-    public Binding bindingCourierAssignment(Queue deliveryNotificationQueue, TopicExchange swiftdropExchange) {
-        return BindingBuilder.bind(deliveryNotificationQueue).to(swiftdropExchange).with(ROUTING_KEY_ASSIGNMENT);
+    public Binding bindingCourierAssignment(Queue courierAssignmentQueue, TopicExchange swiftdropExchange) {
+        return BindingBuilder.bind(courierAssignmentQueue).to(swiftdropExchange).with(ROUTING_KEY_ASSIGNMENT);
     }
 
     @Bean
@@ -76,7 +85,10 @@ public class RabbitMqConfig {
 
     @Bean
     public MessageConverter jsonMessageConverter() {
-        return new Jackson2JsonMessageConverter();
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+        mapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        return new Jackson2JsonMessageConverter(mapper);
     }
 
     @Bean

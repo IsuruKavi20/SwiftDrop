@@ -109,7 +109,7 @@ public class NotificationEventListener {
         }
     }
 
-    @RabbitListener(queues = RabbitMqConfig.QUEUE_DELIVERY_NOTIFICATIONS)
+    @RabbitListener(queues = RabbitMqConfig.QUEUE_COURIER_ASSIGNMENTS)
     @Transactional
     public void handleCourierAssigned(CourierAssignedEvent event) {
         log.info("Received CourierAssignedEvent for delivery {} and courier {}", event.deliveryId(), event.courierId());
