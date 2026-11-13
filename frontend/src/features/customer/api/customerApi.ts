@@ -27,18 +27,15 @@ export interface Dashboard {
 
 export interface CustomerProfile {
   id: number;
-  /** The full name the customer entered when registering */
+  /** From the login account (auth service) */
   name: string | null;
-  /** The login email, stored when the customer registered */
-  email: string | null;
   pictureUrl: string | null;
   phoneNumber: string;
   createdAt: string;
 }
 
-/** What the customer enters once: the email already comes from the login account. */
+/** Only what SwiftDrop needs: name and email already come from the login account. */
 export interface RegisterCustomer {
-  fullName: string;
   phoneNumber: string;
 }
 
@@ -84,8 +81,8 @@ export function registerCustomer(details: RegisterCustomer): Promise<CustomerPro
 }
 
 export const STATUS_LABELS: Record<DeliveryStatus, string> = {
-  PENDING: 'Pending',
-  CONFIRMED: 'Confirmed',
+  PENDING: 'Awaiting confirmation',
+  CONFIRMED: 'Created',
   PICKED_UP: 'Picked up',
   IN_TRANSIT: 'In transit',
   OUT_FOR_DELIVERY: 'Out for delivery',
@@ -139,4 +136,5 @@ export async function downloadReceipt(id: number): Promise<void> {
 export const updateCustomer = (phoneNumber:string) => request<CustomerProfile>('/api/customers/me',{method:'PUT',body:JSON.stringify({phoneNumber})});
 export const getSavedAddresses = () => request<SavedAddress[]>('/api/customers/me/addresses');
 export const addSavedAddress = (address:SavedAddressInput) => request<SavedAddress>('/api/customers/me/addresses',{method:'POST',body:JSON.stringify(address)});
+export const updateSavedAddress = (id:number,address:SavedAddressInput) => request<SavedAddress>(`/api/customers/me/addresses/${id}`,{method:'PUT',body:JSON.stringify(address)});
 export const deleteSavedAddress = (id:number) => request<void>(`/api/customers/me/addresses/${id}`,{method:'DELETE'});

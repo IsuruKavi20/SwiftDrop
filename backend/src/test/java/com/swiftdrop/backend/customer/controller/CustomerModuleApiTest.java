@@ -1,6 +1,10 @@
 package com.swiftdrop.backend.customer.controller;
 
 import com.jayway.jsonpath.JsonPath;
+import com.swiftdrop.backend.customer.entity.DeliveryStatus;
+import com.swiftdrop.backend.customer.entity.TrackingEvent;
+import com.swiftdrop.backend.customer.repository.CustomerDeliveryRepository;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -36,12 +40,15 @@ class CustomerModuleApiTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private CustomerDeliveryRepository deliveryRepository;
+
     private final UUID alice = UUID.randomUUID();
     private final UUID bob = UUID.randomUUID();
 
     /** A CUSTOMER token: the role's permissions from docs/AUTH.md. */
     private static RequestPostProcessor customer(UUID userId) {
-        return jwt().jwt(token -> token.subject(userId.toString()).claim("name", "Test User").claim("email", userId + "@example.com")
+        return jwt().jwt(token -> token.subject(userId.toString()).claim("name", "Test User")
                         .claim("roles", java.util.List.of("CUSTOMER")))
                 .authorities(new SimpleGrantedAuthority("parcel:create"), new SimpleGrantedAuthority("parcel:read-own"));
     }
@@ -55,7 +62,7 @@ class CustomerModuleApiTest {
     private void register(UUID userId, String email) throws Exception {
         mockMvc.perform(post("/api/customers/me").with(customer(userId)).contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"fullName":"Alice Fernando","phoneNumber":"0771234567"}"""))
+                                {"phoneNumber":"0771234567"}"""))
                 .andExpect(status().isCreated());
     }
 
@@ -119,8 +126,7 @@ class CustomerModuleApiTest {
 
         mockMvc.perform(get("/api/customers/me").with(customer(alice)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value("Alice Fernando"))
-                .andExpect(jsonPath("$.email").value(alice + "@example.com"));
+                .andExpect(jsonPath("$.name").value("Test User"));
         mockMvc.perform(put("/api/customers/me").with(customer(alice)).contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"phoneNumber":"+94773333333"}"""))
@@ -133,7 +139,7 @@ class CustomerModuleApiTest {
         register(alice, "alice@example.com");
         mockMvc.perform(post("/api/customers/me").with(customer(alice)).contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"fullName":"Alice Fernando","phoneNumber":"0771234567"}"""))
+                                {"phoneNumber":"0771234567"}"""))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.detail").value("You are already registered as a customer"));
     }
@@ -267,6 +273,30 @@ class CustomerModuleApiTest {
         mockMvc.perform(post("/api/customers/me/deliveries/estimate")
                 .contentType(MediaType.APPLICATION_JSON).content(BOOKING))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void deliveredCustomerCanDownloadValidPdfReceiptButOtherCustomerCannot() throws Exception {
+        register(alice, "alice@example.com");
+        register(bob, "bob@example.com");
+        String booked = book(alice);
+        Integer id = JsonPath.read(booked, "$.id");
+        mockMvc.perform(post("/api/customers/me/deliveries/{id}/confirm", id).with(customer(alice)))
+                .andExpect(status().isOk());
+        var delivery = deliveryRepository.findById(id.longValue()).orElseThrow();
+        delivery.addTrackingEvent(new TrackingEvent(DeliveryStatus.DELIVERED,
+                "Delivered to recipient", null, Instant.now(), null));
+        deliveryRepository.saveAndFlush(delivery);
+
+        mockMvc.perform(get("/api/customers/me/deliveries/{id}/receipt", id).with(customer(alice)))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF))
+                .andExpect(result -> org.junit.jupiter.api.Assertions.assertTrue(
+                        result.getResponse().getContentAsByteArray().length > 100 &&
+                        new String(result.getResponse().getContentAsByteArray(), 0, 4,
+                                java.nio.charset.StandardCharsets.US_ASCII).equals("%PDF")));
+        mockMvc.perform(get("/api/customers/me/deliveries/{id}/receipt", id).with(customer(bob)))
+                .andExpect(status().isNotFound());
     }
 
     @Test
