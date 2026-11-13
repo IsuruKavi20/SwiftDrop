@@ -2,12 +2,25 @@ import { routes } from '../../../app/router';
 import { getAccessToken, readClaims } from './session';
 
 /**
- * Where a user goes right after logging in. Customers (permission "parcel:read-own") land on their dashboard;
- * every other role keeps the account page until its own home page exists. This only picks a page: the backend
- * still checks the permissions on every request.
+ * Where a user goes right after logging in.
+ * Users with "merchant:api-access" (or "MERCHANT" role) land on the merchant profile page.
+ * Customers (permission "parcel:read-own") land on their dashboard.
+ * Every other role keeps the account page until its own home page exists. This only picks a page:
+ * the backend still checks the permissions on every request.
  */
 export function landingPage(): string {
   const token = getAccessToken();
-  const permissions = token ? readClaims(token).entitlements ?? [] : [];
-  return permissions.includes('parcel:read-own') ? routes.customerDashboard : routes.account;
+  if (!token) return routes.login;
+
+  const claims = readClaims(token);
+  const permissions = claims.entitlements ?? [];
+  const roles = claims.roles ?? [];
+
+  if (permissions.includes('merchant:api-access') || roles.includes('MERCHANT')) {
+    return routes.merchantProfile;
+  }
+  if (permissions.includes('parcel:read-own')) {
+    return routes.customerDashboard;
+  }
+  return routes.account;
 }

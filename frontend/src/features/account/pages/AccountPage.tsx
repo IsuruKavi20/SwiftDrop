@@ -47,14 +47,39 @@ export function AccountPage() {
     navigate(routes.login);
   }
 
+  const permissions = claims?.entitlements ?? [];
+  const roles = claims?.roles ?? [];
+  const hasMerchant = permissions.includes('merchant:api-access') || roles.includes('MERCHANT');
+  const hasCustomer = permissions.includes('parcel:read-own');
+
   return (
     <AuthLayout headline="Welcome back." tagline="You are signed in to SwiftDrop." eyebrow="ACCOUNT"
       title="You're logged in" subtitle={claims ? `User id ${claims.sub}` : ''}>
       {claims && (
         <>
-          <p className={styles.hint}>Roles: {(claims.roles ?? []).join(', ') || 'none'}</p>
-          <p className={styles.hint}>Permissions: {(claims.entitlements ?? []).join(', ') || 'none'}</p>
+          <p className={styles.hint}>Roles: {roles.join(', ') || 'none'}</p>
+          <p className={styles.hint}>Permissions: {permissions.join(', ') || 'none'}</p>
           <Alert kind="success">{backend}</Alert>
+          {hasMerchant && (
+            <button
+              type="button"
+              className={styles.link}
+              onClick={() => navigate(routes.merchantProfile)}
+              style={{ display: 'block', margin: '12px 0 4px', fontWeight: 600 }}
+            >
+              Go to Merchant Profile →
+            </button>
+          )}
+          {hasCustomer && (
+            <button
+              type="button"
+              className={styles.link}
+              onClick={() => navigate(routes.customerDashboard)}
+              style={{ display: 'block', margin: '8px 0 4px', fontWeight: 600 }}
+            >
+              Go to Customer Dashboard →
+            </button>
+          )}
           <button type="button" className={styles.link} onClick={() => void onLogOut()}>Log out</button>
         </>
       )}
