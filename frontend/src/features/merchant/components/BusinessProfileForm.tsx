@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { navigate, routes } from '../../../app/router';
 import { Alert } from '../../auth/components/FormControls';
 import {
   MerchantApiError,
@@ -149,6 +150,14 @@ export function BusinessProfileForm({ initialProfile, onProfileUpdated }: Busine
       setFieldErrors({});
     } catch (err) {
       if (err instanceof MerchantApiError) {
+        if (err.status === 401) {
+          navigate(routes.login);
+          return;
+        }
+        if (err.status === 403) {
+          setGeneralError('Access forbidden. You do not have permission to update this merchant profile.');
+          return;
+        }
         setGeneralError(err.message);
         if (Object.keys(err.fieldErrors).length > 0) {
           setFieldErrors(err.fieldErrors);

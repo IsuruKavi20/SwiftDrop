@@ -49,7 +49,7 @@ export function AccountPage() {
 
   const permissions = claims?.entitlements ?? [];
   const roles = claims?.roles ?? [];
-  const hasMerchant = permissions.includes('merchant:api-access') || roles.includes('MERCHANT');
+  const hasMerchant = permissions.includes('merchant:api-access');
   const hasCustomer = permissions.includes('parcel:read-own');
 
   return (

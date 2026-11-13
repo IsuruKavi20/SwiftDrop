@@ -26,9 +26,7 @@ export function MerchantProfilePage() {
       const token = getAccessToken()!;
       const claims = readClaims(token);
       const permissions = claims.entitlements ?? [];
-      const roles = claims.roles ?? [];
-      const hasMerchantAccess =
-        permissions.includes('merchant:api-access') || roles.includes('MERCHANT');
+      const hasMerchantAccess = permissions.includes('merchant:api-access');
 
       if (!hasMerchantAccess) {
         setState({

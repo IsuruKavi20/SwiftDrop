@@ -425,8 +425,5 @@ function hasMerchantPrivilege(): boolean {
   const token = getAccessToken();
   if (!token) return false;
   const claims = readClaims(token);
-  return (
-    (claims.entitlements ?? []).includes('merchant:api-access') ||
-    (claims.roles ?? []).includes('MERCHANT')
-  );
+  return (claims.entitlements ?? []).includes('merchant:api-access');
 }
