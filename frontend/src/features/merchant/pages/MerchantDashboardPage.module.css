@@ -1,0 +1,58 @@
+.dashboard { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; container-type: inline-size; }
+
+.welcome {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 33%);
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 13rem;
+  padding: 1.75rem clamp(1.25rem, 2.8vw, 2.25rem);
+  border: 1px solid var(--merchant-line);
+  border-radius: 1rem;
+  background: #fdf7eb;
+}
+.welcome > svg { display: block; width: 100%; }
+.welcome h2 { margin: 0.8rem 0 0.55rem; font-size: clamp(1.65rem, 2.9vw, 2.4rem); line-height: 1.08; letter-spacing: -0.045em; }
+.welcome p, .panel p { margin: 0; color: var(--merchant-secondary); line-height: 1.6; }
+.eyebrow {
+  display: inline-block;
+  padding: 0.22rem 0.75rem;
+  border-radius: 0.4rem;
+  background: #faebd2;
+  color: var(--merchant-accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.055em;
+}
+
+.metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; margin: 0; padding: 0; list-style: none; }
+.metric, .panel { min-width: 0; border: 1px solid var(--merchant-line); border-radius: 1rem; background: var(--color-surface); }
+.metric { display: flex; align-items: center; gap: clamp(0.6rem, 1.2vw, 1rem); min-height: 6rem; padding: 1rem; }
+.metric strong { display: block; }
+.metric small { display: block; margin-top: 0.25rem; color: var(--merchant-muted); }
+.metricIcon { display: grid; flex: none; place-items: center; width: 2.75rem; height: 2.75rem; border: 1px solid; border-radius: 0.75rem; }
+.metricIcon[data-tone='orange'] { background: #fff4e5; color: #a44a00; border-color: #ffdab0; }
+.metricIcon[data-tone='amber'] { background: #fdf7eb; color: #795717; border-color: #efdfb8; }
+.metricIcon[data-tone='blue'] { background: #edf4ff; color: var(--merchant-blue); border-color: #d4e5ff; }
+.metricIcon[data-tone='green'] { background: #edfbf3; color: var(--merchant-green); border-color: #d2f7e2; }
+
+.contentGrid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+.rightColumn { display: grid; gap: 1rem; min-width: 0; }
+.panel { padding: clamp(1rem, 2vw, 1.5rem); }
+.panel h2 { margin: 0 0 0.6rem; font-size: 1.1rem; }
+.textLink { display: inline-block; margin-top: 0.65rem; color: var(--merchant-accent); font-weight: 700; text-underline-offset: 0.18em; }
+
+@container (max-width: 48rem) {
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container (max-width: 38rem) {
+  .contentGrid, .welcome { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+  .welcome { min-height: auto; padding-block: 1.25rem; }
+  .welcome > svg { max-width: 11rem; justify-self: end; }
+  .metrics { gap: 0.6rem; }
+  .metric { flex-wrap: wrap; align-content: center; }
+}
+@container (max-width: 18rem) {
+  .metrics { grid-template-columns: minmax(0, 1fr); }
+}
