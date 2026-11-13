@@ -42,6 +42,12 @@ public class CustomerService {
             throw new ConflictException("You are already registered as a customer");
         }
         Customer customer = new Customer(user, request.phoneNumber().trim());
+        // The first address is saved together with the profile (one transaction) and is the default
+        CustomerAddressRequest first = request.address();
+        CustomerAddress address = new CustomerAddress(first.label().trim(), first.street().trim(),
+                first.city().trim(), first.district().trim(), blankToNull(first.postalCode()));
+        address.setDefaultAddress(true);
+        customer.addAddress(address);
         return CustomerResponse.from(customers.save(customer));
     }
 

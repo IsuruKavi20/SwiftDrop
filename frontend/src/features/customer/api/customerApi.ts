@@ -35,8 +35,19 @@ export interface CustomerProfile {
 }
 
 /** Only what SwiftDrop needs: name and email already come from the login account. */
+/** A saved address (home, office, ...). The first one, given at registration, is the default. */
+export interface AddressInput {
+  label: string;
+  street: string;
+  city: string;
+  district: string;
+  postalCode?: string;
+}
+
+/** Only what SwiftDrop needs: name and email already come from the login account. The first address is required. */
 export interface RegisterCustomer {
   phoneNumber: string;
+  address: AddressInput;
 }
 
 /** A backend error: its "detail" message, and for invalid forms the message per field. */

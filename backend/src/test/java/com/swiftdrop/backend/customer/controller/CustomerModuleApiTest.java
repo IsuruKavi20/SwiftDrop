@@ -55,8 +55,36 @@ class CustomerModuleApiTest {
     private void register(UUID userId, String email) throws Exception {
         mockMvc.perform(post("/api/customers/me").with(customer(userId)).contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"phoneNumber":"0771234567"}"""))
+                                {"phoneNumber":"0771234567","address":{"label":"Home","street":"12 Galle Road","city":"Colombo","district":"Colombo"}}"""))
                 .andExpect(status().isCreated());
+    }
+
+    @Test
+    void registrationNeedsAnAddress() throws Exception {
+        mockMvc.perform(post("/api/customers/me").with(customer(alice)).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"phoneNumber":"0771234567"}"""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.address").value("Please add your address"));
+    }
+
+    @Test
+    void theFirstAddressIsSavedAsTheDefault() throws Exception {
+        register(alice, "alice@example.com");
+
+        mockMvc.perform(get("/api/customers/me/addresses").with(customer(alice)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].label").value("Home"))
+                .andExpect(jsonPath("$[0].defaultAddress").value(true));
+    }
+
+    @Test
+    void anIncompleteAddressIsRefused() throws Exception {
+        mockMvc.perform(post("/api/customers/me").with(customer(alice)).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"phoneNumber":"0771234567","address":{"label":"Home","city":"Colombo","district":"Colombo"}}"""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors['address.street']").exists());
     }
 
     private static final String BOOKING = """
@@ -132,7 +160,7 @@ class CustomerModuleApiTest {
         register(alice, "alice@example.com");
         mockMvc.perform(post("/api/customers/me").with(customer(alice)).contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"phoneNumber":"0771234567"}"""))
+                                {"phoneNumber":"0771234567","address":{"label":"Home","street":"12 Galle Road","city":"Colombo","district":"Colombo"}}"""))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.detail").value("You are already registered as a customer"));
     }
@@ -166,23 +194,24 @@ class CustomerModuleApiTest {
         String created = mockMvc.perform(post("/api/customers/me/addresses").with(customer(alice))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"label":"Home","street":"2 Lake Rd","city":"Colombo","district":"Colombo"}"""))
+                                {"label":"Office","street":"2 Lake Rd","city":"Colombo","district":"Colombo"}"""))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.defaultAddress").value(true))
+                .andExpect(jsonPath("$.defaultAddress").value(false))   // the registration address stays the default
                 .andReturn().getResponse().getContentAsString();
         Integer addressId = JsonPath.read(created, "$.id");
 
         mockMvc.perform(put("/api/customers/me/addresses/{id}", addressId).with(customer(alice))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"label":"Home","street":"3 Lake Rd","city":"Colombo","district":"Colombo","defaultAddress":true}"""))
+                                {"label":"Office","street":"3 Lake Rd","city":"Colombo","district":"Colombo","defaultAddress":true}"""))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.street").value("3 Lake Rd"));
         mockMvc.perform(delete("/api/customers/me/addresses/{id}", addressId).with(customer(alice)))
                 .andExpect(status().isNoContent());
         mockMvc.perform(get("/api/customers/me/addresses").with(customer(alice)))
                 .andExpect(status().isOk())
-                .andExpect(content().json("[]"));
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].label").value("Home"));
     }
 
     // ---- Booking, My Deliveries, dashboard, tracking ----
