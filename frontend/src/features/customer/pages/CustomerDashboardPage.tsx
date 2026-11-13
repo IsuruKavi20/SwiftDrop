@@ -181,7 +181,7 @@ export function CustomerDashboardPage() {
             <button type="button" className={styles.iconButton} aria-label="Notifications" title="No new notifications">
               <LineIcon paths={ICONS.bell} />
             </button>
-            <ProfileMenu name={name} onLogOut={() => void onLogOut()} />
+            <ProfileMenu name={name} pictureUrl={profile?.pictureUrl ?? null} onLogOut={() => void onLogOut()} />
           </div>
         </header>
 
@@ -226,7 +226,11 @@ export function CustomerDashboardPage() {
  * Avatar button that opens the account menu (Settings, Log out). Always shown, even before the profile loads,
  * so a customer without a profile can still log out. Closes on an outside click or Escape.
  */
-function ProfileMenu({ name, onLogOut }: { name: string | null; onLogOut: () => void }) {
+function ProfileMenu({ name, pictureUrl, onLogOut }: {
+  name: string | null;
+  pictureUrl: string | null;
+  onLogOut: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -256,9 +260,13 @@ function ProfileMenu({ name, onLogOut }: { name: string | null; onLogOut: () => 
         onClick={() => setOpen((value) => !value)}
       >
         <span className={styles.avatar} aria-hidden="true">
-          {name
-            ? initials(name)
-            : <img src={userIcon} width={18} height={18} alt="" />}
+          {pictureUrl
+            // The photo from the login account (e.g. Google); no-referrer: Google may refuse images requested
+            // with another site's address, and it keeps our URLs private
+            ? <img className={styles.avatarPhoto} src={pictureUrl} alt="" referrerPolicy="no-referrer" />
+            : name
+              ? initials(name)
+              : <img src={userIcon} width={18} height={18} alt="" />}
         </span>
         <span className={styles.userName}>{name ?? 'Account'}</span>
         <svg className={styles.caret} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
