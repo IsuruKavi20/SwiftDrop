@@ -97,6 +97,13 @@ export function MerchantProfilePage() {
         </a>
 
         <div className={styles.navActions}>
+          <button
+            type="button"
+            className={styles.ghostButton}
+            onClick={() => navigate(routes.merchantDashboard)}
+          >
+            Dashboard
+          </button>
           {claims?.entitlements?.includes('parcel:read-own') && (
             <button
               type="button"

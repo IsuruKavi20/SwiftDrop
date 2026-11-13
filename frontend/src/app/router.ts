@@ -11,6 +11,7 @@ export const routes = {
   verifyEmail: '/verify-email',
   account: '/account',
   customerDashboard: '/customer/dashboard',
+  merchantDashboard: '/merchant/dashboard',
   merchantProfile: '/merchant/profile',
 } as const;
 

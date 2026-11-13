@@ -149,8 +149,8 @@ export function CustomerDashboardPage() {
             <button
               type="button"
               className={styles.navItem}
-              onClick={() => navigate(routes.merchantProfile)}
-              title="Go to Merchant Business Profile"
+              onClick={() => navigate(routes.merchantDashboard)}
+              title="Go to Merchant Dashboard"
             >
               <LineIcon paths={ICONS.briefcase} />
               Merchant view
@@ -292,10 +292,10 @@ function ProfileMenu({ profile, onLogOut }: { profile: CustomerProfile | null; o
               className={styles.dropdownItem}
               onClick={() => {
                 setOpen(false);
-                navigate(routes.merchantProfile);
+                navigate(routes.merchantDashboard);
               }}
             >
-              Merchant Profile
+              Merchant Dashboard
             </button>
           )}
           <button

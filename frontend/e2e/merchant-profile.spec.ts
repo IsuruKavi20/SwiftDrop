@@ -129,6 +129,9 @@ async function setupNetworkMocks(
 
   // Intercept Merchant Profile API
   await page.route('**/api/merchants/me', async (route: Route) => {
+    if (route.request().url().includes('/deliveries') || route.request().url().includes('/dashboard')) {
+      return route.fallback();
+    }
     const method = route.request().method();
 
     if (method === 'GET') {
@@ -225,6 +228,32 @@ async function setupNetworkMocks(
     });
   });
 
+  // Intercept Merchant dashboard and deliveries for landing navigation
+  await page.route('**/api/merchants/me/dashboard', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        businessName: currentProfile.businessName,
+        profileComplete: currentProfile.complete,
+        totalOrders: 0,
+        pendingOrders: 0,
+        inTransitOrders: 0,
+        deliveredOrders: 0,
+        countsByStatus: { PENDING: 0, CONFIRMED: 0, DELIVERED: 0, CANCELLED: 0 },
+        recentOrders: [],
+      }),
+    });
+  });
+
+  await page.route(/\/api\/merchants\/me\/deliveries(\?.*)?$/, async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ content: [], page: 0, size: 10, totalElements: 0, totalPages: 0 }),
+    });
+  });
+
   return {
     getCurrentProfile: () => currentProfile,
     setCurrentProfile: (p: SimulatedMerchantProfile) => {
@@ -241,7 +270,7 @@ async function injectSessionToken(page: Page) {
 }
 
 test.describe('Merchant Business Profile E2E', () => {
-  test('1. Merchant login reaches /merchant/profile via landing router', async ({ page }) => {
+  test('1. Merchant login reaches /merchant/dashboard via landing router and navigates to profile', async ({ page }) => {
     await setupNetworkMocks(page);
 
     await page.goto('/login');
@@ -249,6 +278,8 @@ test.describe('Merchant Business Profile E2E', () => {
     await page.fill('#password', 'Secret123!');
     await page.click('button[type="submit"]');
 
+    await expect(page).toHaveURL(/\/merchant\/dashboard/);
+    await page.click('button:has-text("Business Profile")');
     await expect(page).toHaveURL(/\/merchant\/profile/);
     await expect(page.locator('#profile-title')).toHaveText('Business Profile');
   });
@@ -558,10 +589,23 @@ test.describe('Merchant Business Profile E2E', () => {
     const merchantViewBtn = page.locator('button:text("Merchant view")');
     await expect(merchantViewBtn).toBeVisible();
 
-    // Click to return to Merchant Profile
+    // Customer → Merchant view reaches /merchant/dashboard
     await merchantViewBtn.click();
+    await expect(page).toHaveURL(/\/merchant\/dashboard/);
+
+    // The dashboard renders successfully
+    await expect(page.locator('text=SwiftDrop Merchant')).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Order summary statistics' })).toBeVisible();
+
+    // Its existing Business Profile navigation reaches /merchant/profile
+    const businessProfileBtn = page.locator('button:text("Business Profile")');
+    await expect(businessProfileBtn).toBeVisible();
+    await businessProfileBtn.click();
     await expect(page).toHaveURL(/\/merchant\/profile/);
+
+    // The profile form renders successfully
     await expect(page.locator('#profile-title')).toBeVisible();
+    await expect(page.locator('#businessName')).toBeVisible();
   });
 
   test('14. Layout renders cleanly on mobile viewports', async ({ page }) => {

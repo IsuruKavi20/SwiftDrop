@@ -64,10 +64,10 @@ export function AccountPage() {
             <button
               type="button"
               className={styles.link}
-              onClick={() => navigate(routes.merchantProfile)}
+              onClick={() => navigate(routes.merchantDashboard)}
               style={{ display: 'block', margin: '12px 0 4px', fontWeight: 600 }}
             >
-              Go to Merchant Profile →
+              Go to Merchant Dashboard →
             </button>
           )}
           {hasCustomer && (

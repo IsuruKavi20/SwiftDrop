@@ -5,6 +5,7 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   timeout: 30000,
+  grepInvert: /@preview/,
   expect: {
     timeout: 5000,
   },
