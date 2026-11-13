@@ -74,11 +74,19 @@ public class UserDirectory {
     public AppUser caller(Jwt token) {
         UUID id = UUID.fromString(token.getSubject());
         Optional<AppUser> local = users.findById(id);
+        String tokenName = token.getClaimAsString("name");
         if (local.isPresent() && local.get().getStatus() != AppUserStatus.PENDING_SYNC) {
+            // Copied from a token that had no name (e.g. right after sign-up): fill it in once a token carries one
+            if (local.get().getName().isEmpty() && tokenName != null && !tokenName.isBlank()
+                    && local.get().getStatus() != AppUserStatus.DELETED) {
+                writer.setName(id, tokenName.trim());
+                entityManager.detach(local.get());
+                return users.findById(id).orElseThrow();
+            }
             return local.get();
         }
         List<String> roles = token.getClaimAsStringList("roles");
-        writer.save(new DirectoryPerson(id, token.getClaimAsString("name"), null, AppUserStatus.ACTIVE, true,
+        writer.save(new DirectoryPerson(id, tokenName, null, AppUserStatus.ACTIVE, true,
                 roles, null, null));
         local.ifPresent(entityManager::detach);
         return users.findById(id).orElseThrow();

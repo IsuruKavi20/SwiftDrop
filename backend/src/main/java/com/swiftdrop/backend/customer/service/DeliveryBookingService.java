@@ -16,6 +16,7 @@ import com.swiftdrop.backend.customer.exception.ConflictException;
 import com.swiftdrop.backend.customer.exception.NotFoundException;
 import com.swiftdrop.backend.customer.repository.CustomerDeliveryRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
@@ -35,14 +36,18 @@ public class DeliveryBookingService {
     private final CustomerService customerService;
     private final CustomerDeliveryRepository deliveries;
     private final TrackingCodeGenerator codes;
+    private final CustomerPricingService pricing;
     private final Clock clock;
+    private final ApplicationEventPublisher events;
 
     public DeliveryBookingService(CustomerService customerService, CustomerDeliveryRepository deliveries,
-                                  TrackingCodeGenerator codes, Clock clock) {
+                                  TrackingCodeGenerator codes, Clock clock, CustomerPricingService pricing, ApplicationEventPublisher events) {
         this.customerService = customerService;
         this.deliveries = deliveries;
         this.codes = codes;
         this.clock = clock;
+        this.pricing = pricing;
+        this.events = events;
     }
 
     public DeliveryDetailsResponse createDelivery(UUID authUserId, CreateDeliveryRequest request) {
@@ -50,6 +55,7 @@ public class DeliveryBookingService {
 
         Delivery delivery = new Delivery(customer, uniqueTrackingNumber(), codes.newPublicTrackingToken(), request.deliveryType());
         delivery.setSpecialInstructions(CustomerService.blankToNull(request.specialInstructions()));
+        delivery.setEstimatedFee(pricing.estimate(request).totalFee());
         delivery.setEstimatedDeliveryDate(estimatedDeliveryDate(request.deliveryType()));
         delivery.setAddress(toDeliveryAddress(AddressType.PICKUP, request.pickup()));
         delivery.setAddress(toDeliveryAddress(AddressType.DESTINATION, request.destination()));
@@ -63,14 +69,37 @@ public class DeliveryBookingService {
     /** Review and Confirmation: only the booking's own customer, and only while it is still PENDING. */
     public DeliveryDetailsResponse confirmDelivery(UUID authUserId, Long deliveryId) {
         Customer customer = customerService.requireCustomer(authUserId);
-        Delivery delivery = deliveries.findByIdAndCustomerId(deliveryId, customer.getId())
+        Delivery delivery = deliveries.lockCustomerDelivery(deliveryId, customer.getId())
                 .orElseThrow(() -> new NotFoundException("Delivery not found"));
         if (delivery.getStatus() != DeliveryStatus.PENDING) {
             throw new ConflictException("Only a pending booking can be confirmed; this one is " + delivery.getStatus());
         }
-        delivery.addTrackingEvent(new TrackingEvent(DeliveryStatus.CONFIRMED, "Booking confirmed", null,
-                clock.instant(), customer.getUser()));
-        return DeliveryDetailsResponse.from(deliveries.saveAndFlush(delivery));
+        TrackingEvent event = new TrackingEvent(DeliveryStatus.CONFIRMED, "Booking confirmed", null,
+                clock.instant(), customer.getUser());
+        delivery.addTrackingEvent(event);
+        DeliveryDetailsResponse response = DeliveryDetailsResponse.from(deliveries.saveAndFlush(delivery));
+        events.publishEvent(new CustomerStatusChange(delivery.getId(), event.getId()));
+        return response;
+    }
+
+    /** Customers may cancel before pickup, provided that dispatch has not assigned a courier. */
+    public DeliveryDetailsResponse cancelDelivery(UUID authUserId, Long deliveryId, String reason) {
+        Customer customer = customerService.requireCustomer(authUserId);
+        Delivery delivery = deliveries.lockCustomerDelivery(deliveryId, customer.getId())
+                .orElseThrow(() -> new NotFoundException("Delivery not found"));
+        if ((delivery.getStatus() != DeliveryStatus.PENDING && delivery.getStatus() != DeliveryStatus.CONFIRMED)
+                || delivery.getCourier() != null) {
+            throw new ConflictException("This delivery can no longer be cancelled. Please contact support.");
+        }
+        String description = "Cancelled by customer";
+        // The optional reason stays on the private delivery record, never in tracking events or broker payloads.
+        delivery.setCancellationReason(CustomerService.blankToNull(reason));
+        TrackingEvent event = new TrackingEvent(DeliveryStatus.CANCELLED, description, null,
+                clock.instant(), customer.getUser());
+        delivery.addTrackingEvent(event);
+        DeliveryDetailsResponse response = DeliveryDetailsResponse.from(deliveries.saveAndFlush(delivery));
+        events.publishEvent(new CustomerStatusChange(delivery.getId(), event.getId()));
+        return response;
     }
 
     /** Tracking numbers are random; on the rare clash with an existing one, draw again. */
