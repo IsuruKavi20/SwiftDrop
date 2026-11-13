@@ -195,7 +195,7 @@ export function CustomerDashboardPage() {
             </section>
           )}
 
-          {state.kind === 'needsProfile' && <CompleteProfileForm suggestedName={name} onRegistered={() => void load()} />}
+          {state.kind === 'needsProfile' && <CompleteProfileForm onRegistered={() => void load()} />}
 
           {state.kind === 'ready' && <DashboardView dashboard={state.dashboard} />}
         </main>

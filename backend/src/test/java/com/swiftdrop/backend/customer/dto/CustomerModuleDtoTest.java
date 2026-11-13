@@ -74,10 +74,11 @@ class CustomerModuleDtoTest {
 
     @Test
     void registrationChecksTheNameAndPhone() {
-        assertThat(invalidFields(new RegisterCustomerRequest("Nimal Perera", "077"))).containsExactly("phoneNumber");
-        assertThat(invalidFields(new RegisterCustomerRequest(" ", "0771234567"))).containsExactly("fullName");
-        assertThat(invalidFields(new RegisterCustomerRequest("x".repeat(151), "0771234567"))).containsExactly("fullName");
-        assertThat(invalidFields(new RegisterCustomerRequest("Nimal Perera", "0771234567"))).isEmpty();
+        // The record is (phoneNumber, fullName); fullName is optional (the login account's name is used when empty)
+        assertThat(invalidFields(new RegisterCustomerRequest("077", "Nimal Perera"))).containsExactly("phoneNumber");
+        assertThat(invalidFields(new RegisterCustomerRequest("0771234567", " "))).isEmpty();
+        assertThat(invalidFields(new RegisterCustomerRequest("0771234567", "x".repeat(151)))).containsExactly("fullName");
+        assertThat(invalidFields(new RegisterCustomerRequest("0771234567", "Nimal Perera"))).isEmpty();
     }
 
     private static Delivery bookedDelivery() {

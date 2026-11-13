@@ -31,7 +31,8 @@ public class CustomerReceiptService {
             PDType1Font regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
             PDType1Font bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
             try (PDPageContentStream content = new PDPageContentStream(doc, page)) {
-                content.setNonStrokingColor(63,47,31);
+                // PDFBox takes colour parts from 0 to 1 (not 0 to 255): dark brown 63/47/31
+                content.setNonStrokingColor(63 / 255f, 47 / 255f, 31 / 255f);
                 write(content,bold,22,48,790,"SwiftDrop | Delivery Receipt");
                 line(content,48,775,547);
                 float y = 747;
