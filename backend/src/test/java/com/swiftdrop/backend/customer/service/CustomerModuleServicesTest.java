@@ -74,10 +74,10 @@ class CustomerModuleServicesTest {
 
     @BeforeEach
     void registerTwoCustomers() {
-        customerService.register(TestPeople.saved(em, alice, "Alice Fernando", "CUSTOMER"), "alice@example.com",
-                new RegisterCustomerRequest("  Alice   Fernando ", " 0771111111 "));
-        customerService.register(TestPeople.saved(em, bob, "Bob Silva", "CUSTOMER"), "bob@example.com",
-                new RegisterCustomerRequest("Bob Silva", "0772222222"));
+        customerService.register(TestPeople.saved(em, alice, "Alice Fernando", "CUSTOMER"),
+                new RegisterCustomerRequest(" 0771111111 "));
+        customerService.register(TestPeople.saved(em, bob, "Bob Silva", "CUSTOMER"),
+                new RegisterCustomerRequest("0772222222"));
     }
 
     private static CreateDeliveryRequest booking(DeliveryType type, String receiver, String city) {
@@ -92,34 +92,12 @@ class CustomerModuleServicesTest {
     // ---- Registration and profile ----
 
     @Test
-    void theEnteredFullNameIsShownEvenWhenTheLoginAccountHasNoName() {
-        UUID nameless = UUID.randomUUID();
-        customerService.register(TestPeople.saved(em, nameless, null, "CUSTOMER"), null,
-                new RegisterCustomerRequest("Kamala Silva", "0773333333"));
-
-        assertThat(customerService.getProfile(nameless).name()).isEqualTo("Kamala Silva");
-    }
-
-    @Test
-    void theLoginEmailIsStoredAndFilledInForOlderProfiles() {
-        assertThat(customerService.getProfile(alice).email()).isEqualTo("alice@example.com");
-
-        UUID older = UUID.randomUUID();   // registered before emails were stored
-        customerService.register(TestPeople.saved(em, older, "Old Customer", "CUSTOMER"), null,
-                new RegisterCustomerRequest("Old Customer", "0774444444"));
-        assertThat(customerService.getProfile(older).email()).isNull();
-
-        assertThat(customerService.getProfile(older, "old@example.com").email()).isEqualTo("old@example.com");
-        assertThat(customerService.getProfile(older).email()).isEqualTo("old@example.com");
-    }
-
-    @Test
-    void registrationKeepsTheFullNameAndRejectsDuplicates() {
+    void registrationTakesTheNameFromTheLoginAccountAndRejectsDuplicates() {
         assertThat(customerService.getProfile(alice).name()).isEqualTo("Alice Fernando");
         assertThat(customerService.getProfile(alice).phoneNumber()).isEqualTo("0771111111");
 
         AppUser aliceAgain = em.find(AppUser.class, alice);
-        assertThatThrownBy(() -> customerService.register(aliceAgain, null, new RegisterCustomerRequest("Alice Fernando", "0771111111")))
+        assertThatThrownBy(() -> customerService.register(aliceAgain, new RegisterCustomerRequest("0771111111")))
                 .isInstanceOf(ConflictException.class).hasMessageContaining("already registered");
     }
 
