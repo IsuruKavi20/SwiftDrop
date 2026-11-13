@@ -4,6 +4,8 @@ import com.swiftdrop.backend.customer.entity.Delivery;
 import com.swiftdrop.backend.customer.entity.DeliveryStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -31,6 +33,11 @@ public interface CustomerDeliveryRepository extends JpaRepository<Delivery, Long
 
     /** One delivery, only if it belongs to this customer. */
     Optional<Delivery> findByIdAndCustomerId(Long id, Long customerId);
+
+    /** Lock a booking while cancelling it to avoid racing courier assignment or status changes. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select d from Delivery d where d.id = :deliveryId and d.customer.id = :customerId")
+    Optional<Delivery> lockCustomerDelivery(@Param("deliveryId") Long deliveryId, @Param("customerId") Long customerId);
 
     /** Track Parcel for a logged-in customer: only their own delivery. */
     Optional<Delivery> findByTrackingNumberAndCustomerId(String trackingNumber, Long customerId);

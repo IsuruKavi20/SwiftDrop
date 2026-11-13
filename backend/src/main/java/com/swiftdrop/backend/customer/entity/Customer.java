@@ -36,6 +36,12 @@ public class Customer {
     @JoinColumn(name = "auth_user_id", nullable = false, unique = true, updatable = false)
     private AppUser user;
 
+    @Column(name = "full_name", length = 150)
+    private String fullName;
+
+    @Column(name = "email", length = 150)
+    private String email;
+
     @Column(name = "phone_number", nullable = false, length = 20)
     private String phoneNumber;
 
@@ -71,6 +77,10 @@ public class Customer {
 
     public Long getId() { return id; }
     public AppUser getUser() { return user; }
+    public String getFullName() { return fullName; }
+    public void setFullName(String fullName) { this.fullName = fullName; }
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
     public String getPhoneNumber() { return phoneNumber; }
     public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
     public Instant getCreatedAt() { return createdAt; }

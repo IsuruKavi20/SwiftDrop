@@ -1,9 +1,10 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import lockIcon from '../../../assets/auth/icon-lock.svg';
 import mailIcon from '../../../assets/auth/icon-mail.svg';
 import userIcon from '../../../assets/auth/icon-user.svg';
 import { navigate, routes } from '../../../app/router';
 import { AuthError, logIn, signUp, startGoogleLogin } from '../api/authApi';
+import { landingPage, rememberNextFromUrl, withNext } from '../lib/landing';
 import { AuthLayout } from '../components/AuthLayout';
 import { Alert, Divider, GoogleButton, PrimaryButton, TextField } from '../components/FormControls';
 import styles from '../components/FormControls.module.css';
@@ -14,6 +15,8 @@ const MIN_PASSWORD_LENGTH = 15;
 /** Figma "SwiftDrop desktop signup" / "mobile signup". */
 export function SignupPage() {
   const [fullName, setFullName] = useState('');
+  // "?next=" (e.g. from "Sell with SwiftDrop") is remembered for after the login, also across Google login
+  useEffect(rememberNextFromUrl, []);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +42,7 @@ export function SignupPage() {
       // (for example the email still needs confirming), fall back to the "check your inbox" message.
       try {
         await logIn(email, password);
-        navigate(routes.customerDashboard);
+        navigate(landingPage());
         return;
       } catch {
         setDone(true);
@@ -88,6 +91,13 @@ export function SignupPage() {
       <p className={styles.footer}>
         Already have an account?{' '}
         <button type="button" className={styles.link} onClick={() => navigate(routes.login)}>Log in</button>
+      </p>
+      <p className={styles.footer}>
+        Are you a business?{' '}
+        <button type="button" className={styles.link}
+          onClick={() => navigate(withNext(routes.signup, routes.merchantApply))}>
+          Sell with SwiftDrop
+        </button>
       </p>
     </AuthLayout>
   );

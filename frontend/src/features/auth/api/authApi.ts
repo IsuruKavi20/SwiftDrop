@@ -77,6 +77,24 @@ export async function logOut(): Promise<void> {
   }
 }
 
+/**
+ * The signed-in person's name from the auth service's OpenID userinfo endpoint. Used when the access token has no
+ * "name" claim (e.g. right after sign-up). Null if it can't be read: callers show a generic label instead.
+ */
+export async function fetchAccountName(): Promise<string | null> {
+  try {
+    const response = await authorizedFetch(`${env.authUrl}/oauth2/userinfo`);
+    if (!response.ok) {
+      return null;
+    }
+    const info = (await response.json()) as { name?: string; given_name?: string; family_name?: string };
+    const name = info.name?.trim() || [info.given_name, info.family_name].filter(Boolean).join(' ').trim();
+    return name || null;
+  } catch {
+    return null;
+  }
+}
+
 /** Calls a SwiftDrop API with the access token; on 401 it refreshes once and retries. */
 export async function authorizedFetch(url: string, init: RequestInit = {}): Promise<Response> {
   if (!getAccessToken()) {

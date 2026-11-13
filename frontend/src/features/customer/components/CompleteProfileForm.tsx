@@ -10,7 +10,7 @@ import styles from './CustomerLayout.module.css';
  * Name and email already come from the login account, so only the phone number is asked.
  */
 export function CompleteProfileForm({ onRegistered }: { onRegistered: (profile: CustomerProfile) => void }) {
-  const [details, setDetails] = useState<RegisterCustomer>({ phoneNumber: '' });
+  const [details, setDetails] = useState<RegisterCustomer>({ phoneNumber: '', fullName: '' });
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -43,9 +43,14 @@ export function CompleteProfileForm({ onRegistered }: { onRegistered: (profile: 
   return (
     <section className={styles.card}>
       <h2 className={styles.cardTitle}>Complete your profile</h2>
-      <p className={styles.muted}>Welcome to SwiftDrop! Add your phone number to start sending parcels.</p>
+      <p className={styles.muted}>Welcome to SwiftDrop! Add your full name and contact number to start sending parcels.</p>
       <form className={formStyles.form} onSubmit={onSubmit} noValidate>
         {error && <Alert kind="error">{error}</Alert>}
+        <div>
+          <TextField id="fullName" label="Full name" icon={userIcon} type="text" autoComplete="name" required
+            placeholder="Nimal Perera" value={details.fullName ?? ''} onChange={update('fullName')} />
+          {fieldError('fullName')}
+        </div>
         <div>
           <TextField id="phoneNumber" label="Phone number" icon={userIcon} type="tel" autoComplete="tel" required
             placeholder="0771234567" value={details.phoneNumber} onChange={update('phoneNumber')} />
