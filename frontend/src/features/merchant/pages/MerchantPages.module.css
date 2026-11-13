@@ -1,0 +1,54 @@
+.panel {
+  max-width: 56rem;
+  padding: clamp(1rem, 3vw, 2rem);
+  border: 1px solid var(--merchant-line);
+  border-radius: 1rem;
+  background: var(--color-surface);
+}
+
+.panel h2 { margin: 0; font-size: 1.25rem; }
+.panel p { line-height: 1.55; color: var(--merchant-secondary); }
+.fieldset { min-width: 0; margin: 1.5rem 0 0; padding: 0; border: 0; }
+.fieldset legend { padding: 0; font-weight: 700; }
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+.formGrid label, .lookup label { display: grid; gap: 0.45rem; min-width: 0; font-weight: 600; }
+.formGrid input, .lookup input {
+  min-width: 0;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--merchant-line);
+  border-radius: 0.6rem;
+  background: var(--color-surface);
+  color: var(--merchant-text);
+}
+.button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid var(--merchant-line);
+  border-radius: 0.6rem;
+  background: var(--merchant-pale);
+  color: var(--merchant-accent);
+  text-decoration: none;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.button:hover:not(:disabled) { border-color: var(--merchant-orange); }
+.button:disabled { opacity: 0.65; cursor: not-allowed; }
+.panel .error { color: var(--color-error); }
+.panel .success { color: var(--color-success); }
+.lookup { display: flex; flex-wrap: wrap; align-items: end; gap: 0.75rem; }
+.lookup label { flex: 0 1 20rem; }
+.state { margin-top: 1.25rem; padding: 1rem; border-radius: 0.75rem; background: var(--color-page); }
+.state h3 { margin: 0; overflow-wrap: anywhere; }
+.timeline { display: grid; gap: 0.8rem; padding-inline-start: 1.3rem; }
+.timeline p { margin: 0.2rem 0; }
+.timeline time { color: var(--merchant-muted); }
