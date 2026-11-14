@@ -1,4 +1,4 @@
--- The event outbox (Spring Modulith "event publication registry").
+-- The event outbox (Spring Modulith "event publication registry"). V15: team main took V14 (merchant delivery ownership).
 -- When a module publishes an event inside a transaction, one row per listener is written in the SAME transaction.
 -- The row is completed when the listener succeeds. A crash or a failed listener leaves it incomplete, and it is
 -- sent again later, so "status changed" can't be lost between the database and RabbitMQ.
