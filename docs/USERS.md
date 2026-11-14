@@ -10,7 +10,7 @@ import com.swiftdrop.backend.identity.service.UserDirectory;   // find people
 import com.swiftdrop.backend.identity.event.UserDeleted;       // + UserDeactivated, RoleRevoked
 ```
 Everyone who has called SwiftDrop with a login is in `AppUser` automatically (you never add people yourself).
-Everything else in `identity/` is its machinery: a test (`IdentityBoundaryTest`) fails the build if you use it.
+Everything else in `identity/` is its machinery: the module guard (`ModularityTest`, see `docs/MODULES.md`) fails the build if you use it.
 
 ## Quick answer: "I need …"
 
