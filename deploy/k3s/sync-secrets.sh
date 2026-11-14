@@ -19,5 +19,7 @@ kubectl -n swiftdrop create secret generic swiftdrop-secrets \
   --from-literal=RABBITMQ_PASSWORD="$(get /swiftdrop/prod/rabbitmq/password)" \
   --from-literal=SWIFTDROP_IDENTITY_CLIENT_ID="$(opt /swiftdrop/prod/identity/client-id)" \
   --from-literal=SWIFTDROP_IDENTITY_CLIENT_SECRET="$(opt /swiftdrop/prod/identity/client-secret)" \
+  --from-literal=MAIL_USERNAME="$(opt /swiftdrop/prod/mail/username)" \
+  --from-literal=MAIL_PASSWORD="$(opt /swiftdrop/prod/mail/password)" \
   --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 echo "swiftdrop-secrets updated from SSM"

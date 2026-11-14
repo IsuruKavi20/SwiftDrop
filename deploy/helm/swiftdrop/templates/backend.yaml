@@ -38,7 +38,7 @@ spec:
             {{- range $k, $v := .Values.backend.env }}
             - { name: {{ $k }}, value: {{ $v | quote }} }
             {{- end }}
-          # DB_URL, DB_USERNAME, DB_PASSWORD, RABBITMQ_USERNAME/PASSWORD, SWIFTDROP_IDENTITY_* from SSM
+          # DB_URL, DB_USERNAME, DB_PASSWORD, RABBITMQ_USERNAME/PASSWORD, SWIFTDROP_IDENTITY_*, MAIL_USERNAME/PASSWORD from SSM
           envFrom:
             - secretRef: { name: swiftdrop-secrets }
           resources:
