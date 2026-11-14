@@ -7,4 +7,9 @@ export const env = {
   authUrl: import.meta.env.VITE_AUTH_URL ?? 'https://auth.getswiftdrop.me',
   /** The SwiftDrop backend API (checks the tokens issued by the auth service). */
   apiUrl: import.meta.env.VITE_API_URL ?? 'http://localhost:8080',
+  /**
+   * This website's id in the auth service's list of registered frontends (local = laptops, web =
+   * app.getswiftdrop.me). Google login sends it, so the auth service returns the user to THIS site.
+   */
+  frontendId: import.meta.env.VITE_FRONTEND_ID ?? 'local',
 };
