@@ -12,7 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -50,7 +50,7 @@ class CustomerStatusListenerTest {
     }
 
     @Test
-    void aBrokerFailureDoesNotReachTheCaller() {
+    void aBrokerFailureIsThrownSoTheOutboxSendsItAgain() {
         Delivery delivery = mock(Delivery.class);
         TrackingEvent event = mock(TrackingEvent.class);
         when(delivery.getTrackingEvents()).thenReturn(List.of(event));
@@ -58,6 +58,7 @@ class CustomerStatusListenerTest {
         when(entities.find(Delivery.class, 42L)).thenReturn(delivery);
         doThrow(new IllegalStateException("Broker unavailable")).when(publisher).publishDeliveryStatusChanged(delivery, event);
 
-        assertDoesNotThrow(() -> listener.on(new CustomerStatusChange(42L, 2L)));
+        assertThatThrownBy(() -> listener.on(new CustomerStatusChange(42L, 2L)))
+                .isInstanceOf(IllegalStateException.class);
     }
 }
