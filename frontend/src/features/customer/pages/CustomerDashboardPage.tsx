@@ -10,6 +10,7 @@ import {
   type CustomerProfile, type Dashboard, type DeliveryStatus,
 } from '../api/customerApi';
 import { CompleteProfileForm } from '../components/CompleteProfileForm';
+import { NotificationBell } from '../../notification/components/NotificationBell';
 import styles from '../components/CustomerLayout.module.css';
 
 type State =
@@ -146,9 +147,14 @@ export function CustomerDashboardPage() {
           ))}
         </nav>
 
-        {/* Pinned to the bottom of the sidebar. No notifications or settings pages yet: disabled until they exist */}
+        {/* Pinned to the bottom of the sidebar */}
         <div className={styles.sidebarFooter}>
-          <button type="button" className={styles.navItem} disabled title="Coming soon">
+          <button
+            type="button"
+            className={styles.navItem}
+            onClick={() => navigate(routes.customerNotifications)}
+            title="View all notifications"
+          >
             <LineIcon paths={ICONS.bell} />
             Notifications
           </button>
@@ -177,10 +183,7 @@ export function CustomerDashboardPage() {
           </div>
 
           <div className={styles.navbarActions}>
-            {/* No notifications service yet: the bell is a placeholder until one exists */}
-            <button type="button" className={styles.iconButton} aria-label="Notifications" title="No new notifications">
-              <LineIcon paths={ICONS.bell} />
-            </button>
+            <NotificationBell onViewAll={() => navigate(routes.customerNotifications)} />
             <ProfileMenu name={name} pictureUrl={profile?.pictureUrl ?? null} onLogOut={() => void onLogOut()} />
           </div>
         </header>
