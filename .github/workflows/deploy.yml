@@ -64,7 +64,14 @@ jobs:
             exit 0
           fi
           docker build --pull -t "$IMAGE" .
-          docker push "$IMAGE"
+          # Docker can write the same tag twice in one push (image index + image). With immutable tags the second
+          # write is refused although the image is already stored (seen 14 Nov). Only fail if it is really missing.
+          if ! docker push "$IMAGE"; then
+            FOUND=$(aws ecr batch-get-image --repository-name "$ECR_REPOSITORY" --image-ids imageTag="$GITHUB_SHA" \
+                      --query 'length(images)' --output text)
+            [ "$FOUND" = "1" ] || exit 1
+            echo "Push reported an error, but the image for $GITHUB_SHA is in ECR: continuing"
+          fi
 
   backend-deploy:
     name: Backend deploy
