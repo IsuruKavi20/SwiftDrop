@@ -9,6 +9,10 @@ Browser ──https──> app.getswiftdrop.me  (CloudFront → S3: the React ap
                                         backend ──> RDS Postgres (private)   backend ──> auth.getswiftdrop.me
 ```
 
+**Where it deploys from:** now **Isuru's fork** (`IsuruKavi20/SwiftDrop`, branch `main`). Later the team repo: add
+`repo:Tharusha-Heshan/SwiftDrop:environment:production` to `deploy/aws/github-deploy-trust.json` (update the role),
+and set the same environment + variables there. Remove the fork when the team repo takes over.
+
 **After setup, deploying is automatic:** merge to `main` → GitHub Actions "Deploy" → image to ECR → Helm upgrade on
 the server (through SSM, no SSH) → frontend to S3 + CloudFront. A version that doesn't become healthy is rolled back
 automatically (`helm --atomic`).
@@ -40,7 +44,7 @@ $p = -join ((48..57)+(65..90)+(97..122) | Get-Random -Count 32 | % {[char]$_}); 
 **3. Install the server** (SSM session: `aws ssm start-session --target i-03c8bce686311da77`):
 ```bash
 sudo dnf install -y git tar
-sudo git clone --depth 1 https://github.com/Tharusha-Heshan/SwiftDrop /opt/swiftdrop/release
+sudo git clone --depth 1 --branch main https://github.com/IsuruKavi20/SwiftDrop /opt/swiftdrop/release
 sudo bash /opt/swiftdrop/release/deploy/k3s/install.sh
 sudo bash /opt/swiftdrop/release/deploy/k3s/sync-secrets.sh
 ```
@@ -54,7 +58,7 @@ aws iam create-role --role-name swiftdrop-github-deploy --assume-role-policy-doc
 aws iam put-role-policy --role-name swiftdrop-github-deploy --policy-name deploy --policy-document file://deploy/aws/github-deploy-policy.json
 ```
 
-**6. GitHub settings** (Tharusha, repo owner): Settings → Environments → New `production`
+**6. GitHub settings** (in the repo that deploys: now your fork `IsuruKavi20/SwiftDrop`): Settings → Environments → New `production`
 (Deployment branches: `main` only). In it add **Variables** (not secrets, none of these are secret):
 | Name | Value |
 |---|---|

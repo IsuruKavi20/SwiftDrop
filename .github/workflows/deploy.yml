@@ -22,9 +22,10 @@ env:
 jobs:
   backend-image:
     name: Backend image
-    # Only the team repository deploys (forks have no AWS access), and only after the AWS setup (docs/DEPLOY.md)
-    # sets the repository variable DEPLOY_ENABLED=true; until then the jobs are skipped, not red
-    if: github.repository == 'Tharusha-Heshan/SwiftDrop' && vars.DEPLOY_ENABLED == 'true'
+    # Only the repository that is set up for AWS deploys: the one with the repository variable DEPLOY_ENABLED=true
+    # (now Isuru's fork, later the team repo, docs/DEPLOY.md). Every other copy skips these jobs (not red), and the
+    # AWS role trusts only the repositories listed in deploy/aws/github-deploy-trust.json anyway.
+    if: vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-24.04-arm   # same CPU type as the t4g server: native arm64 build
     permissions:
       contents: read
@@ -93,7 +94,7 @@ jobs:
 
   frontend:
     name: Frontend deploy
-    if: github.repository == 'Tharusha-Heshan/SwiftDrop' && vars.DEPLOY_ENABLED == 'true'
+    if: vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
