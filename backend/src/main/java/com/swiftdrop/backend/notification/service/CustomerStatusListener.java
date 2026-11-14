@@ -12,17 +12,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Objects;
 
-/**
- * Listens to customer's "status changed" event and hands it to the RabbitMQ publisher.
- * Customer only publishes the event and does not know this class exists (no cycle between the modules).
- *
- * <p>Which status to send: the tracking event named in the message; if it has none (or it is gone), the latest one.
- *
- * <p>Reliable (outbox): {@code @ApplicationModuleListener} runs after the booking is committed, in the background, in
- * its own transaction, and Spring Modulith records the event in {@code event_publication} together with the booking.
- * If this method throws (e.g. RabbitMQ is down), the record stays open and {@link OutboxResubmitter} sends it again.
- * So failures must be thrown, not swallowed.
- */
+
 @Component
 class CustomerStatusListener {
 
