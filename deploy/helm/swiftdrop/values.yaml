@@ -1,0 +1,33 @@
+# Settings for the SwiftDrop deploy. Secrets are NOT here: they live in AWS SSM and are copied into the
+# Kubernetes Secret "swiftdrop-secrets" by deploy/k3s/sync-secrets.sh.
+
+backend:
+  image:
+    repository: 637675605734.dkr.ecr.ap-south-1.amazonaws.com/swiftdrop/backend
+    tag: ""              # set by CI to the git commit (immutable tags), e.g. --set backend.image.tag=abc1234
+  replicas: 1
+  # One small server (2 GB): two JVMs at the same time do not fit, so the old pod stops before the new one
+  # starts (about 30-60 s of downtime per deploy). With more memory, switch to RollingUpdate (zero downtime).
+  strategy: Recreate
+  resources:
+    requests: { cpu: 250m, memory: 640Mi }
+    limits: { memory: 768Mi }
+  env:
+    SWIFTDROP_ALLOWED_ORIGINS: "https://app.getswiftdrop.me"
+    # Website address in tracking links sent by SMS/email (used after fix/tracking-links is merged)
+    SWIFTDROP_FRONTEND_URL: "https://app.getswiftdrop.me"
+    DB_POOL_SIZE: "10"
+    RABBITMQ_HOST: "swiftdrop-rabbitmq"
+    RABBITMQ_LISTENER_AUTO_STARTUP: "true"
+
+ingress:
+  host: api.getswiftdrop.me
+  # letsencrypt-staging first (test certificate, no rate limits); switch to letsencrypt-prod once it works
+  clusterIssuer: letsencrypt-staging
+
+rabbitmq:
+  image: rabbitmq:4.1-management-alpine
+  storage: 2Gi
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 384Mi }

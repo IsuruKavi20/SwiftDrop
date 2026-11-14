@@ -1,0 +1,128 @@
+# Deploys main to AWS after every merge: backend image → ECR → k3s (Helm), frontend → S3 → CloudFront.
+# No AWS keys are stored in GitHub: the workflow gets 1-hour credentials from AWS with OIDC
+# (role "swiftdrop-github-deploy", which trusts only this repository's main branch).
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+# One deploy at a time; a newer merge waits instead of racing the older one
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-south-1
+  ECR_REPOSITORY: swiftdrop/backend
+
+jobs:
+  backend-image:
+    name: Backend image
+    # Only the team repository deploys (forks have no AWS access), and only after the AWS setup (docs/DEPLOY.md)
+    # sets the repository variable DEPLOY_ENABLED=true; until then the jobs are skipped, not red
+    if: github.repository == 'Tharusha-Heshan/SwiftDrop' && vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-24.04-arm   # same CPU type as the t4g server: native arm64 build
+    permissions:
+      contents: read
+      id-token: write           # lets the job ask AWS for short-lived credentials (OIDC)
+    timeout-minutes: 25
+    environment: production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
+      # Tag = the git commit: every image says exactly which code it holds (ECR tags are immutable)
+      - name: Build and push
+        working-directory: backend
+        env:
+          IMAGE: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+        run: |
+          docker build --pull -t "$IMAGE" .
+          docker push "$IMAGE"
+
+  backend-deploy:
+    name: Backend deploy
+    needs: backend-image
+    runs-on: ubuntu-24.04
+    permissions:
+      id-token: write
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      # The server has no SSH. SSM Run Command asks its agent to run the deploy script of this exact commit.
+      - name: Helm upgrade on the server (through SSM)
+        env:
+          INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+          SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          COMMANDS=$(jq -cn --arg sha "$SHA" --arg repo "$REPO" '[
+            "set -euo pipefail",
+            "rm -rf /opt/swiftdrop/release && mkdir -p /opt/swiftdrop/release",
+            "curl -fsSL https://codeload.github.com/\($repo)/tar.gz/\($sha) | tar -xz -C /opt/swiftdrop/release --strip-components=1",
+            "bash /opt/swiftdrop/release/deploy/k3s/deploy.sh \($sha)"
+          ]')
+          ID=$(aws ssm send-command --instance-ids "$INSTANCE_ID" --document-name AWS-RunShellScript \
+                 --comment "deploy $SHA" --parameters "{\"commands\":$COMMANDS,\"executionTimeout\":[\"900\"]}" \
+                 --query Command.CommandId --output text)
+          echo "SSM command $ID"
+          # Wait for the result (deploy.sh uses helm --atomic: a failed version is rolled back automatically)
+          for _ in $(seq 1 90); do
+            STATUS=$(aws ssm get-command-invocation --command-id "$ID" --instance-id "$INSTANCE_ID" --query Status --output text 2>/dev/null || echo Pending)
+            case "$STATUS" in Success|Failed|Cancelled|TimedOut) break;; esac
+            sleep 10
+          done
+          aws ssm get-command-invocation --command-id "$ID" --instance-id "$INSTANCE_ID" \
+            --query '[StandardOutputContent, StandardErrorContent]' --output text | tail -40
+          [ "$STATUS" = "Success" ]
+
+  frontend:
+    name: Frontend deploy
+    if: github.repository == 'Tharusha-Heshan/SwiftDrop' && vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    timeout-minutes: 15
+    environment: production
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: npm ci
+      - run: npm run build
+        env:
+          VITE_API_URL: https://api.getswiftdrop.me
+          VITE_AUTH_URL: https://auth.getswiftdrop.me
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      # Files with a hash in the name never change → cache 1 year. index.html always fresh → new versions show at once.
+      - name: Upload to S3 and refresh CloudFront
+        env:
+          BUCKET: ${{ vars.FRONTEND_BUCKET }}
+          DISTRIBUTION: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
+        run: |
+          aws s3 sync dist/ "s3://$BUCKET/" --delete --exclude index.html \
+            --cache-control "public,max-age=31536000,immutable"
+          aws s3 cp dist/index.html "s3://$BUCKET/index.html" --cache-control "no-cache"
+          aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION" --paths /index.html

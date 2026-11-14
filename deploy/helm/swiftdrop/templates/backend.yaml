@@ -1,0 +1,79 @@
+{{- if not .Values.backend.image.tag }}{{ fail "backend.image.tag is required (the git commit CI built)" }}{{ end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: swiftdrop-backend
+  labels:
+    {{- include "swiftdrop.labels" . | nindent 4 }}
+    app.kubernetes.io/name: backend
+spec:
+  replicas: {{ .Values.backend.replicas }}
+  revisionHistoryLimit: 3
+  strategy:
+    type: {{ .Values.backend.strategy }}
+  selector:
+    matchLabels: { app.kubernetes.io/name: backend }
+  template:
+    metadata:
+      labels:
+        {{- include "swiftdrop.labels" . | nindent 8 }}
+        app.kubernetes.io/name: backend
+    spec:
+      # Pull from private ECR with a short-lived token (refreshed by the ecr-login CronJob)
+      imagePullSecrets: [{ name: ecr-pull }]
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: backend
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          ports:
+            - { name: http, containerPort: 8080 }
+            - { name: management, containerPort: 8081 }
+          env:
+            {{- range $k, $v := .Values.backend.env }}
+            - { name: {{ $k }}, value: {{ $v | quote }} }
+            {{- end }}
+          # DB_URL, DB_USERNAME, DB_PASSWORD, RABBITMQ_USERNAME/PASSWORD, SWIFTDROP_IDENTITY_* from SSM
+          envFrom:
+            - secretRef: { name: swiftdrop-secrets }
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+          # Slow start on a small CPU (Flyway + Spring): up to 3 minutes before liveness counts
+          startupProbe:
+            httpGet: { path: /actuator/health/liveness, port: management }
+            periodSeconds: 5
+            failureThreshold: 36
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: management }
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: management }
+            periodSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: tmp
+          emptyDir: { sizeLimit: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: swiftdrop-backend
+  labels:
+    {{- include "swiftdrop.labels" . | nindent 4 }}
+spec:
+  selector: { app.kubernetes.io/name: backend }
+  # Only the API port; the health port stays inside the pod network
+  ports:
+    - { name: http, port: 80, targetPort: http }

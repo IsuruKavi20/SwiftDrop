@@ -1,0 +1,7 @@
+# Only what the build needs goes to Docker (faster, and no local secrets in the image)
+target/
+.idea/
+.vscode/
+*.iml
+src/main/resources/application-local.properties
+**/.env*

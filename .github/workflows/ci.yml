@@ -55,3 +55,16 @@ jobs:
       - run: npm run lint
       # Type check + production build
       - run: npm run build
+
+  image:
+    name: Backend image builds
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Same Dockerfile as the deploy, nothing pushed: a broken Dockerfile is caught in the PR, not after merge
+      - run: docker build -t swiftdrop-backend:ci backend

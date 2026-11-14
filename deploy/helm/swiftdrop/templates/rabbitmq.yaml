@@ -1,0 +1,60 @@
+# RabbitMQ inside the cluster ($0 extra). Reachable only from inside; the management UI is opened with
+# "kubectl port-forward" when needed, never on the internet.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: swiftdrop-rabbitmq
+  labels:
+    {{- include "swiftdrop.labels" . | nindent 4 }}
+spec:
+  serviceName: swiftdrop-rabbitmq
+  replicas: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: rabbitmq }
+  template:
+    metadata:
+      labels:
+        {{- include "swiftdrop.labels" . | nindent 8 }}
+        app.kubernetes.io/name: rabbitmq
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: rabbitmq
+          image: {{ .Values.rabbitmq.image }}
+          ports:
+            - { name: amqp, containerPort: 5672 }
+            - { name: management, containerPort: 15672 }
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              valueFrom: { secretKeyRef: { name: swiftdrop-secrets, key: RABBITMQ_USERNAME } }
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom: { secretKeyRef: { name: swiftdrop-secrets, key: RABBITMQ_PASSWORD } }
+          resources:
+            {{- toYaml .Values.rabbitmq.resources | nindent 12 }}
+          readinessProbe:
+            exec: { command: ["rabbitmq-diagnostics", "-q", "ping"] }
+            periodSeconds: 15
+            timeoutSeconds: 10
+          livenessProbe:
+            exec: { command: ["rabbitmq-diagnostics", "-q", "status"] }
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 15
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/rabbitmq }
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: { requests: { storage: {{ .Values.rabbitmq.storage }} } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: swiftdrop-rabbitmq
+  labels:
+    {{- include "swiftdrop.labels" . | nindent 4 }}
+spec:
+  selector: { app.kubernetes.io/name: rabbitmq }
+  ports:
+    - { name: amqp, port: 5672, targetPort: amqp }
