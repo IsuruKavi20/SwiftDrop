@@ -57,7 +57,8 @@ class NotificationSystemTest {
                 templateRepository,
                 logRepository,
                 webhookDispatcher,
-                new ObjectMapper()
+                new ObjectMapper(),
+                new com.swiftdrop.backend.notification.service.TrackingLinks("http://localhost:5173")
         );
     }
 

@@ -31,13 +31,16 @@ public class NotificationEventListener {
     private final WebhookDispatcherService webhookDispatcher;
     private final ObjectMapper objectMapper;
 
+    private final TrackingLinks trackingLinks;
+
     public NotificationEventListener(EmailSender emailSender,
                                    SmsSender smsSender,
                                    TemplateRenderer templateRenderer,
                                    NotificationTemplateRepository templateRepository,
                                    NotificationLogRepository logRepository,
                                    WebhookDispatcherService webhookDispatcher,
-                                   ObjectMapper objectMapper) {
+                                   ObjectMapper objectMapper,
+                                   TrackingLinks trackingLinks) {
         this.emailSender = emailSender;
         this.smsSender = smsSender;
         this.templateRenderer = templateRenderer;
@@ -45,6 +48,7 @@ public class NotificationEventListener {
         this.logRepository = logRepository;
         this.webhookDispatcher = webhookDispatcher;
         this.objectMapper = objectMapper;
+        this.trackingLinks = trackingLinks;
     }
 
     @RabbitListener(queues = RabbitMqConfig.QUEUE_DELIVERY_NOTIFICATIONS)
@@ -59,7 +63,7 @@ public class NotificationEventListener {
         vars.put("locationName", event.locationName() != null ? event.locationName() : "");
         vars.put("customerName", event.customerName() != null ? event.customerName() : "Customer");
         vars.put("courierName", event.courierName() != null ? event.courierName() : "Courier");
-        vars.put("trackingUrl", "http://localhost:5173/track/" + (event.publicTrackingToken() != null ? event.publicTrackingToken() : event.trackingNumber()));
+        vars.put("trackingUrl", trackingLinks.forDelivery(event.publicTrackingToken(), event.trackingNumber()));
 
         // 1. Notify Customer via Email
         if (event.customerEmail() != null && !event.customerEmail().isBlank()) {
