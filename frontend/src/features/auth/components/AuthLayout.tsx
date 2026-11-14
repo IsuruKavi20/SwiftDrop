@@ -1,10 +1,16 @@
 import type { ReactNode } from 'react';
-import checkIcon from '../../../assets/auth/check.svg';
 import logoIcon from '../../../assets/auth/logo-box.svg';
-import routeIllustration from '../../../assets/auth/route-illustration.svg';
+import logoIconLight from '../../../assets/auth/logo-box-light.svg';
+import { navigate } from '../../../app/router';
+import { DeliveryScene } from '../../../shared/ui/DeliveryScene';
+import { Icon, type IconName } from '../../../shared/ui/Icon';
 import styles from './AuthLayout.module.css';
 
-const BENEFITS = ['Real-time tracking for every parcel', 'Nationwide courier network', 'Secure payments & verified merchants'];
+const BENEFITS: { icon: IconName; text: string }[] = [
+  { icon: 'pin', text: 'Real-time tracking for every parcel' },
+  { icon: 'truck', text: 'Nationwide courier network' },
+  { icon: 'shield', text: 'Secure payments & verified merchants' },
+];
 
 interface AuthLayoutProps {
   headline: string;
@@ -12,39 +18,48 @@ interface AuthLayoutProps {
   eyebrow: string;
   title: string;
   subtitle: string;
-  /** Sign up shows the brand panel on the right (Figma "SwiftDrop desktop signup"). */
+  /** Sign up shows the brand words on the right (mirrored layout). */
   brandOnRight?: boolean;
   children: ReactNode;
 }
 
-/** The two-panel screen shared by login and sign up: brand panel + form card. */
+/**
+ * Login / sign up: the dark curve on one side holds the logo, the animated delivery town and the words; the form card
+ * sits on the other side. Only the look lives here; the forms and their logic stay in the pages.
+ */
 export function AuthLayout({ headline, tagline, eyebrow, title, subtitle, brandOnRight, children }: AuthLayoutProps) {
+  const goHome = (event: React.MouseEvent) => { event.preventDefault(); navigate('/'); };
   return (
     <div className={`${styles.page} ${brandOnRight ? styles.reversed : ''}`}>
       <aside className={styles.brand}>
-        <img className={styles.route} src={routeIllustration} width={220} height={140} alt="" />
-        <div className={styles.logo}>
-          <span className={styles.logoMark}>
-            <img src={logoIcon} width={20} height={20} alt="" />
-          </span>
+        <a className={styles.logo} href="/" onClick={goHome}>
+          <span className={styles.logoMark}><img src={logoIconLight} width={20} height={20} alt="" /></span>
           SwiftDrop
+        </a>
+        <div className={styles.sceneSide}>
+          <DeliveryScene className={styles.scene} />
         </div>
-        <h1 className={styles.headline}>{headline}</h1>
-        <p className={styles.tagline}>{tagline}</p>
-        <ul className={styles.benefits}>
-          {BENEFITS.map((benefit) => (
-            <li key={benefit} className={styles.benefit}>
-              <span className={styles.check}>
-                <img src={checkIcon} width={13} height={13} alt="" />
-              </span>
-              {benefit}
-            </li>
-          ))}
-        </ul>
+
+        <div className={styles.copy}>
+          <h1 className={styles.headline}>{headline}</h1>
+          <p className={styles.tagline}>{tagline}</p>
+          <ul className={styles.benefits}>
+            {BENEFITS.map((benefit) => (
+              <li key={benefit.text} className={styles.benefit}>
+                <span className={styles.benefitIcon}><Icon name={benefit.icon} size={18} /></span>
+                {benefit.text}
+              </li>
+            ))}
+          </ul>
+        </div>
       </aside>
 
       <main className={styles.formSide}>
         <section className={styles.card}>
+          <a className={styles.mobileLogo} href="/" onClick={goHome}>
+            <span className={styles.logoMark}><img src={logoIcon} width={18} height={18} alt="" /></span>
+            SwiftDrop
+          </a>
           <p className={styles.eyebrow}>{eyebrow}</p>
           <h2 className={styles.title}>{title}</h2>
           <p className={styles.subtitle}>{subtitle}</p>

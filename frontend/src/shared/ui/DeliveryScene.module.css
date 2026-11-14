@@ -1,0 +1,166 @@
+/* The isometric delivery town. One 9 s loop: drive in and stop at the house (0-32%), parcel hops to the door (35-51%),
+   check + note (52-84%), drive away (58-82%). Positions come from the road maths in DeliveryScene.tsx. */
+.wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  --loop: 9s;
+}
+
+/* Fills its box and keeps its shape (the parent decides the size, so it can shrink on short screens) */
+.svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 30px 40px rgba(0, 0, 0, 0.35));
+}
+
+/* ground */
+.ground { fill: #5a4630; }
+.slabLeft { fill: #2f2318; }
+.slabRight { fill: #3a2b1d; }
+.road { fill: #2a1f15; }
+
+.roadLine {
+  stroke: #f4d58d;
+  stroke-width: 2;
+  stroke-dasharray: 8 9;
+  opacity: 0.8;
+  animation: roadMove 1s linear infinite;
+}
+
+@keyframes roadMove {
+  to { stroke-dashoffset: -17; }
+}
+
+/* box tones: rear (darkest), side, top (lightest) */
+.gold .top { fill: #f8e3b0; }
+.gold .side { fill: #e2b85a; }
+.gold .rear { fill: #c9963a; }
+.cream .top { fill: #fff7e1; }
+.cream .side { fill: #efe0bd; }
+.cream .rear { fill: #d6c29a; }
+.lorry .top { fill: #fffaf0; }
+.lorry .side { fill: #f4d58d; }
+.lorry .rear { fill: #d9a944; }
+.cab .top { fill: #fff7e1; }
+.cab .side { fill: #f3e7cb; }
+.cab .rear { fill: #d8c49a; }
+.box .top { fill: #f8e3b0; }
+.box .side { fill: #d9a944; }
+.box .rear { fill: #b8862f; }
+
+.windscreen { fill: #3f2f1f; opacity: 0.85; }
+.stripe { fill: #3f2f1f; opacity: 0.85; }
+.wheel { fill: #1e160e; stroke: #fff7e1; stroke-width: 1.4; }
+.shadow { fill: rgba(0, 0, 0, 0.28); }
+
+.windows polygon { fill: #3f2f1f; opacity: 0.55; }
+.windows .twinkle { fill: #fff3c4; opacity: 1; animation: twinkle 3s ease-in-out infinite; }
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+.trunk { fill: #2a1f15; }
+.leaves { fill: #c9963a; }
+
+/* the lorry drives the road; it is hidden at the ends by the ground's clip */
+.truck {
+  animation: drive var(--loop) linear infinite;
+}
+
+@keyframes drive {
+  0% { transform: translate(0, 0); animation-timing-function: cubic-bezier(0.3, 0.6, 0.4, 1); }
+  32% { transform: translate(165.3px, -95.7px); }
+  58% { transform: translate(165.3px, -95.7px); animation-timing-function: cubic-bezier(0.5, 0, 0.8, 0.4); }
+  82%, 100% { transform: translate(285px, -165px); }
+}
+
+/* the parcel jump: from the lorry's back to the door, with an arc */
+.parcel {
+  opacity: 0;
+  animation: hop var(--loop) ease-in-out infinite;
+}
+
+@keyframes hop {
+  0%, 35% { opacity: 0; transform: translate(214.8px, 136px); }
+  37% { opacity: 1; transform: translate(214.8px, 136px); }
+  42% { opacity: 1; transform: translate(203px, 118px); }
+  47% { opacity: 1; transform: translate(192.2px, 146px); }
+  49% { opacity: 1; transform: translate(192.2px, 143px); }
+  51%, 84% { opacity: 1; transform: translate(192.2px, 146px); }
+  90%, 100% { opacity: 0; transform: translate(192.2px, 146px); }
+}
+
+.check {
+  opacity: 0;
+  animation: pop var(--loop) var(--ease, ease-out) infinite;
+}
+
+.checkBubble { fill: #2e6b3a; stroke: #fff7e1; stroke-width: 2; }
+.checkMark { stroke: #fff; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+
+@keyframes pop {
+  0%, 48% { opacity: 0; transform: translate(192px, 132px) scale(0.3); }
+  52% { opacity: 1; transform: translate(192px, 118px) scale(1.15); }
+  56%, 84% { opacity: 1; transform: translate(192px, 121px) scale(1); }
+  90%, 100% { opacity: 0; transform: translate(192px, 113px) scale(1); }
+}
+
+/* the "delivered" note */
+.toast {
+  position: absolute;
+  top: 4%;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px 8px 8px;
+  border-radius: 999px;
+  background: rgba(255, 247, 225, 0.12);
+  border: 1px solid rgba(255, 247, 225, 0.2);
+  backdrop-filter: blur(10px);
+  color: #fff7e1;
+  font-size: 13px;
+  opacity: 0;
+  animation: toast var(--loop) cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+.toast strong { display: block; font-weight: 650; }
+.toast small { display: block; font-size: 11px; opacity: 0.7; }
+
+.toastIcon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #2e6b3a;
+  font-weight: 700;
+}
+
+@keyframes toast {
+  0%, 52% { opacity: 0; transform: translateY(10px) scale(0.96); }
+  57%, 84% { opacity: 1; transform: none; }
+  90%, 100% { opacity: 0; transform: translateY(-6px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .roadLine,
+  .truck,
+  .parcel,
+  .check,
+  .toast,
+  .windows .twinkle {
+    animation: none;
+  }
+
+  .truck { transform: translate(165.3px, -95.7px); }
+  .check,
+  .toast { opacity: 1; }
+  .check { transform: translate(192px, 121px); }
+  .parcel { opacity: 1; transform: translate(192.2px, 146px); }
+}

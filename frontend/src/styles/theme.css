@@ -12,10 +12,10 @@
   --color-success: #2e6b3a;
 
   --radius-card: 24px;
-  --radius-button: 14px;
+  --radius-button: 999px; /* pill buttons everywhere (Apple-like) */
   --radius-input: 12px;
   --shadow-card: 0 24px 48px rgba(63, 47, 31, 0.1);
-  --shadow-button: 0 10px 12px rgba(63, 47, 31, 0.22);
+  --shadow-button: 0 4px 14px rgba(63, 47, 31, 0.12); /* soft, Apple-like */
 
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   color: var(--color-text);
@@ -36,4 +36,11 @@ body {
 button,
 input {
   font: inherit;
+}
+
+/* The logo picture fills most of its gold tile (every .logoMark in the app) */
+[class*="logoMark"] img,
+[class*="brandMark"] img {
+  width: 76%;
+  height: auto;
 }

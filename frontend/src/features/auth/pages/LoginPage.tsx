@@ -5,7 +5,7 @@ import { navigate, routes } from '../../../app/router';
 import { AuthError, logIn, startGoogleLogin } from '../api/authApi';
 import { landingPage, rememberNextFromUrl, withNext } from '../lib/landing';
 import { AuthLayout } from '../components/AuthLayout';
-import { Alert, Divider, GoogleButton, PrimaryButton, TextField } from '../components/FormControls';
+import { Alert, Divider, EntryPoints, GoogleButton, PrimaryButton, TextField } from '../components/FormControls';
 import styles from '../components/FormControls.module.css';
 
 /** Figma "SwiftDrop desktop login" / "mobile login". */
@@ -53,23 +53,13 @@ export function LoginPage() {
       <Divider>or continue with</Divider>
       <GoogleButton onClick={() => void startGoogleLogin()} />
 
-      <p className={styles.footer}>
-        New here?{' '}
-        <button type="button" className={styles.link} onClick={() => navigate(routes.signup)}>Create an account</button>
-      </p>
-      <p className={styles.footer}>
-        Are you a business?{' '}
-        <button type="button" className={styles.link}
-          onClick={() => navigate(withNext(routes.signup, routes.merchantApply))}>
-          Sell with SwiftDrop
-        </button>
-      </p>
-      <p className={styles.footer}>
-        Just tracking a parcel?{' '}
-        <button type="button" className={styles.link} onClick={() => navigate(routes.publicTrack)}>
-          Track without logging in
-        </button>
-      </p>
+      <EntryPoints items={[
+        { icon: 'user', title: 'Create an account', text: 'New here?', onClick: () => navigate(routes.signup) },
+        { icon: 'store', title: 'Sell with SwiftDrop', text: 'Are you a business?',
+          onClick: () => navigate(withNext(routes.signup, routes.merchantApply)) },
+        { icon: 'search', title: 'Track without logging in', text: 'Just tracking a parcel?',
+          onClick: () => navigate(routes.publicTrack) },
+      ]} />
     </AuthLayout>
   );
 }

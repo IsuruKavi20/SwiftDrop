@@ -3,7 +3,6 @@ import { GoogleCallbackPage } from '../features/auth/pages/GoogleCallbackPage';
 import { LoginPage } from '../features/auth/pages/LoginPage';
 import { SignupPage } from '../features/auth/pages/SignupPage';
 import { CustomerPortal, PublicTrackingPage } from '../features/customer/pages/CustomerPortal';
-import { NotificationsPage } from '../features/notification/pages/NotificationsPage';
 import { MerchantApplyPage } from '../features/merchant/pages/MerchantApplyPage';
 import { MerchantDashboardPage } from '../features/merchant/pages/MerchantDashboardPage';
 import { MerchantProfilePage } from '../features/merchant/pages/MerchantProfilePage';
@@ -16,7 +15,6 @@ import { LandingPage } from '../features/landing/pages/LandingPage';
 
 export default function App() {
   const path = usePath();
-  if (path === routes.customerNotifications) return <NotificationsPage />;
   if (path === routes.publicTrack || path.startsWith('/track/')) return <PublicTrackingPage />;
   if (path.startsWith('/customer/')) return <CustomerPortal />;
   if (path === routes.merchantDashboard) return <MerchantDashboardPage />;
