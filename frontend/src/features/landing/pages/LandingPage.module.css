@@ -1,0 +1,321 @@
+/* The home page. Same colours and fonts as login/sign up (styles/theme.css). Mobile first, then wider screens. */
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-page);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  max-width: 1120px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.logoMark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: var(--color-primary);
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.textButton,
+.primaryButton,
+.trackButton,
+.cardLink,
+.footerLink {
+  cursor: pointer;
+  border: none;
+  font-weight: 600;
+}
+
+.textButton {
+  padding: 10px 14px;
+  border-radius: var(--radius-button);
+  background: transparent;
+  color: var(--color-text);
+}
+
+.primaryButton {
+  padding: 10px 18px;
+  border-radius: var(--radius-button);
+  background: var(--color-primary);
+  color: var(--color-text);
+  box-shadow: var(--shadow-button);
+}
+
+.textButton:hover,
+.footerLink:hover {
+  text-decoration: underline;
+}
+
+:is(.textButton, .primaryButton, .trackButton, .cardLink, .footerLink, .logo, .trackInput):focus-visible {
+  outline: 3px solid var(--color-text);
+  outline-offset: 2px;
+}
+
+/* Hero: the tracking box comes first */
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 32px 16px 48px;
+}
+
+.heroText {
+  width: 100%;
+  max-width: 600px;
+}
+
+.eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+}
+
+.headline {
+  margin: 10px 0 12px;
+  font-size: clamp(32px, 6vw, 52px);
+  font-weight: 500;
+  line-height: 1.1;
+}
+
+.tagline {
+  margin: 0 0 24px;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.trackForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.trackInput {
+  min-width: 0;
+  flex: 1;
+  padding: 16px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-input);
+  font-size: 18px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+
+.trackInput::placeholder {
+  color: #a69a8f;
+  text-transform: none;
+}
+
+.trackButton {
+  padding: 16px 24px;
+  border-radius: var(--radius-button);
+  background: var(--color-text);
+  color: var(--color-cream);
+  font-size: 16px;
+}
+
+.trackButton:hover {
+  background: #2d2116;
+}
+
+.hint {
+  margin: 12px 4px 0;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.heroArt {
+  display: none;
+  max-width: 100%;
+  height: auto;
+}
+
+/* Three things you can do */
+.cards {
+  display: grid;
+  gap: 16px;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 16px 48px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 24px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+
+.card h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.card p {
+  flex: 1;
+  margin: 0;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.cardLink {
+  align-self: flex-start;
+  margin-top: 8px;
+  padding: 6px 0;
+  background: transparent;
+  color: var(--color-text);
+}
+
+.cardLink:hover {
+  text-decoration: underline;
+}
+
+/* How it works */
+.steps {
+  padding: 48px 16px;
+  background: var(--color-cream);
+}
+
+.sectionTitle {
+  max-width: 1120px;
+  margin: 0 auto 24px;
+  font-size: 28px;
+  font-weight: 500;
+}
+
+.stepList {
+  display: grid;
+  gap: 24px;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.step h3 {
+  margin: 12px 0 6px;
+  font-size: 18px;
+}
+
+.step p {
+  margin: 0;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.stepNumber {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  font-weight: 700;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: auto;
+  padding: 24px 16px;
+  max-width: 1120px;
+  width: 100%;
+  margin-inline: auto;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.footerLinks {
+  display: flex;
+  gap: 16px;
+}
+
+.footerLink {
+  padding: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Wider screens */
+@media (min-width: 640px) {
+  .trackForm {
+    flex-direction: row;
+  }
+
+  .cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .stepList {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 960px) {
+  .header {
+    padding: 24px;
+  }
+
+  .hero {
+    flex-direction: row;
+    justify-content: space-between;
+    padding: 64px 24px 72px;
+  }
+
+  .heroArt {
+    display: block;
+  }
+}
