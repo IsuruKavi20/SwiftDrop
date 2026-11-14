@@ -29,11 +29,3 @@ public class RealEmailLiveTest {
         );
     }
 }
-                "<h2 style='color:#3f2f1f;margin-bottom:12px;'>SwiftDrop Delivery Notification System</h2>" +
-                "<p style='color:#4a5568;line-height:1.6;'>Congratulations! Your <strong>Brevo SMTP</strong> live email setup is now fully configured and verified.</p>" +
-                "<p style='color:#4a5568;line-height:1.6;'>All delivery lifecycle events (CONFIRMED, PICKED_UP, IN_TRANSIT, DELIVERED) will now dispatch real HTML emails directly to customer inboxes.</p>" +
-                "<div style='margin-top:20px;padding:12px 18px;background:#f4d58d;color:#3f2f1f;border-radius:8px;font-weight:bold;text-align:center;'>Status: Multi-Channel Email Dispatched Successfully</div>" +
-                "</div>"
-        );
-    }
-}
