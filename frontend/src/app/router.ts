@@ -13,6 +13,7 @@ export const routes = {
   customerDashboard: '/customer/dashboard',
   customerNotifications: '/customer/notifications',
   merchantDashboard: '/merchant/dashboard',
+  merchantProfile: '/merchant/profile',
   merchantPreview: '/merchant/preview',
   customerBook: '/customer/deliveries/new',
   customerDeliveries: '/customer/deliveries',

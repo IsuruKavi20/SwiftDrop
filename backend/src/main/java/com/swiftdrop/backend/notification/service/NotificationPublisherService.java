@@ -4,6 +4,7 @@ import com.swiftdrop.backend.customer.entity.Customer;
 import com.swiftdrop.backend.customer.entity.Delivery;
 import com.swiftdrop.backend.customer.entity.DeliveryStatus;
 import com.swiftdrop.backend.customer.entity.TrackingEvent;
+import com.swiftdrop.backend.merchant.entity.Merchant;
 import com.swiftdrop.backend.dispatcher.entity.Courier;
 import com.swiftdrop.backend.dispatcher.entity.CourierAssignment;
 import com.swiftdrop.backend.identity.service.UserDirectory;
@@ -51,6 +52,7 @@ public class NotificationPublisherService {
      */
     public void publishDeliveryStatusChanged(Delivery delivery, TrackingEvent event, String customerEmail) {
         Customer customer = delivery.getCustomer();
+        Merchant merchant = delivery.getMerchant();
 
         String customerName = "Customer";
         String customerPhone = null;
@@ -67,6 +69,10 @@ public class NotificationPublisherService {
                 }
             }
             customerPhone = customer.getPhoneNumber();
+        } else if (merchant != null) {
+            customerName = merchant.getBusinessName() != null ? merchant.getBusinessName() : "Merchant";
+            customerEmail = merchant.getBusinessEmail();
+            customerPhone = merchant.getContactNumber();
         }
 
         String destPhone = null;
@@ -101,7 +107,7 @@ public class NotificationPublisherService {
                 customerPhone,
                 courierName,
                 null,
-                null, // merchantId if applicable
+                merchant != null ? merchant.getId() : null,
                 event != null ? event.getEventTime() : Instant.now(),
                 metadata
         );
