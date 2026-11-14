@@ -1,7 +1,5 @@
 package com.swiftdrop.backend.merchant.dto;
 
-import com.swiftdrop.backend.customer.dto.DeliveryAddressRequest;
-import com.swiftdrop.backend.customer.dto.ParcelRequest;
 import com.swiftdrop.backend.customer.entity.DeliveryType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;

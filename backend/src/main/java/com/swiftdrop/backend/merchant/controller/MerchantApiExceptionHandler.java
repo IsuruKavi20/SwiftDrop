@@ -1,7 +1,7 @@
 package com.swiftdrop.backend.merchant.controller;
 
-import com.swiftdrop.backend.customer.exception.ConflictException;
-import com.swiftdrop.backend.customer.exception.NotFoundException;
+import com.swiftdrop.backend.shared.error.ConflictException;
+import com.swiftdrop.backend.shared.error.NotFoundException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;

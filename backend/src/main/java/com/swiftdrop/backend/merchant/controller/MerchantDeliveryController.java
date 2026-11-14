@@ -1,6 +1,6 @@
 package com.swiftdrop.backend.merchant.controller;
 
-import com.swiftdrop.backend.customer.dto.PageResponse;
+import com.swiftdrop.backend.shared.dto.PageResponse;
 import com.swiftdrop.backend.customer.entity.DeliveryStatus;
 import com.swiftdrop.backend.identity.entity.AppUser;
 import com.swiftdrop.backend.identity.service.UserDirectory;

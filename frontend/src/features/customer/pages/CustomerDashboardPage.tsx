@@ -164,7 +164,6 @@ export function CustomerDashboardPage() {
               Merchant view
             </button>
           )}
-          <button type="button" className={styles.navItem} disabled title="Coming soon">
           <button
             type="button"
             className={styles.navItem}

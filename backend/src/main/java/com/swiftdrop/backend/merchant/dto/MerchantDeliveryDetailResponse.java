@@ -1,8 +1,5 @@
 package com.swiftdrop.backend.merchant.dto;
 
-import com.swiftdrop.backend.customer.dto.DeliveryAddressResponse;
-import com.swiftdrop.backend.customer.dto.ParcelResponse;
-import com.swiftdrop.backend.customer.dto.TrackingEventResponse;
 import com.swiftdrop.backend.customer.entity.Delivery;
 import com.swiftdrop.backend.customer.entity.DeliveryStatus;
 import com.swiftdrop.backend.customer.entity.DeliveryType;

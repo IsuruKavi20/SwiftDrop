@@ -25,7 +25,7 @@ public interface MerchantDeliveryRepository extends JpaRepository<Delivery, Long
 
     Optional<Delivery> findByIdAndMerchantId(Long id, Long merchantId);
 
-    @Query("select d.status as status, count(d) as total from Delivery d where d.merchant.id = :merchantId group by d.status")
+    @Query("select d.status as status, count(d) as total from Delivery d where d.merchantId = :merchantId group by d.status")
     List<StatusCount> countByStatus(@Param("merchantId") Long merchantId);
 
     interface StatusCount {

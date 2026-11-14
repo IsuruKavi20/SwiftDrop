@@ -15,6 +15,7 @@ import com.swiftdrop.backend.customer.entity.TrackingEvent;
 import com.swiftdrop.backend.customer.exception.ConflictException;
 import com.swiftdrop.backend.customer.exception.NotFoundException;
 import com.swiftdrop.backend.customer.repository.CustomerDeliveryRepository;
+import com.swiftdrop.backend.shared.util.TrackingCodeGenerator;
 import org.springframework.stereotype.Service;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;

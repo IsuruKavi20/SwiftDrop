@@ -15,7 +15,6 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import com.swiftdrop.backend.identity.entity.AppUser;
-import com.swiftdrop.backend.merchant.entity.Merchant;
 import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -45,9 +44,8 @@ public class Delivery {
     @JoinColumn(name = "customer_id", updatable = false)
     private Customer customer;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "merchant_id", updatable = false)
-    private Merchant merchant;
+    @Column(name = "merchant_id", updatable = false)
+    private Long merchantId;
 
     /** The assigned courier (a person from the auth service); null until a courier is assigned. */
     @ManyToOne(fetch = FetchType.LAZY)
@@ -115,8 +113,8 @@ public class Delivery {
         this.deliveryType = deliveryType;
     }
 
-    public Delivery(Merchant merchant, String trackingNumber, String publicTrackingToken, DeliveryType deliveryType) {
-        this.merchant = merchant;
+    public Delivery(Long merchantId, String trackingNumber, String publicTrackingToken, DeliveryType deliveryType) {
+        this.merchantId = merchantId;
         this.trackingNumber = trackingNumber;
         this.publicTrackingToken = publicTrackingToken;
         this.deliveryType = deliveryType;
@@ -167,7 +165,8 @@ public class Delivery {
 
     public Long getId() { return id; }
     public Customer getCustomer() { return customer; }
-    public Merchant getMerchant() { return merchant; }
+    public Long getMerchantId() { return merchantId; }
+    public void setMerchantId(Long merchantId) { this.merchantId = merchantId; }
     public AppUser getCourier() { return courier; }
     /** Get the courier with UserDirectory.require(id) first: it checks they exist and are not blocked. */
     public void assignCourier(AppUser courier) { this.courier = courier; }
