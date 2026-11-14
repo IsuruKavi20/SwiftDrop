@@ -7,9 +7,11 @@ import com.swiftdrop.backend.customer.entity.TrackingEvent;
 import com.swiftdrop.backend.dispatcher.entity.Courier;
 import com.swiftdrop.backend.dispatcher.entity.CourierAssignment;
 import com.swiftdrop.backend.identity.service.UserDirectory;
+import com.swiftdrop.backend.merchant.entity.Merchant;
 import com.swiftdrop.backend.notification.config.RabbitMqConfig;
 import com.swiftdrop.backend.notification.event.CourierAssignedEvent;
 import com.swiftdrop.backend.notification.event.DeliveryStatusChangedEvent;
+import jakarta.persistence.EntityManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -28,19 +30,27 @@ public class NotificationPublisherService {
 
     private final RabbitTemplate rabbitTemplate;
     private final UserDirectory userDirectory;
+    private final EntityManager entityManager;
 
     @Value("${swiftdrop.mail.fallback-recipient:${swiftdrop.mail.from:}}")
     private String fallbackRecipient;
 
     @Autowired
     public NotificationPublisherService(RabbitTemplate rabbitTemplate,
-                                        @Autowired(required = false) UserDirectory userDirectory) {
+                                        @Autowired(required = false) UserDirectory userDirectory,
+                                        @Autowired(required = false) EntityManager entityManager) {
         this.rabbitTemplate = rabbitTemplate;
         this.userDirectory = userDirectory;
+        this.entityManager = entityManager;
+    }
+
+    public NotificationPublisherService(RabbitTemplate rabbitTemplate,
+                                        UserDirectory userDirectory) {
+        this(rabbitTemplate, userDirectory, null);
     }
 
     public NotificationPublisherService(RabbitTemplate rabbitTemplate) {
-        this(rabbitTemplate, null);
+        this(rabbitTemplate, null, null);
     }
 
     /**
@@ -55,6 +65,15 @@ public class NotificationPublisherService {
      */
     public void publishDeliveryStatusChanged(Delivery delivery, TrackingEvent event, String customerEmail) {
         Customer customer = delivery.getCustomer();
+        Long merchantId = delivery.getMerchantId();
+        Merchant merchant = null;
+        if (merchantId != null && entityManager != null) {
+            try {
+                merchant = entityManager.find(Merchant.class, merchantId);
+            } catch (Exception ex) {
+                log.debug("Could not resolve merchant entity: {}", ex.getMessage());
+            }
+        }
 
         String customerName = "Customer";
         String customerPhone = null;
@@ -78,6 +97,12 @@ public class NotificationPublisherService {
                 }
             }
             customerPhone = customer.getPhoneNumber();
+        } else if (merchant != null) {
+            customerName = merchant.getBusinessName() != null ? merchant.getBusinessName() : "Merchant";
+            customerEmail = merchant.getBusinessEmail();
+            customerPhone = merchant.getContactNumber();
+        } else if (merchantId != null) {
+            customerName = "Merchant";
         }
 
         if ((customerEmail == null || customerEmail.isBlank()) && fallbackRecipient != null && !fallbackRecipient.isBlank()) {
@@ -117,7 +142,7 @@ public class NotificationPublisherService {
                 customerPhone,
                 courierName,
                 null,
-                null, // merchantId if applicable
+                merchantId != null ? merchantId : (merchant != null ? merchant.getId() : null),
                 event != null ? event.getEventTime() : Instant.now(),
                 metadata
         );

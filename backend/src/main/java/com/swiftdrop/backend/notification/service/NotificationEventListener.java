@@ -34,6 +34,8 @@ public class NotificationEventListener {
     private final ObjectMapper objectMapper;
     private final CustomerDeliveryRepository deliveries;
 
+    private final TrackingLinks trackingLinks;
+
     @org.springframework.beans.factory.annotation.Autowired
     public NotificationEventListener(EmailSender emailSender,
                                    SmsSender smsSender,
@@ -42,7 +44,8 @@ public class NotificationEventListener {
                                    NotificationLogRepository logRepository,
                                    WebhookDispatcherService webhookDispatcher,
                                    ObjectMapper objectMapper,
-                                   CustomerDeliveryRepository deliveries) {
+                                   CustomerDeliveryRepository deliveries,
+                                   TrackingLinks trackingLinks) {
         this.emailSender = emailSender;
         this.smsSender = smsSender;
         this.templateRenderer = templateRenderer;
@@ -51,9 +54,10 @@ public class NotificationEventListener {
         this.webhookDispatcher = webhookDispatcher;
         this.objectMapper = objectMapper;
         this.deliveries = deliveries;
+        this.trackingLinks = trackingLinks;
     }
 
-    /** Constructor for testing without delivery repository */
+    /** Constructor for testing without delivery repository (links point to the local website) */
     public NotificationEventListener(EmailSender emailSender,
                                    SmsSender smsSender,
                                    TemplateRenderer templateRenderer,
@@ -61,7 +65,8 @@ public class NotificationEventListener {
                                    NotificationLogRepository logRepository,
                                    WebhookDispatcherService webhookDispatcher,
                                    ObjectMapper objectMapper) {
-        this(emailSender, smsSender, templateRenderer, templateRepository, logRepository, webhookDispatcher, objectMapper, null);
+        this(emailSender, smsSender, templateRenderer, templateRepository, logRepository, webhookDispatcher, objectMapper,
+                null, new TrackingLinks("http://localhost:5173"));
     }
 
     @RabbitListener(queues = RabbitMqConfig.QUEUE_DELIVERY_NOTIFICATIONS)
@@ -80,7 +85,7 @@ public class NotificationEventListener {
         vars.put("locationName", event.locationName() != null ? event.locationName() : "");
         vars.put("customerName", event.customerName() != null ? event.customerName() : "Customer");
         vars.put("courierName", event.courierName() != null ? event.courierName() : "Courier");
-        vars.put("trackingUrl", "http://localhost:5173/track/" + (event.publicTrackingToken() != null ? event.publicTrackingToken() : event.trackingNumber()));
+        vars.put("trackingUrl", trackingLinks.forDelivery(event.publicTrackingToken(), event.trackingNumber()));
 
         // 1. Notify Customer via Email
         if (event.customerEmail() != null && !event.customerEmail().isBlank()) {

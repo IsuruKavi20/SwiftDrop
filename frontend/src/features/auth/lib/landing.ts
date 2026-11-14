@@ -27,8 +27,9 @@ export function withNext(page: string, next: string): string {
 
 /**
  * Where a user goes right after logging in: a remembered allowed page first (e.g. the merchant application);
- * otherwise customers (permission "parcel:read-own") land on their dashboard and every other role keeps the account
- * page until its own home page exists. This only picks a page: the backend still checks permissions on every request.
+ * otherwise users with "merchant:api-access" land on the merchant dashboard, customers (permission "parcel:read-own")
+ * land on their dashboard, and every other role keeps the account page until its own home page exists.
+ * This only picks a page: the backend still checks permissions on every request.
  */
 export function landingPage(): string {
   const next = sessionStorage.getItem(NEXT_KEY);
@@ -37,6 +38,16 @@ export function landingPage(): string {
     return next;
   }
   const token = getAccessToken();
-  const permissions = token ? readClaims(token).entitlements ?? [] : [];
-  return permissions.includes('parcel:read-own') ? routes.customerDashboard : routes.account;
+  if (!token) return routes.login;
+
+  const claims = readClaims(token);
+  const permissions = claims.entitlements ?? [];
+
+  if (permissions.includes('merchant:api-access')) {
+    return routes.merchantDashboard;
+  }
+  if (permissions.includes('parcel:read-own')) {
+    return routes.customerDashboard;
+  }
+  return routes.account;
 }

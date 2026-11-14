@@ -1,6 +1,6 @@
 package com.swiftdrop.backend.notification.service;
 
-import com.swiftdrop.backend.customer.dto.PageResponse;
+import com.swiftdrop.backend.shared.dto.PageResponse;
 import com.swiftdrop.backend.customer.entity.Customer;
 import com.swiftdrop.backend.customer.entity.Delivery;
 import com.swiftdrop.backend.customer.repository.CustomerDeliveryRepository;

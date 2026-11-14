@@ -140,6 +140,12 @@ export async function trackPublic(code: string): Promise<Tracking> {
   if (!response.ok) throw new ApiError(response.status, response.status===404?'Tracking number not found.':'Unable to track this parcel.');
   return response.json() as Promise<Tracking>;
 }
+/** The tracking link from the SMS/email (/track/link/<code>): a random code instead of the tracking number. */
+export async function trackPublicLink(code: string): Promise<Tracking> {
+  const response = await fetch(`${env.apiUrl}/api/public/tracking/link/${encodeURIComponent(code.trim())}`);
+  if (!response.ok) throw new ApiError(response.status, response.status===404?'This tracking link is not valid.':'Unable to track this parcel.');
+  return response.json() as Promise<Tracking>;
+}
 export async function downloadReceipt(id: number): Promise<void> {
   const response=await authorizedFetch(`${env.apiUrl}/api/customers/me/deliveries/${id}/receipt`);
   if(!response.ok) {const p=await response.json().catch(()=>null); throw new ApiError(response.status,p?.detail??'Receipt not available.');}

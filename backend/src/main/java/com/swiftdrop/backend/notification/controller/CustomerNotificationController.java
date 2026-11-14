@@ -1,6 +1,6 @@
 package com.swiftdrop.backend.notification.controller;
 
-import com.swiftdrop.backend.customer.dto.PageResponse;
+import com.swiftdrop.backend.shared.dto.PageResponse;
 import com.swiftdrop.backend.notification.dto.NotificationResponse;
 import com.swiftdrop.backend.notification.service.NotificationService;
 import org.springframework.http.HttpStatus;

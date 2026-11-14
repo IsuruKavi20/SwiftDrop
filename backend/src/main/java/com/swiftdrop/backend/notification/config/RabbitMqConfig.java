@@ -1,5 +1,8 @@
 package com.swiftdrop.backend.notification.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -23,6 +26,8 @@ public class RabbitMqConfig {
     public static final String ROUTING_KEY_ASSIGNMENT = "delivery.courier.assigned";
     public static final String ROUTING_KEY_WEBHOOK = "merchant.webhook.#";
     public static final String ROUTING_KEY_DEAD_LETTER = "swiftdrop.dlq";
+
+    public static final String TRUSTED_EVENT_PACKAGE = "com.swiftdrop.backend.notification.event";
 
     @Bean
     public TopicExchange swiftdropExchange() {
@@ -84,17 +89,27 @@ public class RabbitMqConfig {
     }
 
     @Bean
-    public MessageConverter jsonMessageConverter() {
-        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-        mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
-        mapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        return new Jackson2JsonMessageConverter(mapper);
+    public ObjectMapper objectMapper() {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new JavaTimeModule());
+        mapper.findAndRegisterModules();
+        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        return mapper;
     }
 
     @Bean
-    public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory) {
+    public MessageConverter jsonMessageConverter(ObjectMapper objectMapper) {
+        return new Jackson2JsonMessageConverter(objectMapper, TRUSTED_EVENT_PACKAGE);
+    }
+
+    public MessageConverter jsonMessageConverter() {
+        return jsonMessageConverter(objectMapper());
+    }
+
+    @Bean
+    public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory, MessageConverter messageConverter) {
         RabbitTemplate template = new RabbitTemplate(connectionFactory);
-        template.setMessageConverter(jsonMessageConverter());
+        template.setMessageConverter(messageConverter);
         return template;
     }
 }

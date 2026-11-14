@@ -49,6 +49,10 @@ const ICONS = {
     'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
   ],
   logOut: ['M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4', 'm16 17 5-5-5-5', 'M21 12H9'],
+  briefcase: [
+    'M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16',
+    'M2 6h20v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6z',
+  ],
 };
 
 function LineIcon({ paths, size = 20 }: { paths: string[]; size?: number }) {
@@ -149,6 +153,17 @@ export function CustomerDashboardPage() {
 
         {/* Pinned to the bottom of the sidebar */}
         <div className={styles.sidebarFooter}>
+          {hasMerchantPrivilege() && (
+            <button
+              type="button"
+              className={styles.navItem}
+              onClick={() => navigate(routes.merchantDashboard)}
+              title="Go to Merchant Dashboard"
+            >
+              <LineIcon paths={ICONS.briefcase} />
+              Merchant view
+            </button>
+          )}
           <button
             type="button"
             className={styles.navItem}
@@ -286,6 +301,30 @@ function ProfileMenu({ name, pictureUrl, onLogOut }: {
               <span className={styles.dropdownEmail}>{loginEmail()}</span>
             </div>
           )}
+          {hasMerchantPrivilege() && (
+            <button
+              type="button"
+              role="menuitem"
+              className={styles.dropdownItem}
+              onClick={() => {
+                setOpen(false);
+                navigate(routes.merchantDashboard);
+              }}
+            >
+              Merchant Dashboard
+            </button>
+          )}
+          <button
+            type="button"
+            role="menuitem"
+            className={styles.dropdownItem}
+            onClick={() => {
+              setOpen(false);
+              navigate(routes.account);
+            }}
+          >
+            Account Details
+          </button>
           {/* No settings page yet: enable and navigate once it exists */}
           <button type="button" role="menuitem" className={styles.dropdownItem} disabled title="Coming soon">
             Settings
@@ -392,4 +431,11 @@ function loginEmail(): string {
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   return ((parts[0]?.charAt(0) ?? '') + (parts.length > 1 ? parts[parts.length - 1].charAt(0) : '')).toUpperCase();
+}
+
+function hasMerchantPrivilege(): boolean {
+  const token = getAccessToken();
+  if (!token) return false;
+  const claims = readClaims(token);
+  return (claims.entitlements ?? []).includes('merchant:api-access');
 }

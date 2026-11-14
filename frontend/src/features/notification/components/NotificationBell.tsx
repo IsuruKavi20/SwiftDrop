@@ -17,6 +17,9 @@ export function NotificationBell({ onViewAll }: NotificationBellProps) {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  // "Now" for the "5m ago" labels: read once, then updated by the poll timer (reading the clock while rendering
+  // would give a different answer on every render)
+  const [now, setNow] = useState(() => Date.now());
 
   // Load count on mount and periodically
   const refreshCount = async () => {
@@ -29,8 +32,11 @@ export function NotificationBell({ onViewAll }: NotificationBellProps) {
   };
 
   useEffect(() => {
+    // refreshCount() only sets state after an await (a data fetch), which is what effects are for
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void refreshCount();
     const interval = setInterval(() => {
+      setNow(Date.now());
       void refreshCount();
     }, 20000); // 20s poll for updates
     return () => clearInterval(interval);
@@ -81,7 +87,7 @@ export function NotificationBell({ onViewAll }: NotificationBellProps) {
   const formatRelativeTime = (isoString: string) => {
     try {
       const date = new Date(isoString);
-      const diffMs = Date.now() - date.getTime();
+      const diffMs = now - date.getTime();
       const diffMin = Math.floor(diffMs / 60000);
       if (diffMin < 1) return 'Just now';
       if (diffMin < 60) return `${diffMin}m ago`;
