@@ -18,6 +18,17 @@ spec:
         app.kubernetes.io/name: rabbitmq
     spec:
       automountServiceAccountToken: false
+      # The data folder (k3s local disk) can start out owned by root, and RabbitMQ (user 999) then can't read its
+      # own .erlang.cookie ("eacces") and crashes on the first start (seen 14 Nov). Give the folder to user 999
+      # before RabbitMQ starts; same image, so no extra download.
+      initContainers:
+        - name: fix-data-owner
+          image: {{ .Values.rabbitmq.image }}
+          command: ["sh", "-c", "chown -R 999:999 /var/lib/rabbitmq"]
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/rabbitmq }
       containers:
         - name: rabbitmq
           image: {{ .Values.rabbitmq.image }}

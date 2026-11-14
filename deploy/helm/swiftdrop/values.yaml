@@ -19,6 +19,9 @@ backend:
     DB_POOL_SIZE: "10"
     RABBITMQ_HOST: "swiftdrop-rabbitmq"
     RABBITMQ_LISTENER_AUTO_STARTUP: "true"
+    # Java heap = 60% of the 768Mi limit (~460Mi), leaving ~300Mi for classes and threads. At 75% (the image's
+    # default) the auth service on Oracle was OOMKilled the same way (14 Nov); this keeps the backend safe.
+    JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=60 -XX:+ExitOnOutOfMemoryError"
 
 ingress:
   host: api.getswiftdrop.me
