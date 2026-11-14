@@ -1,7 +1,4 @@
-# SwiftDrop backend image. Two stages: build with the full JDK, run on a small JRE image.
-# Built for arm64 (the AWS t4g server) by CI on an arm64 runner; also builds on any laptop for its own CPU.
 
-# ---- 1. Build ----
 FROM eclipse-temurin:21-jdk-noble AS build
 WORKDIR /src
 # Dependencies first: this layer is cached until pom.xml changes, so normal builds don't download the internet
@@ -9,8 +6,8 @@ COPY mvnw pom.xml ./
 COPY .mvn .mvn
 RUN chmod +x mvnw && ./mvnw -B -q dependency:go-offline
 COPY src src
-# Tests already ran in CI ("Backend tests"); the image build only packages
-RUN ./mvnw -B -q package -DskipTests \
+# Tests already ran in CI ("Backend tests"); the image build only packages (tests are not even compiled)
+RUN ./mvnw -B -q package -Dmaven.test.skip=true \
  && java -Djarmode=tools -jar target/backend-*.jar extract --layers --launcher --destination /extracted
 
 # ---- 2. Run ----
