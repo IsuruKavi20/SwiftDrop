@@ -1,6 +1,6 @@
 package com.swiftdrop.backend.notification.service;
 
-import com.swiftdrop.backend.customer.dto.PageResponse;
+import com.swiftdrop.backend.shared.dto.PageResponse;
 import com.swiftdrop.backend.customer.entity.Customer;
 import com.swiftdrop.backend.customer.entity.Delivery;
 import com.swiftdrop.backend.customer.repository.CustomerDeliveryRepository;
@@ -26,13 +26,16 @@ public class NotificationService {
     private final NotificationLogRepository notificationLogs;
     private final CustomerRepository customerRepository;
     private final CustomerDeliveryRepository deliveryRepository;
+    private final NotificationPublisherService publisher;
 
     public NotificationService(NotificationLogRepository notificationLogs,
                                CustomerRepository customerRepository,
-                               CustomerDeliveryRepository deliveryRepository) {
+                               CustomerDeliveryRepository deliveryRepository,
+                               NotificationPublisherService publisher) {
         this.notificationLogs = notificationLogs;
         this.customerRepository = customerRepository;
         this.deliveryRepository = deliveryRepository;
+        this.publisher = publisher;
     }
 
     /**
@@ -102,6 +105,13 @@ public class NotificationService {
         logEntry.markSent(Instant.now());
 
         NotificationLog saved = notificationLogs.save(logEntry);
+
+        // Also publish to RabbitMQ to test end-to-end email and SMS dispatching
+        String targetEmail = (emailClaim != null && !emailClaim.isBlank())
+                ? emailClaim
+                : (customer != null && customer.getEmail() != null ? customer.getEmail() : null);
+        publisher.publishTestStatusChanged(trk, eventStatus, targetEmail);
+
         return NotificationResponse.from(saved);
     }
 }

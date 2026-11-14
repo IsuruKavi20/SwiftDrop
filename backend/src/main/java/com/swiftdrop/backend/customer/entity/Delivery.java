@@ -40,9 +40,12 @@ public class Delivery {
     @Column(name = "delivery_id")
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "customer_id", nullable = false, updatable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_id", updatable = false)
     private Customer customer;
+
+    @Column(name = "merchant_id", updatable = false)
+    private Long merchantId;
 
     /** The assigned courier (a person from the auth service); null until a courier is assigned. */
     @ManyToOne(fetch = FetchType.LAZY)
@@ -110,6 +113,13 @@ public class Delivery {
         this.deliveryType = deliveryType;
     }
 
+    public Delivery(Long merchantId, String trackingNumber, String publicTrackingToken, DeliveryType deliveryType) {
+        this.merchantId = merchantId;
+        this.trackingNumber = trackingNumber;
+        this.publicTrackingToken = publicTrackingToken;
+        this.deliveryType = deliveryType;
+    }
+
     /** Sets the pickup or destination address. Throws if this delivery already has one of that type. */
     public void setAddress(DeliveryAddress address) {
         if (findAddress(address.getAddressType()).isPresent()) {
@@ -155,6 +165,8 @@ public class Delivery {
 
     public Long getId() { return id; }
     public Customer getCustomer() { return customer; }
+    public Long getMerchantId() { return merchantId; }
+    public void setMerchantId(Long merchantId) { this.merchantId = merchantId; }
     public AppUser getCourier() { return courier; }
     /** Get the courier with UserDirectory.require(id) first: it checks they exist and are not blocked. */
     public void assignCourier(AppUser courier) { this.courier = courier; }

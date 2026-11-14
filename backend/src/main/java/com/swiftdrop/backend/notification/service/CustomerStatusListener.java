@@ -1,6 +1,7 @@
 package com.swiftdrop.backend.notification.service;
 
 import com.swiftdrop.backend.customer.entity.Delivery;
+import com.swiftdrop.backend.customer.entity.TrackingEvent;
 import com.swiftdrop.backend.customer.service.CustomerStatusChange;
 import jakarta.persistence.EntityManager;
 import org.slf4j.Logger;
@@ -8,9 +9,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+import java.util.Objects;
+
 /**
  * Listens to customer's "status changed" event and hands it to the RabbitMQ publisher.
  * Customer only publishes the event and does not know this class exists (no cycle between the modules).
+ *
+ * <p>Which status to send: the tracking event named in the message; if it has none (or it is gone), the latest one.
  *
  * <p>Reliable (outbox): {@code @ApplicationModuleListener} runs after the booking is committed, in the background, in
  * its own transaction, and Spring Modulith records the event in {@code event_publication} together with the booking.
@@ -37,9 +43,18 @@ class CustomerStatusListener {
             log.info("Delivery {} no longer exists; status event skipped", event.deliveryId());
             return;
         }
-        delivery.getTrackingEvents().stream()
-                .filter(tracking -> event.trackingEventId().equals(tracking.getId()))
-                .findFirst()
-                .ifPresent(tracking -> publisher.publishDeliveryStatusChanged(delivery, tracking));
+        publisher.publishDeliveryStatusChanged(delivery, trackingEventFor(delivery, event.trackingEventId()));
+    }
+
+    private static TrackingEvent trackingEventFor(Delivery delivery, Long trackingEventId) {
+        List<TrackingEvent> events = delivery.getTrackingEvents();
+        if (trackingEventId != null) {
+            for (TrackingEvent tracking : events) {
+                if (Objects.equals(trackingEventId, tracking.getId())) {
+                    return tracking;
+                }
+            }
+        }
+        return events.isEmpty() ? null : events.get(events.size() - 1);
     }
 }

@@ -30,7 +30,9 @@ class NotificationApiTest {
 
     private static RequestPostProcessor customer(UUID userId) {
         return jwt().jwt(token -> token.subject(userId.toString())
-                        .claim("email", "customer@test.com")
+                        // One email per test user: notifications are found by email, so a shared address would
+                        // also count other tests' notifications
+                        .claim("email", userId + "@test.com")
                         .claim("name", "Test Customer"))
                 .authorities(new SimpleGrantedAuthority("parcel:read-own"), new SimpleGrantedAuthority("parcel:create"));
     }
@@ -69,7 +71,7 @@ class NotificationApiTest {
                 .andExpect(jsonPath("$.eventType").value("OUT_FOR_DELIVERY"))
                 .andExpect(jsonPath("$.channel").value("IN_APP"));
 
-        // Verify count is now at least 1
+        // Verify count is now 1
         mockMvc.perform(get("/api/customers/me/notifications/count")
                         .with(customer(userId)))
                 .andExpect(status().isOk())

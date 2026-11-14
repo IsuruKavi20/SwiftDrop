@@ -1,6 +1,6 @@
 package com.swiftdrop.backend.notification.controller;
 
-import com.swiftdrop.backend.customer.dto.PageResponse;
+import com.swiftdrop.backend.shared.dto.PageResponse;
 import com.swiftdrop.backend.notification.dto.NotificationResponse;
 import com.swiftdrop.backend.notification.service.NotificationService;
 import org.springframework.http.HttpStatus;
@@ -13,7 +13,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/customers/me/notifications")
+@RequestMapping({"/api/customers/me/notifications", "/api/v1/customer/notifications"})
 @PreAuthorize("hasAuthority('parcel:read-own')")
 public class CustomerNotificationController {
 

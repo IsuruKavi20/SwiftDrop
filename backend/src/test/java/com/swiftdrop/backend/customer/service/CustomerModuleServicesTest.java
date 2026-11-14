@@ -10,7 +10,7 @@ import com.swiftdrop.backend.customer.dto.DashboardResponse;
 import com.swiftdrop.backend.customer.dto.DeliveryAddressRequest;
 import com.swiftdrop.backend.customer.dto.DeliveryDetailsResponse;
 import com.swiftdrop.backend.customer.dto.DeliverySummaryResponse;
-import com.swiftdrop.backend.customer.dto.PageResponse;
+import com.swiftdrop.backend.shared.dto.PageResponse;
 import com.swiftdrop.backend.customer.dto.ParcelRequest;
 import com.swiftdrop.backend.customer.dto.RegisterCustomerRequest;
 import com.swiftdrop.backend.customer.dto.TrackingEventResponse;

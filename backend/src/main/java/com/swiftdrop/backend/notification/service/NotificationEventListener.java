@@ -178,9 +178,12 @@ public class NotificationEventListener {
         logRepository.save(logEntry);
 
         try {
+            log.info("Dispatching notification email for delivery {} to {}", event.deliveryId(), event.customerEmail());
             emailSender.send(event.customerEmail(), subject, body);
             logEntry.markSent(Instant.now());
+            log.info("Successfully sent notification email to {}", event.customerEmail());
         } catch (Exception ex) {
+            log.error("Failed to send notification email to {}: {}", event.customerEmail(), ex.getMessage(), ex);
             logEntry.markFailed(ex.getMessage());
         }
         logRepository.save(logEntry);

@@ -1,4 +1,4 @@
-package com.swiftdrop.backend.customer.service;
+package com.swiftdrop.backend.shared.util;
 
 import org.springframework.stereotype.Component;
 
