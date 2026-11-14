@@ -64,6 +64,12 @@ export function LoginPage() {
           Sell with SwiftDrop
         </button>
       </p>
+      <p className={styles.footer}>
+        Just tracking a parcel?{' '}
+        <button type="button" className={styles.link} onClick={() => navigate(routes.publicTrack)}>
+          Track without logging in
+        </button>
+      </p>
     </AuthLayout>
   );
 }

@@ -20,6 +20,9 @@ import java.util.Optional;
  * <p>Customer-facing lookups always take the customer id, so a customer can only ever load their own deliveries.
  * Child collections (addresses, parcels, tracking events) load lazily: read them inside a @Transactional service.
  */
+// Known shortcut (docs/MODULES.md): notification reads this directly. To be replaced by a small API or events;
+// listed here so the module guard allows only this, not the rest of the package.
+@org.springframework.modulith.NamedInterface("shortcut-CustomerDeliveryRepository")
 public interface CustomerDeliveryRepository extends JpaRepository<Delivery, Long> {
 
     // ---- Booking ----

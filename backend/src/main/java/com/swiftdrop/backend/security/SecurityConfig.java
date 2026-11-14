@@ -1,6 +1,7 @@
 package com.swiftdrop.backend.security;
 
 import com.nimbusds.jose.JOSEObjectType;
+import com.swiftdrop.backend.shared.error.SecurityProblemHandlers;
 import com.nimbusds.jose.proc.DefaultJOSEObjectTypeVerifier;
 import com.nimbusds.jose.proc.SecurityContext;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -40,7 +41,7 @@ import java.util.List;
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain api(HttpSecurity http) throws Exception {
+    SecurityFilterChain api(HttpSecurity http, SecurityProblemHandlers problems) throws Exception {
         http
                 .authorizeHttpRequests(requests -> requests
                         // Public parcel tracking: no login, read-only, answers hold no private data
@@ -49,7 +50,12 @@ public class SecurityConfig {
                         // (checked by the identity module's SetVerifier); rate-limited there
                         .requestMatchers(HttpMethod.POST, "/internal/identity-events").permitAll()
                         .anyRequest().authenticated())
-                .oauth2ResourceServer(server -> server.jwt(jwt -> jwt.jwtAuthenticationConverter(authenticationConverter())))
+                .oauth2ResourceServer(server -> server
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(authenticationConverter()))
+                        // 401 (bad or missing token) and 403 as problem JSON, not an empty body
+                        .authenticationEntryPoint(problems)
+                        .accessDeniedHandler(problems))
+                .exceptionHandling(errors -> errors.authenticationEntryPoint(problems).accessDeniedHandler(problems))
                 // Tokens, not cookies: no session and nothing for CSRF to abuse
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .csrf(csrf -> csrf.disable())
