@@ -27,6 +27,8 @@ export function NotificationsPage() {
   };
 
   useEffect(() => {
+    // Data fetch when the page number changes; state is set by the request (the first loading flag is already true)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadPage(page);
   }, [page]);
 
