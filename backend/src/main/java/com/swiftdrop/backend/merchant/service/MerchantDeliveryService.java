@@ -1,8 +1,5 @@
 package com.swiftdrop.backend.merchant.service;
 
-import com.swiftdrop.backend.customer.dto.DeliveryAddressRequest;
-import com.swiftdrop.backend.customer.dto.PageResponse;
-import com.swiftdrop.backend.customer.dto.ParcelRequest;
 import com.swiftdrop.backend.customer.entity.AddressType;
 import com.swiftdrop.backend.customer.entity.Delivery;
 import com.swiftdrop.backend.customer.entity.DeliveryAddress;
@@ -10,19 +7,23 @@ import com.swiftdrop.backend.customer.entity.DeliveryStatus;
 import com.swiftdrop.backend.customer.entity.DeliveryType;
 import com.swiftdrop.backend.customer.entity.Parcel;
 import com.swiftdrop.backend.customer.entity.TrackingEvent;
-import com.swiftdrop.backend.customer.exception.NotFoundException;
-import com.swiftdrop.backend.customer.service.TrackingCodeGenerator;
 import com.swiftdrop.backend.identity.entity.AppUser;
 import com.swiftdrop.backend.merchant.dto.CreateMerchantDeliveryRequest;
+import com.swiftdrop.backend.merchant.dto.DeliveryAddressRequest;
 import com.swiftdrop.backend.merchant.dto.MerchantDashboardResponse;
 import com.swiftdrop.backend.merchant.dto.MerchantDeliveryDetailResponse;
 import com.swiftdrop.backend.merchant.dto.MerchantDeliverySummaryResponse;
+import com.swiftdrop.backend.merchant.dto.ParcelRequest;
 import com.swiftdrop.backend.merchant.entity.Merchant;
+import com.swiftdrop.backend.merchant.event.MerchantStatusChange;
 import com.swiftdrop.backend.merchant.repository.MerchantDeliveryRepository;
 import com.swiftdrop.backend.merchant.repository.MerchantDeliveryRepository.StatusCount;
-import com.swiftdrop.backend.notification.service.NotificationPublisherService;
+import com.swiftdrop.backend.shared.dto.PageResponse;
+import com.swiftdrop.backend.shared.error.NotFoundException;
+import com.swiftdrop.backend.shared.util.TrackingCodeGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -47,18 +48,18 @@ public class MerchantDeliveryService {
     private final MerchantService merchantService;
     private final MerchantDeliveryRepository deliveries;
     private final TrackingCodeGenerator codes;
-    private final NotificationPublisherService notifications;
+    private final ApplicationEventPublisher events;
     private final Clock clock;
 
     public MerchantDeliveryService(MerchantService merchantService,
                                    MerchantDeliveryRepository deliveries,
                                    TrackingCodeGenerator codes,
-                                   NotificationPublisherService notifications,
+                                   ApplicationEventPublisher events,
                                    Clock clock) {
         this.merchantService = merchantService;
         this.deliveries = deliveries;
         this.codes = codes;
-        this.notifications = notifications;
+        this.events = events;
         this.clock = clock;
     }
 
@@ -68,7 +69,7 @@ public class MerchantDeliveryService {
     public MerchantDeliveryDetailResponse createDelivery(AppUser owner, CreateMerchantDeliveryRequest request) {
         Merchant merchant = merchantService.profileOf(owner);
 
-        Delivery delivery = new Delivery(merchant, uniqueTrackingNumber(), codes.newPublicTrackingToken(), request.deliveryType());
+        Delivery delivery = new Delivery(merchant.getId(), uniqueTrackingNumber(), codes.newPublicTrackingToken(), request.deliveryType());
         delivery.setSpecialInstructions(blankToNull(request.specialInstructions()));
         delivery.setEstimatedDeliveryDate(estimatedDeliveryDate(request.deliveryType()));
         delivery.setAddress(toDeliveryAddress(AddressType.PICKUP, request.pickup()));
@@ -78,10 +79,10 @@ public class MerchantDeliveryService {
         TrackingEvent initialEvent = new TrackingEvent(DeliveryStatus.PENDING, "Delivery booked by merchant", null, clock.instant(), owner);
         delivery.addTrackingEvent(initialEvent);
 
-        Delivery saved = deliveries.save(delivery);
+        Delivery saved = deliveries.saveAndFlush(delivery);
 
         try {
-            notifications.publishDeliveryStatusChanged(saved, initialEvent);
+            events.publishEvent(new MerchantStatusChange(saved.getId(), initialEvent.getId()));
         } catch (Exception ex) {
             log.warn("Failed to publish notification event for merchant delivery {}: {}", saved.getTrackingNumber(), ex.getMessage());
         }

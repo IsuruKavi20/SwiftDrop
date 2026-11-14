@@ -13,8 +13,8 @@ The backend is one app made of **modules** (one folder each under `com.swiftdrop
 | Module | Others may use | Used by |
 |---|---|---|
 | identity | `entity` (AppUser), `UserDirectory`, `event`, `exception` | customer, dispatcher, merchant |
-| customer | `entity`, the `CustomerStatusChange` event | dispatcher, notification |
-| merchant | `entity` (Merchant) | notification |
+| customer | `entity`, the `CustomerStatusChange` event | dispatcher, merchant, notification |
+| merchant | `entity` (Merchant), the `MerchantStatusChange` event | notification |
 | dispatcher | nothing yet | |
 | notification | nothing (it only listens) | |
 | shared, security | everything (open) | all |
