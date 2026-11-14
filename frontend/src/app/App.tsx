@@ -12,39 +12,52 @@ import { MerchantPortal } from '../features/merchant/MerchantPortal';
 import { matchMerchantRoute } from '../features/merchant/merchantRoutes';
 import { routes, usePath } from './router';
 import { LandingPage } from '../features/landing/pages/LandingPage';
+import { DeliveryAiAssistant } from '../features/ai/components/DeliveryAiAssistant';
 
 export default function App() {
   const path = usePath();
-  if (path === routes.publicTrack || path.startsWith('/track/')) return <PublicTrackingPage />;
-  if (path.startsWith('/customer/')) return <CustomerPortal />;
-  if (path === routes.merchantDashboard) return <MerchantDashboardPage />;
-  if (path === routes.merchantProfile) return <MerchantProfilePage />;
 
-  const merchantRoute = matchMerchantRoute(path);
-  if (merchantRoute) {
-    if (merchantRoute.preview) return <MerchantPortal route={merchantRoute} />;
-    return (
-      <ProtectedMerchantRoute>
-        {(claims) => <MerchantPortal route={merchantRoute} claims={claims} />}
-      </ProtectedMerchantRoute>
-    );
-  }
+  // Every page, plus the AI assistant floating on top (PR #39). Notifications and the dashboard open inside the
+  // customer portal (no separate old pages).
+  const renderContent = () => {
+    if (path === routes.publicTrack || path.startsWith('/track/')) return <PublicTrackingPage />;
+    if (path.startsWith('/customer/')) return <CustomerPortal />;
+    if (path === routes.merchantDashboard) return <MerchantDashboardPage />;
+    if (path === routes.merchantProfile) return <MerchantProfilePage />;
 
-  switch (path) {
-    case routes.signup:
-      return <SignupPage />;
-    case routes.googleCallback:
-      return <GoogleCallbackPage />;
-    case routes.verifyEmail:
-      return <VerifyEmailPage />;
-    case routes.account:
-      return <AccountPage />;
-    case routes.merchantApply:
-      return <MerchantApplyPage />;
-    case routes.login:
-      return <LoginPage />;
-    // The home page (and any unknown address): tracking for everyone, login only when needed
-    default:
-      return <LandingPage />;
-  }
+    const merchantRoute = matchMerchantRoute(path);
+    if (merchantRoute) {
+      if (merchantRoute.preview) return <MerchantPortal route={merchantRoute} />;
+      return (
+        <ProtectedMerchantRoute>
+          {(claims) => <MerchantPortal route={merchantRoute} claims={claims} />}
+        </ProtectedMerchantRoute>
+      );
+    }
+
+    switch (path) {
+      case routes.signup:
+        return <SignupPage />;
+      case routes.googleCallback:
+        return <GoogleCallbackPage />;
+      case routes.verifyEmail:
+        return <VerifyEmailPage />;
+      case routes.account:
+        return <AccountPage />;
+      case routes.merchantApply:
+        return <MerchantApplyPage />;
+      case routes.login:
+        return <LoginPage />;
+      // The home page (and any unknown address): tracking for everyone, login only when needed
+      default:
+        return <LandingPage />;
+    }
+  };
+
+  return (
+    <>
+      {renderContent()}
+      <DeliveryAiAssistant />
+    </>
+  );
 }

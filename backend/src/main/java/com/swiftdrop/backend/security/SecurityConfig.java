@@ -46,6 +46,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(requests -> requests
                         // Public parcel tracking: no login, read-only, answers hold no private data
                         .requestMatchers(HttpMethod.GET, "/api/public/**").permitAll()
+                        // AI Delivery Assistant: public access for rates, tracking queries, and FAQ
+                        .requestMatchers("/api/v1/ai/**", "/api/ai/**", "/api/public/ai/**").permitAll()
                         // Identity events from the auth service: no login, the SET's own signature is the proof
                         // (checked by the identity module's SetVerifier); rate-limited there
                         .requestMatchers(HttpMethod.POST, "/internal/identity-events").permitAll()
