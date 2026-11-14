@@ -30,15 +30,28 @@ public class WebhookDispatcherService {
 
     private final MerchantWebhookConfigRepository configRepository;
     private final WebhookDeliveryLogRepository deliveryLogRepository;
-    private final HttpClient httpClient;
+
+    // Lazily initialized to avoid Java's PipeImpl loopback probe at bean-construction time,
+    // which fails in sandboxed / no-network test environments.
+    private volatile HttpClient httpClient;
 
     public WebhookDispatcherService(MerchantWebhookConfigRepository configRepository,
-                                  WebhookDeliveryLogRepository deliveryLogRepository) {
+                                    WebhookDeliveryLogRepository deliveryLogRepository) {
         this.configRepository = configRepository;
         this.deliveryLogRepository = deliveryLogRepository;
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(5))
-                .build();
+    }
+
+    private HttpClient getHttpClient() {
+        if (httpClient == null) {
+            synchronized (this) {
+                if (httpClient == null) {
+                    httpClient = HttpClient.newBuilder()
+                            .connectTimeout(Duration.ofSeconds(5))
+                            .build();
+                }
+            }
+        }
+        return httpClient;
     }
 
     @Transactional
@@ -85,7 +98,7 @@ public class WebhookDispatcherService {
                         .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
                         .build();
 
-                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
                 int status = response.statusCode();
 
                 if (status >= 200 && status < 300) {
@@ -130,4 +143,3 @@ public class WebhookDispatcherService {
         }
     }
 }
-

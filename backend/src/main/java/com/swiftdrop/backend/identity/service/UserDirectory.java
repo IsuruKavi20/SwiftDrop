@@ -26,6 +26,7 @@ import java.util.UUID;
  * }</pre>
  */
 @Service
+@org.springframework.modulith.NamedInterface("directory")
 public class UserDirectory {
 
     private final AppUserRepository users;
