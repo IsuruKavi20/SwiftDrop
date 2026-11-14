@@ -9,8 +9,9 @@
       "Condition": {
         "StringEquals": {
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+          "token.actions.githubusercontent.com:ref": "refs/heads/main",
           "token.actions.githubusercontent.com:sub": [
-            "repo:IsuruKavi20/SwiftDrop:environment:production"
+            "repo:IsuruKavi20@229756406/SwiftDrop@1447337143:environment:production"
           ]
         }
       }

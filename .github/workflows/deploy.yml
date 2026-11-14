@@ -55,6 +55,14 @@ jobs:
         env:
           IMAGE: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
         run: |
+          # Tags can't be overwritten. Running the deploy again for the same commit (e.g. after a server change)
+          # reuses the image that is already there instead of failing.
+          FOUND=$(aws ecr batch-get-image --repository-name "$ECR_REPOSITORY" --image-ids imageTag="$GITHUB_SHA" \
+                    --query 'length(images)' --output text)
+          if [ "$FOUND" = "1" ]; then
+            echo "Image for $GITHUB_SHA is already in ECR: reusing it"
+            exit 0
+          fi
           docker build --pull -t "$IMAGE" .
           docker push "$IMAGE"
 

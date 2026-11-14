@@ -10,7 +10,9 @@ Browser ──https──> app.getswiftdrop.me  (CloudFront → S3: the React ap
 ```
 
 **Where it deploys from:** now **Isuru's fork** (`IsuruKavi20/SwiftDrop`, branch `main`). Later the team repo: add
-`repo:Tharusha-Heshan/SwiftDrop:environment:production` to `deploy/aws/github-deploy-trust.json` (update the role),
+the team repo's identity to `deploy/aws/github-deploy-trust.json` (update the role). GitHub's identity includes the
+permanent account and repo IDs, e.g. `repo:IsuruKavi20@229756406/SwiftDrop@1447337143:environment:production`: copy the
+exact value from the deploy log step "Show the OIDC identity" (it is not secret),
 and set the same environment + variables there. Remove the fork when the team repo takes over.
 
 **After setup, deploying is automatic:** merge to `main` → GitHub Actions "Deploy" → image to ECR → Helm upgrade on
