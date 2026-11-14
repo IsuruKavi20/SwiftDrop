@@ -15,6 +15,11 @@ import {
 import { MerchantApiError } from '../api/merchantApi';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
 import styles from '../components/MerchantDashboard.module.css';
+import previewStyles from './MerchantDashboardPage.module.css';
+import { MerchantIcon, type MerchantIconName } from '../components/MerchantIcon';
+import { MerchantLink } from '../components/MerchantLink';
+import { ParcelIllustration } from '../components/ParcelIllustration';
+import { merchantPath } from '../merchantRoutes';
 
 type PageState =
   | { kind: 'loading' }
@@ -98,9 +103,9 @@ async function fetchDashboardData(): Promise<{
       throw new MerchantApiError(401, 'Session expired');
     }
     token = getAccessToken();
-  }
-  if (!token) {
-    throw new MerchantApiError(401, 'Unauthenticated');
+    if (!token) {
+      throw new MerchantApiError(401, 'Session expired');
+    }
   }
 
   const claims = readClaims(token);
@@ -120,7 +125,7 @@ async function fetchDashboardData(): Promise<{
   return { dashboard, deliveries, claims };
 }
 
-export function MerchantDashboardPage() {
+function RealMerchantDashboard() {
   const [pageState, setPageState] = useState<PageState>(getInitialPageState);
   const [deliveries, setDeliveries] = useState<PageResponse<MerchantDeliverySummary> | null>(null);
   const [loadingOrders, setLoadingOrders] = useState<boolean>(false);
@@ -159,7 +164,7 @@ export function MerchantDashboardPage() {
             kind: 'accessDenied',
             message:
               err.message ||
-              'Access forbidden. Your account does not have merchant API permissions.',
+              'You need merchant privileges to access this dashboard. Please sign in with an authorized merchant account.',
           });
         } else {
           setPageState({
@@ -315,17 +320,15 @@ export function MerchantDashboardPage() {
           >
             Business Profile
           </button>
-
           {permissions.includes('parcel:read-own') && (
             <button
               type="button"
               className={styles.ghostButton}
               onClick={() => navigate(routes.customerDashboard)}
             >
-              Customer View
+              Customer Dashboard
             </button>
           )}
-
           <button
             type="button"
             className={styles.ghostButton}
@@ -333,31 +336,36 @@ export function MerchantDashboardPage() {
           >
             Account
           </button>
-
           <button
             type="button"
             className={styles.ghostButton}
             onClick={() => void onLogOut()}
           >
-            Log out
+            Sign out
           </button>
         </div>
       </header>
 
-      {/* Main Container */}
+      {/* Main Content */}
       <main className={styles.main}>
-        {/* Incomplete profile warning */}
+        {/* Profile Completion Warning Banner */}
         {!dashboard.profileComplete && (
-          <div className={styles.bannerIncomplete} role="status">
-            <div className={styles.bannerText}>
-              <span className={styles.bannerTitle}>Complete your merchant business profile</span>
-              <span className={styles.bannerSubtitle}>
-                Add your business address and contact information to ensure seamless dispatch and receipt generation.
+          <div className={styles.profileWarningBanner}>
+            <div className={styles.bannerContent}>
+              <span className={styles.bannerIcon} aria-hidden="true">
+                ⚠️
               </span>
+              <div>
+                <span className={styles.bannerTitle}>Complete your merchant business profile</span>
+                <p className={styles.bannerText}>
+                  Your merchant business profile is missing required address or contact details.
+                  Complete it to enable full dispatch services.
+                </p>
+              </div>
             </div>
             <button
               type="button"
-              className={styles.primaryButton}
+              className={styles.bannerAction}
               onClick={() => navigate(routes.merchantProfile)}
             >
               Complete Profile →
@@ -365,46 +373,46 @@ export function MerchantDashboardPage() {
           </div>
         )}
 
-        {/* Stat Cards */}
-        <section className={styles.statsGrid} aria-label="Order summary statistics">
+        {/* Statistics Cards */}
+        <section
+          className={styles.statsSection}
+          aria-label="Order summary statistics"
+          role="region"
+        >
           <div className={styles.statCard}>
             <span className={styles.statLabel}>Total Orders</span>
             <span className={styles.statValue}>{dashboard.totalOrders}</span>
           </div>
-
           <div className={styles.statCard}>
             <span className={styles.statLabel}>Pending</span>
-            <span className={styles.statValue} style={{ color: '#b7791f' }}>
-              {dashboard.pendingOrders}
-            </span>
+            <span className={styles.statValue}>{dashboard.pendingOrders}</span>
           </div>
-
           <div className={styles.statCard}>
             <span className={styles.statLabel}>In Transit</span>
-            <span className={styles.statValue} style={{ color: '#2b6cb0' }}>
-              {dashboard.inTransitOrders}
-            </span>
+            <span className={styles.statValue}>{dashboard.inTransitOrders}</span>
           </div>
-
           <div className={styles.statCard}>
             <span className={styles.statLabel}>Delivered</span>
-            <span className={styles.statValue} style={{ color: 'var(--color-success)' }}>
-              {dashboard.deliveredOrders}
-            </span>
+            <span className={styles.statValue}>{dashboard.deliveredOrders}</span>
           </div>
         </section>
 
-        {/* Filterable Orders Table */}
+        {/* Orders Table Section */}
         <section className={styles.ordersSection}>
-          <div className={styles.ordersHeader}>
-            <h3 className={styles.sectionTitle}>Merchant Orders</h3>
+          <div className={styles.ordersSectionHeader}>
+            <h2 className={styles.sectionTitle}>Merchant Store Deliveries</h2>
 
+            {/* Status Filter Buttons */}
             <div className={styles.filterGroup}>
               {FILTER_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
                   type="button"
-                  className={`${styles.filterPill} ${statusFilter === opt.value ? styles.filterPillActive : ''}`}
+                  className={
+                    statusFilter === opt.value
+                      ? `${styles.filterButton} ${styles.filterButtonActive}`
+                      : styles.filterButton
+                  }
                   onClick={() => handleFilterChange(opt.value)}
                 >
                   {opt.label}
@@ -413,17 +421,18 @@ export function MerchantDashboardPage() {
             </div>
           </div>
 
+          {/* Table / Empty State / Loading */}
           {loadingOrders ? (
-            <div className={styles.emptyState}>
-              <p>Refreshing orders…</p>
+            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--color-text-muted)' }}>
+              <p>Loading deliveries…</p>
             </div>
           ) : !deliveries || deliveries.content.length === 0 ? (
             <div className={styles.emptyState}>
-              <div className={styles.emptyTitle}>No orders found</div>
-              <p>
+              <p className={styles.emptyTitle}>No store deliveries found</p>
+              <p className={styles.emptySubtitle}>
                 {statusFilter === 'ALL'
-                  ? 'You have not booked any delivery orders yet.'
-                  : `No orders currently matching the "${statusFilter}" status.`}
+                  ? 'Your store does not have any deliveries yet.'
+                  : `No deliveries found with status "${STATUS_LABELS[statusFilter]}".`}
               </p>
             </div>
           ) : (
@@ -432,36 +441,38 @@ export function MerchantDashboardPage() {
                 <table className={styles.ordersTable}>
                   <thead>
                     <tr>
-                      <th>Tracking #</th>
-                      <th>Receiver</th>
+                      <th>Tracking Number</th>
+                      <th>Recipient</th>
                       <th>Destination</th>
                       <th>Type</th>
                       <th>Status</th>
-                      <th>Est. Delivery</th>
-                      <th>Booked Date</th>
+                      <th>Date</th>
                       <th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {deliveries.content.map((order) => (
+                    {deliveries.content.map((delivery) => (
                       <tr
-                        key={order.id}
+                        key={delivery.id}
                         className={styles.tableRow}
-                        onClick={() => setSelectedDeliveryId(order.id)}
+                        onClick={() => setSelectedDeliveryId(delivery.id)}
                       >
-                        <td className={styles.mono}>{order.trackingNumber}</td>
-                        <td>{order.receiverName ?? '—'}</td>
-                        <td>{order.destinationCity ?? '—'}</td>
+                        <td className={styles.mono}>{delivery.trackingNumber}</td>
+                        <td>{delivery.receiverName || '—'}</td>
+                        <td>{delivery.destinationCity || '—'}</td>
                         <td>
-                          <span className={styles.typeBadge}>{order.deliveryType}</span>
+                          <span className={styles.typeBadge}>{delivery.deliveryType}</span>
                         </td>
                         <td>
-                          <span className={`${styles.badge} ${STATUS_TONE[order.status]}`}>
-                            {STATUS_LABELS[order.status]}
+                          <span
+                            className={`${styles.badge} ${
+                              STATUS_TONE[delivery.status] || styles.toneNeutral
+                            }`}
+                          >
+                            {STATUS_LABELS[delivery.status] || delivery.status}
                           </span>
                         </td>
-                        <td>{formatDate(order.estimatedDeliveryDate)}</td>
-                        <td>{formatDate(order.createdAt)}</td>
+                        <td>{formatDate(delivery.createdAt)}</td>
                         <td>
                           <button
                             type="button"
@@ -469,10 +480,10 @@ export function MerchantDashboardPage() {
                             style={{ padding: '4px 10px', fontSize: '12px' }}
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedDeliveryId(order.id);
+                              setSelectedDeliveryId(delivery.id);
                             }}
                           >
-                            View
+                            View Details
                           </button>
                         </td>
                       </tr>
@@ -486,12 +497,11 @@ export function MerchantDashboardPage() {
                 <span className={styles.pageInfo}>
                   Showing page {deliveries.page + 1} of {Math.max(deliveries.totalPages, 1)} ({deliveries.totalElements} orders total)
                 </span>
-
-                <div className={styles.paginationButtons}>
+                <div style={{ display: 'flex', gap: '8px' }}>
                   <button
                     type="button"
                     className={styles.ghostButton}
-                    disabled={currentPage <= 0}
+                    disabled={currentPage === 0}
                     onClick={() => handlePageChange(currentPage - 1)}
                   >
                     ← Previous
@@ -521,4 +531,70 @@ export function MerchantDashboardPage() {
       )}
     </div>
   );
+}
+
+const metrics: { label: string; icon: MerchantIconName; tone: string }[] = [
+  { label: 'Total Orders', icon: 'box', tone: 'orange' },
+  { label: 'Pending', icon: 'cart', tone: 'amber' },
+  { label: 'In Transit', icon: 'truck', tone: 'blue' },
+  { label: 'Delivered', icon: 'completed', tone: 'green' },
+];
+
+function PreviewMerchantDashboard() {
+  return (
+    <div className={previewStyles.dashboard}>
+      <section className={previewStyles.welcome} aria-labelledby="merchant-welcome">
+        <div>
+          <span className={previewStyles.eyebrow}>SwiftDrop Merchant</span>
+          <h2 id="merchant-welcome">Your store deliveries, in one place</h2>
+          <p>Set up your business profile, find tracking information, and see where order tools will be available.</p>
+        </div>
+        <ParcelIllustration />
+      </section>
+
+      <ul className={previewStyles.metrics} aria-label="Delivery metrics">
+        {metrics.map(({ label, icon, tone }) => (
+          <li className={previewStyles.metric} key={label}>
+            <span className={previewStyles.metricIcon} data-tone={tone}>
+              <MerchantIcon name={icon} size={23} />
+            </span>
+            <div>
+              <strong>{label}</strong>
+              <small>Unavailable</small>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <div className={previewStyles.contentGrid}>
+        <section className={previewStyles.panel}>
+          <h2>Recent Store Orders</h2>
+          <p>Recent orders will appear here when Merchant order history is available.</p>
+          <MerchantLink className={previewStyles.textLink} href={merchantPath('orders', true)}>
+            Go to Store Orders
+          </MerchantLink>
+        </section>
+        <div className={previewStyles.rightColumn}>
+          <section className={previewStyles.panel}>
+            <h2>Fulfillment Summary</h2>
+            <p>Fulfillment totals are unavailable until Merchant delivery reporting is connected.</p>
+          </section>
+          <section className={previewStyles.panel}>
+            <h2>Recent Updates</h2>
+            <p>Merchant activity is unavailable. If you have a tracking number, you can look up its public status.</p>
+            <MerchantLink className={previewStyles.textLink} href={merchantPath('tracking', true)}>
+              Go to Tracking
+            </MerchantLink>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function MerchantDashboardPage({ preview }: { preview?: boolean } = {}) {
+  if (preview) {
+    return <PreviewMerchantDashboard />;
+  }
+  return <RealMerchantDashboard />;
 }

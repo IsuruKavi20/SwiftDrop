@@ -1,7 +1,7 @@
 package com.swiftdrop.backend.notification.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.swiftdrop.backend.notification.config.RabbitMqConfig;
 import com.swiftdrop.backend.notification.entity.*;
 import com.swiftdrop.backend.notification.event.CourierAssignedEvent;
@@ -76,7 +76,7 @@ public class NotificationEventListener {
             try {
                 String payload = objectMapper.writeValueAsString(event);
                 webhookDispatcher.dispatchWebhook(event.merchantId(), event.deliveryId(), event.status(), payload);
-            } catch (JsonProcessingException e) {
+            } catch (JacksonException e) {
                 log.error("Failed to serialize webhook payload for delivery {}", event.deliveryId(), e);
             }
         }

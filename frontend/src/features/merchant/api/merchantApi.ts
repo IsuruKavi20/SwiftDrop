@@ -32,6 +32,20 @@ export interface MerchantUpdateRequest {
   country: string;
 }
 
+export interface MerchantProfileUpdate {
+  businessName: string;
+  businessEmail: string;
+  contactNumber: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  province: string;
+  postalCode: string;
+  country: string;
+}
+
+export type MerchantProfile = MerchantResponse;
+
 export class MerchantApiError extends Error {
   readonly status: number;
   readonly fieldErrors: Record<string, string>;
@@ -51,7 +65,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       ...init,
       headers: { 'Content-Type': 'application/json', ...init.headers },
     });
-  } catch {
+  } catch (error) {
+    if (init?.signal?.aborted) throw error;
     throw new MerchantApiError(0, `Cannot reach the SwiftDrop server at ${env.apiUrl}. Is the backend running?`);
   }
 
@@ -91,7 +106,10 @@ export function getMerchantProfile(): Promise<MerchantResponse> {
 }
 
 /** Updates the business profile details. Sends only update DTO fields. */
-export function updateMerchantProfile(details: MerchantUpdateRequest): Promise<MerchantResponse> {
+export function updateMerchantProfile(
+  details: MerchantUpdateRequest | MerchantProfileUpdate,
+  signal?: AbortSignal
+): Promise<MerchantResponse> {
   const payload: MerchantUpdateRequest = {
     businessName: details.businessName,
     businessEmail: details.businessEmail,
@@ -107,6 +125,6 @@ export function updateMerchantProfile(details: MerchantUpdateRequest): Promise<M
   return request<MerchantResponse>('/api/merchants/me', {
     method: 'PUT',
     body: JSON.stringify(payload),
+    signal,
   });
 }
-
