@@ -69,7 +69,11 @@ export function CustomerPortal() {
         <div className={s.topActions}>
           <NotificationBell onViewAll={()=>navigate(routes.customerNotifications)} />
           {link(routes.customerBook,'+ New delivery',s.primarySmall)}
-          <span className={s.avatar}>{(profile?.name||'C').charAt(0).toUpperCase()}</span>
+          {/* The photo from the login account (e.g. Google); no-referrer: Google may refuse images requested with
+              another site's address, and it keeps our addresses private. Otherwise the first letter of the name. */}
+          {profile?.pictureUrl
+            ? <img className={s.avatarPhoto} src={profile.pictureUrl} alt="" referrerPolicy="no-referrer" width={39} height={39}/>
+            : <span className={s.avatar}>{(profile?.name||'C').charAt(0).toUpperCase()}</span>}
         </div>
       </header>
       <main className={s.content}>

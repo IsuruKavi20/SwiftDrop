@@ -31,3 +31,4 @@
 .parcelCard h4{margin:0;font-size:13px}
 .destructive{border:1px solid #ebbcad;background:#fff3ef;color:#a43c31;border-radius:9px;padding:10px 14px;cursor:pointer;font-size:12px;font-weight:650}
 .destructive:disabled{cursor:not-allowed;opacity:.5}
+.avatarPhoto{width:39px;height:39px;border-radius:50%;object-fit:cover;background:#f4d58d}
