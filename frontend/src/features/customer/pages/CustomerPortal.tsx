@@ -15,7 +15,7 @@ import {
   type PagedDeliveries, type SavedAddress,
 } from '../api/customerApi';
 import s from '../components/CustomerPortal.module.css';
-import logoIcon from '../../../assets/auth/logo-box.svg';
+import logoIcon from '../../../assets/brand/logo-mark.svg';
 import { Icon, type IconName } from '../../../shared/ui/Icon';
 import { DeliveryScene } from '../../../shared/ui/DeliveryScene';
 

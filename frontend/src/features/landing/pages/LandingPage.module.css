@@ -1,5 +1,8 @@
 /* The home page (15 Nov refine). Same palette as login / sign up (styles/theme.css); mobile first, then wider. */
 .page {
+  /* 15 Nov refine, our pages only: pill buttons and softer button shadows (teammates' pages keep the shared defaults) */
+  --radius-button: 999px;
+  --shadow-button: 0 4px 14px rgba(63, 47, 31, 0.12);
   --ink: var(--color-text);
   --muted: var(--color-text-muted);
   --gold: #e2b85a;
@@ -80,6 +83,7 @@
 
 .logoMark img {
   width: 100% !important;
+  height: auto;
 }
 
 .nav {

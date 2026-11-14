@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import logoIcon from '../../../assets/auth/logo-box.svg';
+import logoIcon from '../../../assets/brand/logo-mark.svg';
 import { navigate, routes } from '../../../app/router';
 import { landingPage, withNext } from '../../auth/lib/landing';
 import { getAccessToken } from '../../auth/lib/session';

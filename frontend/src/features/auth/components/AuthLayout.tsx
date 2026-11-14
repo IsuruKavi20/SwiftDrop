@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import logoIcon from '../../../assets/auth/logo-box.svg';
-import logoIconLight from '../../../assets/auth/logo-box-light.svg';
+import logoIcon from '../../../assets/brand/logo-mark.svg';
+import logoIconLight from '../../../assets/brand/logo-mark-light.svg';
 import { navigate } from '../../../app/router';
 import { DeliveryScene } from '../../../shared/ui/DeliveryScene';
 import { Icon, type IconName } from '../../../shared/ui/Icon';

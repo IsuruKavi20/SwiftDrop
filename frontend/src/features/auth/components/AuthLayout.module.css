@@ -2,6 +2,9 @@
    delivery town and the words, all on one left edge; the form card sits centred in the cream column. A dashed gold
    route follows the curve's edge. Sign up is the mirror image. Motion stops with "reduce motion". */
 .page {
+  /* 15 Nov refine, our pages only: pill buttons and softer button shadows (teammates' pages keep the shared defaults) */
+  --radius-button: 999px;
+  --shadow-button: 0 4px 14px rgba(63, 47, 31, 0.12);
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
   --edge: 56px; /* one left edge for logo, town and words */
   position: relative;
@@ -104,6 +107,7 @@
 
 .logoMark img {
   width: 100% !important;
+  height: auto;
 }
 
 .logo:hover .logoMark,
