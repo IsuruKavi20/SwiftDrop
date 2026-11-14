@@ -142,4 +142,5 @@ jobs:
           aws s3 sync dist/ "s3://$BUCKET/" --delete --exclude index.html \
             --cache-control "public,max-age=31536000,immutable"
           aws s3 cp dist/index.html "s3://$BUCKET/index.html" --cache-control "no-cache"
-          aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION" --paths /index.html
+          # CloudFront keeps "/" and "/index.html" as two separate copies: refresh both, or "/" shows the old site
+          aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION" --paths "/" "/index.html"
