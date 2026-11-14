@@ -39,6 +39,14 @@ public interface CourierAssignmentRepository extends JpaRepository<CourierAssign
             """)
     List<CourierAssignment> findAllActiveWithDelivery();
 
+    /** Tracking numbers of one courier's active assignments, oldest first. */
+    @Query("""
+            select a.delivery.trackingNumber from CourierAssignment a
+            where a.courier.id = :courierId and a.active = true
+            order by a.assignedAt asc, a.id asc
+            """)
+    List<String> findActiveTrackingNumbers(@Param("courierId") Long courierId);
+
     /** One query for fleet workloads. Couriers with no active assignments are absent; treat them as zero. */
     @Query("""
             select a.courier.id as courierId, count(a) as total

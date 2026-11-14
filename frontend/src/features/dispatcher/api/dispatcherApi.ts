@@ -46,6 +46,9 @@ async function failure(response: Response): Promise<never> {
   throw new DispatchError(detail ?? 'Something went wrong. Please try again.');
 }
 
+/** A call to the backend's /api/dispatcher endpoints with the admin's token (adminApi.ts uses it for couriers). */
+export { request as dispatcherRequest };
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {

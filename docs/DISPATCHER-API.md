@@ -13,8 +13,22 @@ The admin's dispatch screens. In SwiftDrop admins do the dispatch work, so every
 | `POST /api/dispatcher/deliveries/{id}/assignment` `{ "courierId": 3, "reason": "…" }` | Assign or reassign. Answers like the details call. |
 | `GET /api/dispatcher/couriers?availability=` | Courier profiles with `activeDeliveries` and `currentTrackingNumbers`. |
 | `GET /api/dispatcher/couriers/assignable` | Available couriers whose account is active with the Courier role, lightest workload first. |
+| `GET /api/dispatcher/couriers/candidates` | Active people with the Courier role and no profile yet: `[{ "userId", "name" }]`, by name. |
+| `POST /api/dispatcher/couriers` `{ "userId", "phoneNumber", "vehicleType", "vehicleNumber", "availability" }` | Create a courier's work profile → `201` with the courier (same shape as the list). |
+| `PUT /api/dispatcher/couriers/{courierId}` `{ "phoneNumber", "vehicleType", "vehicleNumber", "availability" }` | Edit phone, vehicle, availability. |
 
-`courierId` is the courier **profile** id (`courier.courier_id`), not the person's auth id.
+`courierId` is the courier **profile** id (`courier.courier_id`), not the person's auth id. Each courier in the lists
+also carries `userId` (the auth id), `accountActive` and `courierRole` (false once auth blocks the account or removes the
+role). Emails are not returned: the admin page reads them from the auth service with the admin's own token.
+
+## Courier profile rules
+- Create: `userId` required (`400`); unknown, blocked or deleted person → `404`; no Courier role or already has a
+  profile → `409`. A person the backend hasn't seen yet is copied from the auth service first.
+- Phone: 9 to 20 digits and spaces, optional leading `+`. Vehicle type and number: at most 30 characters, blank = none.
+- Only an active account with the Courier role can be made `AVAILABLE` (`409`). Going `BUSY` or `OFFLINE` keeps the
+  courier's current deliveries.
+- Editing locks the courier row like assignment does, so a delivery can't be assigned while the courier is taken off duty.
+- Blocking a courier or removing the role is done in the auth service (Users and Roles page).
 
 ## Assignment rules
 - Only CONFIRMED, PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY or FAILED deliveries → otherwise `409`.
@@ -28,4 +42,4 @@ The admin's dispatch screens. In SwiftDrop admins do the dispatch work, so every
 - Locking: the delivery first, then the couriers involved in id order, so two admins assigning at the same moment
   never both succeed.
 
-Tests: `DispatcherApiTest`.
+Tests: `DispatcherApiTest`, `CourierProfileApiTest`.

@@ -1,353 +1,395 @@
-import { DISPATCH_CHANGED_EVENT, DispatchError } from './dispatchCommon';
+import { env } from '../../../config/env';
+import { authorizedFetch } from '../../auth/api/authApi';
+import { DISPATCH_CHANGED_EVENT, DispatchError, usingSampleData } from './dispatchCommon';
+import { dispatcherRequest } from './dispatcherApi';
+import type { CourierWorkload } from './dispatcherTypes';
 import type {
   AdminRole,
   AdminUser,
   CourierProfile,
   CourierProfileInput,
-  CourierReport,
-  DayCount,
-  DeliveryReport,
-  DeliveryZone,
-  DeliveryZoneInput,
   MerchantApplication,
   MerchantApplicationStatus,
-  PricingRates,
-  PublishedPricing,
-  Quote,
-  QuoteRequest,
 } from './adminTypes';
-import { sampleAssignments, sampleCouriers, sampleDeliveries } from './sampleData';
+import * as sample from './sampleAdminApi';
 
 /**
- * Everything the admin screens read and change goes through this file. Like dispatcherApi.ts it answers from sample
- * data in the browser for now, applying the rules the real services enforce. Where each call goes later:
- * - users and roles: auth service, `${env.authUrl}/api/v1/admin/users...` and `/admin/access-review` (docs/auth-api/admin.md)
- * - merchant approvals: auth service, `${env.authUrl}/api/v1/admin/merchants...`
- * - courier profiles: the backend's dispatcher module (courier table; no endpoints yet)
- * - pricing: the backend's CustomerPricingService (rates are server settings today; no endpoint yet)
- * - zones and reports: no backend counterpart yet
- * Call auth with authorizedFetch and the admin's own token, so auth records which admin did what.
+ * Everything the admin screens read and change goes through this file.
+ * - Users and roles, merchant approvals: the SwiftDrop auth service (docs/auth-api/admin.md), called straight from
+ *   the browser with the admin's own token, so auth records which admin did what.
+ * - Courier profiles: the backend's dispatcher module (/api/dispatcher/couriers, docs/DISPATCHER-API.md).
+ * - Zones, pricing and reports: still sample data (sampleAdminApi.ts) until their backends exist.
+ * The development preview (not signed in) answers everything from sample data.
  */
 
-const now = Date.now();
-const hoursAgo = (hours: number) => new Date(now - hours * 3_600_000).toISOString();
+export {
+  allDistricts,
+  countBookingsToday,
+  dayKey,
+  districtsByProvince,
+  getDeliveryReport,
+  getPublishedPricing,
+  listZones,
+  publishPricing,
+  quote,
+  saveZone,
+} from './sampleAdminApi';
 
-function delay<T>(value: T): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(structuredClone(value)), 150));
-}
+const ADMIN_ROLES: readonly AdminRole[] = ['CUSTOMER', 'MERCHANT', 'COURIER', 'ADMIN'];
+const MERCHANT_STATUSES: readonly MerchantApplicationStatus[] = ['PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED'];
+const MAX_REASON = 500;
 
 function changed() {
   window.dispatchEvent(new Event(DISPATCH_CHANGED_EVENT));
 }
 
-function fail(message: string): Promise<never> {
-  return Promise.reject(new DispatchError(message));
+/* ---------- Calling the auth service ---------- */
+
+type Json = Record<string, unknown>;
+
+class AuthNotFound extends DispatchError {}
+
+async function authFailure(response: Response): Promise<never> {
+  let detail: string | undefined;
+  try {
+    const problem = (await response.json()) as { detail?: string; title?: string; errors?: Record<string, string> };
+    detail = Object.values(problem.errors ?? {})[0] ?? problem.detail ?? problem.title;
+  } catch {
+    // not JSON: use the generic sentence below
+  }
+  if (response.status === 401) detail = 'Your session has ended. Sign in again.';
+  if (response.status === 403) detail = 'Your account is not allowed to do this. Sign out and in again if you were just made an admin.';
+  const message = detail ?? 'The SwiftDrop auth service could not do this. Please try again.';
+  throw response.status === 404 ? new AuthNotFound(message) : new DispatchError(message);
 }
 
-/* ---------- Sample records ---------- */
+/** A call to `${env.authUrl}/api/v1/admin…` with the admin's token. Answers 204 (and empty bodies) with undefined. */
+async function authAdmin<T>(path: string, init: RequestInit = {}): Promise<T> {
+  let response: Response;
+  try {
+    response = await authorizedFetch(`${env.authUrl}/api/v1/admin${path}`, {
+      ...init,
+      headers: init.body ? { 'Content-Type': 'application/json', ...init.headers } : init.headers,
+    });
+  } catch {
+    throw new DispatchError('Could not reach the SwiftDrop auth service. Check your connection and try again.');
+  }
+  if (!response.ok) return authFailure(response);
+  const text = await response.text();
+  return (text ? JSON.parse(text) : undefined) as T;
+}
 
-const users: AdminUser[] = [
-  { id: 'u-01', name: 'Amaya Ranasinghe', email: 'amaya.r@swiftdrop.example.lk', roles: ['ADMIN'], active: true },
-  { id: 'u-02', name: 'Dinuka Abeysekera', email: 'dinuka.a@swiftdrop.example.lk', roles: ['ADMIN'], active: true },
-  { id: 'u-03', name: 'Nimal Perera', email: 'nimal.perera@example.lk', roles: ['CUSTOMER'], active: true },
-  { id: 'u-04', name: 'Priya Jayasinghe', email: 'priya.j@example.lk', roles: ['CUSTOMER'], active: true },
-  { id: 'u-05', name: 'Tharindu Gunawardena', email: 'tharindu.g@example.lk', roles: ['CUSTOMER'], active: false },
-  { id: 'u-06', name: 'Sanduni Wickramasinghe', email: 'sanduni@sandunifashion.example.lk', roles: ['CUSTOMER', 'MERCHANT'], active: true },
-  { id: 'u-07', name: 'Ishara Mendis', email: 'ishara@ceylonteabox.example.lk', roles: ['CUSTOMER'], active: true },
-  { id: 'u-08', name: 'Kasun Fernando', email: 'kasun.f@swiftdrop.example.lk', roles: ['COURIER'], active: true },
-  { id: 'u-09', name: 'Ravi Silva', email: 'ravi.s@swiftdrop.example.lk', roles: ['COURIER'], active: true },
-  { id: 'u-10', name: 'Chamara Bandara', email: 'chamara.b@swiftdrop.example.lk', roles: ['COURIER'], active: true },
-  { id: 'u-11', name: 'Nadeesha Herath', email: 'nadeesha.h@swiftdrop.example.lk', roles: ['COURIER'], active: true },
-  { id: 'u-12', name: 'Pathum Weerasinghe', email: 'pathum.w@swiftdrop.example.lk', roles: ['COURIER'], active: true },
-];
+/*
+ * Reading auth's answers. Its docs list the calls but not every reply field, so these accept the usual spellings
+ * (camelCase or snake_case, a few names) and lists either bare or wrapped. Confirm the real fields with the auth
+ * team and trim these down.
+ */
 
-/** courier.auth_user_id for the sample couriers in sampleData.ts */
-const courierUserIds = new Map<number, string>([[1, 'u-08'], [2, 'u-09'], [3, 'u-10'], [4, 'u-11']]);
+const isObject = (value: unknown): value is Json => typeof value === 'object' && value !== null && !Array.isArray(value);
 
-const merchantApplications: MerchantApplication[] = [
-  {
-    merchantId: 'm-02', businessName: 'Ceylon Tea Box', registrationNumber: 'PV00231877', website: 'https://ceylonteabox.example.lk',
-    applicantName: 'Ishara Mendis', applicantEmail: 'ishara@ceylonteabox.example.lk', submittedAt: hoursAgo(20),
-    status: 'PENDING', decidedAt: null, reason: null,
-  },
-  {
-    merchantId: 'm-01', businessName: 'Sanduni Fashion', registrationNumber: 'PV00198432', website: null,
-    applicantName: 'Sanduni Wickramasinghe', applicantEmail: 'sanduni@sandunifashion.example.lk', submittedAt: hoursAgo(400),
-    status: 'APPROVED', decidedAt: hoursAgo(380), reason: null,
-  },
-];
+function text(raw: Json, ...keys: string[]): string | null {
+  for (const key of keys) {
+    const value = raw[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+    if (typeof value === 'number') return String(value);
+  }
+  return null;
+}
 
-/** Sri Lanka's 25 districts by province: what delivery addresses and pricing use. */
-export const districtsByProvince: Record<string, string[]> = {
-  Western: ['Colombo', 'Gampaha', 'Kalutara'],
-  Central: ['Kandy', 'Matale', 'Nuwara Eliya'],
-  Southern: ['Galle', 'Matara', 'Hambantota'],
-  Northern: ['Jaffna', 'Kilinochchi', 'Mannar', 'Vavuniya', 'Mullaitivu'],
-  Eastern: ['Batticaloa', 'Ampara', 'Trincomalee'],
-  'North Western': ['Kurunegala', 'Puttalam'],
-  'North Central': ['Anuradhapura', 'Polonnaruwa'],
-  Uva: ['Badulla', 'Monaragala'],
-  Sabaragamuwa: ['Ratnapura', 'Kegalle'],
-};
-export const allDistricts = Object.values(districtsByProvince).flat();
+function listIn(body: unknown): unknown[] | null {
+  if (Array.isArray(body)) return body;
+  if (!isObject(body)) return null;
+  for (const key of ['content', 'items', 'users', 'merchants', 'results', 'Resources', 'data']) {
+    if (Array.isArray(body[key])) return body[key] as unknown[];
+  }
+  return null;
+}
 
-const zones: DeliveryZone[] = [
-  { id: 1, name: 'Western Metro', code: 'WP', districts: ['Colombo', 'Gampaha', 'Kalutara'], active: true },
-  { id: 2, name: 'Central Hills', code: 'CP', districts: ['Kandy', 'Matale', 'Nuwara Eliya'], active: true },
-  { id: 3, name: 'Southern Coast', code: 'SP', districts: ['Galle', 'Matara', 'Hambantota'], active: true },
-  { id: 4, name: 'North Western', code: 'NW', districts: ['Kurunegala', 'Puttalam'], active: true },
-  { id: 5, name: 'Northern', code: 'NP', districts: ['Jaffna', 'Vavuniya'], active: false },
-];
-let nextZoneId = 6;
+function rolesOf(raw: Json): string[] {
+  const roles = raw.roles;
+  if (!Array.isArray(roles)) return [];
+  return roles
+    .map((role) => (typeof role === 'string' ? role : isObject(role) ? text(role, 'name', 'role', 'value') : null))
+    .filter((role): role is string => !!role)
+    .map((role) => role.toUpperCase().replace(/^ROLE_/, ''));
+}
 
-/** The backend's defaults (CustomerPricingService) as version 1. */
-let pricing: PublishedPricing = {
-  version: 1,
-  publishedAt: hoursAgo(24 * 30),
-  rates: { sameDistrictBase: 350, otherDistrictBase: 650, additionalKg: 120, expressSurcharge: 350, sameDaySurcharge: 650 },
-};
+function emailOf(raw: Json): string {
+  const direct = text(raw, 'email', 'emailAddress', 'email_address', 'primaryEmail', 'primary_email');
+  if (direct) return direct;
+  const emails = raw.emails;
+  if (Array.isArray(emails) && isObject(emails[0])) return text(emails[0], 'value', 'email') ?? '';
+  return '';
+}
+
+function activeOf(raw: Json): boolean {
+  if (typeof raw.active === 'boolean') return raw.active;
+  if (typeof raw.blocked === 'boolean') return !raw.blocked;
+  if (typeof raw.enabled === 'boolean') return raw.enabled;
+  const status = text(raw, 'status', 'state');
+  return status ? status.toUpperCase() === 'ACTIVE' : true;
+}
+
+/** One person, with every role auth reports (DISPATCHER included). */
+function personOf(raw: unknown): (AdminUser & { allRoles: string[] }) | null {
+  if (!isObject(raw)) return null;
+  const nested = isObject(raw.user) ? raw.user : raw;
+  const id = text(nested, 'id', 'userId', 'user_id', 'sub');
+  if (!id) return null;
+  const email = emailOf(nested);
+  const name = text(nested, 'name', 'displayName', 'display_name', 'fullName', 'full_name') ?? (email || 'Unnamed account');
+  const allRoles = rolesOf(nested);
+  return {
+    id, name, email, active: activeOf(nested), allRoles,
+    roles: allRoles.filter((role): role is AdminRole => (ADMIN_ROLES as readonly string[]).includes(role)),
+  };
+}
+
+/** GET /admin/access-review: people listed directly, or grouped by role ({ ADMIN: [...] } or [{ role, users }]). */
+function usersFromAccessReview(body: unknown): AdminUser[] {
+  const people = new Map<string, AdminUser>();
+  const add = (raw: unknown, role?: string) => {
+    const person = personOf(raw);
+    if (!person) return;
+    const roles = new Set<AdminRole>([...(people.get(person.id)?.roles ?? []), ...person.roles]);
+    const upper = role?.toUpperCase();
+    if (upper && (ADMIN_ROLES as readonly string[]).includes(upper)) roles.add(upper as AdminRole);
+    const known = people.get(person.id);
+    people.set(person.id, {
+      id: person.id,
+      name: known && known.name !== 'Unnamed account' ? known.name : person.name,
+      email: known?.email || person.email,
+      active: known ? known.active && person.active : person.active,
+      roles: ADMIN_ROLES.filter((r) => roles.has(r)),
+    });
+  };
+  const readGroup = (item: unknown) => {
+    if (!isObject(item)) return;
+    const role = text(item, 'role', 'name');
+    const members = ['users', 'members', 'holders', 'people', 'accounts'].map((key) => item[key]).find(Array.isArray) as unknown[] | undefined;
+    if (role && members) members.forEach((member) => add(member, role));
+    else add(item);
+  };
+  const readByRole = (grouped: Json) => {
+    for (const [role, members] of Object.entries(grouped)) {
+      if (Array.isArray(members)) members.forEach((member) => add(member, role));
+    }
+  };
+
+  const list = listIn(body);
+  if (list) list.forEach(readGroup);
+  else if (isObject(body)) readByRole(isObject(body.roles) ? body.roles : body);
+  return [...people.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function merchantOf(raw: unknown, fallback: MerchantApplicationStatus): MerchantApplication | null {
+  if (!isObject(raw)) return null;
+  const merchantId = text(raw, 'merchantId', 'merchant_id', 'id');
+  if (!merchantId) return null;
+  const applicant = [raw.applicant, raw.owner, raw.user].find(isObject);
+  const statusText = text(raw, 'status', 'state')?.toUpperCase();
+  const status = statusText === 'ACTIVE' ? 'APPROVED'
+    : (MERCHANT_STATUSES as readonly string[]).includes(statusText ?? '') ? statusText as MerchantApplicationStatus : fallback;
+  return {
+    merchantId,
+    businessName: text(raw, 'businessName', 'business_name', 'name') ?? 'Unnamed business',
+    registrationNumber: text(raw, 'registrationNumber', 'registration_number', 'registrationNo') ?? '',
+    website: text(raw, 'website', 'websiteUrl', 'website_url'),
+    applicantName: text(raw, 'applicantName', 'applicant_name', 'ownerName', 'owner_name', 'userName', 'user_name')
+      ?? (applicant ? text(applicant, 'name', 'displayName') : null) ?? '',
+    applicantEmail: text(raw, 'applicantEmail', 'applicant_email', 'ownerEmail', 'owner_email', 'email')
+      ?? (applicant ? emailOf(applicant) : '') ?? '',
+    submittedAt: text(raw, 'submittedAt', 'submitted_at', 'createdAt', 'created_at', 'appliedAt', 'applied_at') ?? '',
+    status,
+    decidedAt: text(raw, 'decidedAt', 'decided_at', 'reviewedAt', 'reviewed_at'),
+    reason: text(raw, 'reason', 'rejectionReason', 'rejection_reason', 'decisionReason', 'decision_reason'),
+  };
+}
+
+function checkReason(reason: string, required: boolean): string {
+  const trimmed = reason.trim();
+  if (required && !trimmed) throw new DispatchError('Give a reason; it is kept in the audit log.');
+  if (trimmed.length > MAX_REASON) throw new DispatchError(`Keep the reason under ${MAX_REASON} characters.`);
+  return trimmed;
+}
 
 /* ---------- Users and roles (auth service) ---------- */
 
-export function listUsers(): Promise<AdminUser[]> {
-  return delay([...users].sort((a, b) => a.name.localeCompare(b.name)));
+/**
+ * People who hold a role, from GET /admin/access-review. Auth has no "list every account" call; anyone else is found
+ * by email (findUserByEmail).
+ */
+export async function listUsers(): Promise<AdminUser[]> {
+  if (usingSampleData()) return sample.listUsers();
+  return usersFromAccessReview(await authAdmin<unknown>('/access-review'));
 }
 
-/** PUT / DELETE /api/v1/admin/users/{userId}/roles/{role} for each role that changed. */
-export function setUserRoles(userId: string, roles: AdminRole[]): Promise<void> {
-  const user = users.find((u) => u.id === userId);
-  if (!user) return fail('This account no longer exists.');
-  if (roles.length === 0) return fail('Keep at least one role.');
-  const losingAdmin = user.roles.includes('ADMIN') && !roles.includes('ADMIN');
-  if (losingAdmin && users.filter((u) => u.roles.includes('ADMIN')).length === 1) {
-    return fail('This is the last admin. Make someone else an admin first.');
+/** GET /admin/users?email=… ; null when nobody has that email. */
+export async function findUserByEmail(email: string): Promise<AdminUser | null> {
+  const wanted = email.trim().toLowerCase();
+  if (usingSampleData()) return (await sample.listUsers()).find((u) => u.email.toLowerCase() === wanted) ?? null;
+  try {
+    const body = await authAdmin<unknown>(`/users?email=${encodeURIComponent(email.trim())}`);
+    const list = listIn(body);
+    return personOf(list ? list[0] : body);
+  } catch (failure) {
+    if (failure instanceof AuthNotFound) return null;
+    throw failure;
   }
-  if (user.roles.includes('COURIER') && !roles.includes('COURIER') && sampleCouriers.some((c) => courierUserIds.get(c.courierId) === userId)) {
-    const active = sampleAssignments.filter((a) => a.active === true && courierUserIds.get(a.courierId) === userId).length;
-    if (active > 0) return fail(`${user.name} still carries ${active} active ${active === 1 ? 'delivery' : 'deliveries'}. Reassign them first.`);
-  }
-  user.roles = [...roles];
-  changed();
-  return delay(undefined);
 }
 
-/** POST /api/v1/admin/users/{userId}/block or /unblock with { reason }. */
-export function setUserBlocked(userId: string, blocked: boolean, reason: string): Promise<void> {
-  const user = users.find((u) => u.id === userId);
-  const trimmed = reason.trim();
-  if (!user) return fail('This account no longer exists.');
-  if (!trimmed) return fail('Give a reason; it is kept in the audit log.');
-  if (trimmed.length > 500) return fail('Keep the reason under 500 characters.');
-  if (blocked && user.roles.includes('ADMIN') && users.filter((u) => u.active && u.roles.includes('ADMIN')).length === 1) {
-    return fail('This is the last active admin and cannot be blocked.');
+async function getPerson(userId: string) {
+  const person = personOf(await authAdmin<unknown>(`/users/${encodeURIComponent(userId)}`));
+  if (!person) throw new DispatchError('This account no longer exists.');
+  return person;
+}
+
+/**
+ * PUT / DELETE /admin/users/{userId}/roles/{role} for each role that changed: added first, then removed, so the person
+ * always keeps a role. Roles the admin area doesn't offer (DISPATCHER) are left alone. Taking Courier away from someone
+ * still carrying deliveries is refused here; reassign them first.
+ */
+export async function setUserRoles(userId: string, roles: AdminRole[]): Promise<void> {
+  if (usingSampleData()) return sample.setUserRoles(userId, roles);
+  if (roles.length === 0) throw new DispatchError('Keep at least one role.');
+  const person = await getPerson(userId);
+  const adding = roles.filter((role) => !person.allRoles.includes(role));
+  const removing = ADMIN_ROLES.filter((role) => person.allRoles.includes(role) && !roles.includes(role));
+
+  if (removing.includes('COURIER')) {
+    const profile = (await dispatcherRequest<CourierWorkload[]>('/couriers')).find((c) => c.userId === userId);
+    if (profile && profile.activeDeliveries > 0) {
+      const n = profile.activeDeliveries;
+      throw new DispatchError(`${person.name} still carries ${n} active ${n === 1 ? 'delivery' : 'deliveries'}. Reassign them first.`);
+    }
   }
-  user.active = !blocked;
+  try {
+    for (const role of adding) await authAdmin<void>(`/users/${encodeURIComponent(userId)}/roles/${role}`, { method: 'PUT' });
+    for (const role of removing) await authAdmin<void>(`/users/${encodeURIComponent(userId)}/roles/${role}`, { method: 'DELETE' });
+  } finally {
+    // Some roles may have changed before a refusal: show what auth holds now
+    changed();
+  }
+}
+
+/** POST /admin/users/{userId}/block or /unblock with { reason } (kept in auth's audit log). */
+export async function setUserBlocked(userId: string, blocked: boolean, reason: string): Promise<void> {
+  if (usingSampleData()) return sample.setUserBlocked(userId, blocked, reason);
+  const trimmed = checkReason(reason, true);
+  await authAdmin<void>(`/users/${encodeURIComponent(userId)}/${blocked ? 'block' : 'unblock'}`, {
+    method: 'POST',
+    body: JSON.stringify({ reason: trimmed }),
+  });
   changed();
-  return delay(undefined);
 }
 
 /* ---------- Merchant approvals (auth service) ---------- */
 
-/** GET /api/v1/admin/merchants?status=... (newest first). */
-export function listMerchantApplications(status?: MerchantApplicationStatus): Promise<MerchantApplication[]> {
-  const rows = merchantApplications
-    .filter((m) => !status || m.status === status)
-    .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
-  return delay(rows);
+async function merchantsWithStatus(status: MerchantApplicationStatus): Promise<MerchantApplication[]> {
+  const body = await authAdmin<unknown>(`/merchants?status=${status}`);
+  return (listIn(body) ?? [])
+    .map((raw) => merchantOf(raw, status))
+    .filter((m): m is MerchantApplication => m !== null);
 }
 
-/** POST /api/v1/admin/merchants/{merchantId}/decision { decision, reason }. Approval gives the MERCHANT role. */
-export function decideMerchant(merchantId: string, decision: 'APPROVE' | 'REJECT', reason = ''): Promise<void> {
-  const application = merchantApplications.find((m) => m.merchantId === merchantId);
-  const trimmed = reason.trim();
-  if (!application) return fail('This application no longer exists.');
-  if (application.status !== 'PENDING') return fail('This application has already been decided.');
-  if (decision === 'REJECT' && !trimmed) return fail('Tell the applicant why it was rejected.');
-  if (trimmed.length > 500) return fail('Keep the reason under 500 characters.');
-  application.status = decision === 'APPROVE' ? 'APPROVED' : 'REJECTED';
-  application.decidedAt = new Date().toISOString();
-  application.reason = trimmed || null;
-  const owner = users.find((u) => u.email === application.applicantEmail);
-  if (owner && decision === 'APPROVE' && !owner.roles.includes('MERCHANT')) owner.roles.push('MERCHANT');
-  changed();
-  return delay(undefined);
-}
-
-/** POST /api/v1/admin/merchants/{merchantId}/status { change: SUSPEND | REINSTATE }. */
-export function setMerchantSuspended(merchantId: string, suspended: boolean): Promise<void> {
-  const application = merchantApplications.find((m) => m.merchantId === merchantId);
-  if (!application) return fail('This merchant no longer exists.');
-  if (application.status !== (suspended ? 'APPROVED' : 'SUSPENDED')) {
-    return fail(suspended ? 'Only approved merchants can be suspended.' : 'Only suspended merchants can be reinstated.');
+/** GET /admin/merchants?status=… for one status, or every status; newest first. */
+export async function listMerchantApplications(status?: MerchantApplicationStatus): Promise<MerchantApplication[]> {
+  if (usingSampleData()) return sample.listMerchantApplications(status);
+  let rows: MerchantApplication[];
+  if (status) {
+    rows = await merchantsWithStatus(status);
+  } else {
+    const answers = await Promise.allSettled(MERCHANT_STATUSES.map(merchantsWithStatus));
+    const failed = answers.find((a): a is PromiseRejectedResult => a.status === 'rejected');
+    if (failed && answers.every((a) => a.status === 'rejected')) throw failed.reason;
+    const byId = new Map<string, MerchantApplication>();
+    answers.forEach((a) => a.status === 'fulfilled' && a.value.forEach((m) => byId.set(m.merchantId, m)));
+    rows = [...byId.values()];
   }
-  application.status = suspended ? 'SUSPENDED' : 'APPROVED';
-  changed();
-  return delay(undefined);
+  return rows.sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
 }
 
-/* ---------- Courier profiles (dispatcher module) ---------- */
-
-function activeCount(courierId: number): number {
-  return sampleAssignments.filter((a) => a.active === true && a.courierId === courierId).length;
-}
-
-export function listCourierProfiles(): Promise<CourierProfile[]> {
-  const rows = sampleCouriers.map((c) => {
-    const user = users.find((u) => u.id === courierUserIds.get(c.courierId));
-    return { ...c, userId: user?.id ?? '', name: user?.name ?? c.name, email: user?.email ?? '', activeDeliveries: activeCount(c.courierId) };
-  });
-  return delay(rows.sort((a, b) => a.name.localeCompare(b.name)));
-}
-
-/** People with the COURIER role who have no work profile yet (a profile needs a COURIER account). */
-export function listCourierAccountsWithoutProfile(): Promise<AdminUser[]> {
-  const linked = new Set(courierUserIds.values());
-  return delay(users.filter((u) => u.active && u.roles.includes('COURIER') && !linked.has(u.id)));
-}
-
-function checkProfile(input: CourierProfileInput): string | undefined {
-  const phone = input.phoneNumber.trim();
-  if (!phone) return 'Enter a phone number.';
-  if (!/^\+?[0-9 ]{9,20}$/.test(phone)) return 'Enter a phone number of 9 to 20 digits.';
-  if (input.vehicleType.trim().length > 30 || input.vehicleNumber.trim().length > 30) return 'Vehicle type and number are at most 30 characters.';
-  return undefined;
-}
-
-export function createCourierProfile(userId: string, input: CourierProfileInput): Promise<void> {
-  const user = users.find((u) => u.id === userId);
-  const problem = checkProfile(input);
-  if (!user || !user.roles.includes('COURIER')) return fail('Choose an account with the Courier role.');
-  if ([...courierUserIds.values()].includes(userId)) return fail(`${user.name} already has a courier profile.`);
-  if (problem) return fail(problem);
-  const courierId = Math.max(...sampleCouriers.map((c) => c.courierId)) + 1;
-  sampleCouriers.push({
-    courierId, name: user.name, phoneNumber: input.phoneNumber.trim(),
-    vehicleType: input.vehicleType.trim() || null, vehicleNumber: input.vehicleNumber.trim() || null, availability: input.availability,
-  });
-  courierUserIds.set(courierId, userId);
-  changed();
-  return delay(undefined);
-}
-
-export function updateCourierProfile(courierId: number, input: CourierProfileInput): Promise<void> {
-  const courier = sampleCouriers.find((c) => c.courierId === courierId);
-  const problem = checkProfile(input);
-  if (!courier) return fail('This courier no longer exists.');
-  if (problem) return fail(problem);
-  Object.assign(courier, {
-    phoneNumber: input.phoneNumber.trim(), vehicleType: input.vehicleType.trim() || null,
-    vehicleNumber: input.vehicleNumber.trim() || null, availability: input.availability,
+/** POST /admin/merchants/{merchantId}/decision { decision, reason }. Approval gives the MERCHANT role. */
+export async function decideMerchant(merchantId: string, decision: 'APPROVE' | 'REJECT', reason = ''): Promise<void> {
+  if (usingSampleData()) return sample.decideMerchant(merchantId, decision, reason);
+  const trimmed = checkReason(reason, false);
+  if (decision === 'REJECT' && !trimmed) throw new DispatchError('Tell the applicant why it was rejected.');
+  await authAdmin<void>(`/merchants/${encodeURIComponent(merchantId)}/decision`, {
+    method: 'POST',
+    body: JSON.stringify(trimmed ? { decision, reason: trimmed } : { decision }),
   });
   changed();
-  return delay(undefined);
 }
 
-/* ---------- Delivery zones (no backend yet) ---------- */
-
-export function listZones(): Promise<DeliveryZone[]> {
-  return delay(zones);
-}
-
-export function saveZone(id: number | null, input: DeliveryZoneInput): Promise<void> {
-  const name = input.name.trim();
-  const code = input.code.trim().toUpperCase();
-  if (!name) return fail('Enter a zone name.');
-  if (!/^[A-Z]{2,4}$/.test(code)) return fail('The code is 2 to 4 letters, e.g. WP.');
-  if (input.districts.length === 0) return fail('Choose at least one district.');
-  if (zones.some((z) => z.id !== id && z.code === code)) return fail(`Another zone already uses the code ${code}.`);
-  const taken = zones.filter((z) => z.id !== id).flatMap((z) => z.districts.filter((d) => input.districts.includes(d)).map((d) => `${d} (${z.code})`));
-  if (taken.length) return fail(`Already in another zone: ${taken.join(', ')}.`);
-  const row = { name, code, districts: allDistricts.filter((d) => input.districts.includes(d)), active: input.active };
-  if (id === null) zones.push({ id: nextZoneId++, ...row });
-  else {
-    const zone = zones.find((z) => z.id === id);
-    if (!zone) return fail('This zone no longer exists.');
-    Object.assign(zone, row);
-  }
+/** POST /admin/merchants/{merchantId}/status { change: SUSPEND | REINSTATE }. */
+export async function setMerchantSuspended(merchantId: string, suspended: boolean): Promise<void> {
+  if (usingSampleData()) return sample.setMerchantSuspended(merchantId, suspended);
+  await authAdmin<void>(`/merchants/${encodeURIComponent(merchantId)}/status`, {
+    method: 'POST',
+    body: JSON.stringify({ change: suspended ? 'SUSPEND' : 'REINSTATE' }),
+  });
   changed();
-  return delay(undefined);
 }
 
-/* ---------- Pricing (CustomerPricingService) ---------- */
+/* ---------- Courier profiles (backend dispatcher module) ---------- */
 
-export function getPublishedPricing(): Promise<PublishedPricing> {
-  return delay(pricing);
+/** Emails are read live from auth (GET /admin/users/{id}), never stored; empty when one can't be read. */
+async function emailsOf(userIds: string[]): Promise<Map<string, string>> {
+  const answers = await Promise.allSettled(userIds.map((id) => getPerson(id)));
+  const emails = new Map<string, string>();
+  answers.forEach((answer, i) => emails.set(userIds[i], answer.status === 'fulfilled' ? answer.value.email : ''));
+  return emails;
 }
 
-export function publishPricing(rates: PricingRates): Promise<PublishedPricing> {
-  const values = Object.values(rates);
-  if (values.some((v) => !Number.isFinite(v) || v < 0)) return fail('Rates must be zero or more.');
-  if (values.some((v) => v > 1_000_000)) return fail('Rates must be under LKR 1,000,000.');
-  pricing = { version: pricing.version + 1, publishedAt: new Date().toISOString(), rates: { ...rates } };
-  changed();
-  return delay(pricing);
+/** Every courier profile with its workload (GET /api/dispatcher/couriers), by name. */
+export async function listCourierProfiles(): Promise<CourierProfile[]> {
+  if (usingSampleData()) return sample.listCourierProfiles();
+  const couriers = await dispatcherRequest<CourierWorkload[]>('/couriers');
+  const emails = await emailsOf(couriers.map((c) => c.userId ?? '').filter(Boolean));
+  return couriers
+    .map((c) => ({
+      courierId: c.courierId,
+      userId: c.userId ?? '',
+      name: c.name,
+      email: emails.get(c.userId ?? '') ?? '',
+      phoneNumber: c.phoneNumber,
+      vehicleType: c.vehicleType,
+      vehicleNumber: c.vehicleNumber,
+      availability: c.availability,
+      activeDeliveries: c.activeDeliveries,
+      accountActive: c.accountActive ?? true,
+      courierRole: c.courierRole ?? true,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
-
-/** The same formula as CustomerPricingService.estimate: district base + weight above 1 kg + service surcharge. */
-export function quote(rates: PricingRates, request: QuoteRequest): Quote {
-  const local = request.pickupDistrict.trim().toLowerCase() === request.destinationDistrict.trim().toLowerCase();
-  const baseFee = local ? rates.sameDistrictBase : rates.otherDistrictBase;
-  const weightCharge = round2(Math.max(0, request.totalWeightKg - 1) * rates.additionalKg);
-  const serviceCharge = { STANDARD: 0, EXPRESS: rates.expressSurcharge, SAME_DAY: rates.sameDaySurcharge }[request.deliveryType];
-  return { baseFee, weightCharge, serviceCharge, totalFee: round2(baseFee + weightCharge + serviceCharge) };
+/** People with the Courier role who have no work profile yet (GET /api/dispatcher/couriers/candidates). */
+export async function listCourierAccountsWithoutProfile(): Promise<AdminUser[]> {
+  if (usingSampleData()) return sample.listCourierAccountsWithoutProfile();
+  const candidates = await dispatcherRequest<{ userId: string; name: string }[]>('/couriers/candidates');
+  return candidates.map((c) => ({ id: c.userId, name: c.name, email: '', roles: ['COURIER'], active: true }));
 }
 
-/* ---------- Reports (from the deliveries) ---------- */
-
-export function dayKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
-
-/**
- * The last `days` days including today. Delivered counts by delivery date; failed attempts are FAILED tracking events
- * (a delivery can fail once and still be delivered later).
- */
-export function getDeliveryReport(days: number): Promise<DeliveryReport> {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  start.setDate(start.getDate() - (days - 1));
-  const inRange = (iso: string | null) => iso !== null && new Date(iso) >= start;
-
-  const perDay = new Map<string, DayCount>();
-  for (let i = 0; i < days; i += 1) {
-    const date = new Date(start);
-    date.setDate(start.getDate() + i);
-    perDay.set(dayKey(date), { day: dayKey(date), delivered: 0, failedAttempts: 0 });
-  }
-  const couriers = new Map<number, CourierReport>(sampleCouriers.map((c) => [
-    c.courierId, { courierId: c.courierId, name: c.name, delivered: 0, failedAttempts: 0, active: activeCount(c.courierId) },
-  ]));
-
-  let bookingsCreated = 0;
-  let delivered = 0;
-  let failedAttempts = 0;
-  for (const d of sampleDeliveries) {
-    if (inRange(d.createdAt)) bookingsCreated += 1;
-    const courier = d.courierId === null ? undefined : couriers.get(d.courierId);
-    if (d.status === 'DELIVERED' && d.deliveredAt && inRange(d.deliveredAt)) {
-      delivered += 1;
-      if (courier) courier.delivered += 1;
-      const day = perDay.get(dayKey(new Date(d.deliveredAt)));
-      if (day) day.delivered += 1;
-    }
-    for (const e of d.trackingEvents) {
-      if (e.status !== 'FAILED' || !inRange(e.eventTime)) continue;
-      failedAttempts += 1;
-      if (courier) courier.failedAttempts += 1;
-      const day = perDay.get(dayKey(new Date(e.eventTime)));
-      if (day) day.failedAttempts += 1;
-    }
-  }
-  return delay({
-    bookingsCreated, delivered, failedAttempts, perDay: [...perDay.values()],
-    couriers: [...couriers.values()].sort((a, b) => b.delivered - a.delivered || a.name.localeCompare(b.name)),
+function profileBody(input: CourierProfileInput, userId?: string): string {
+  return JSON.stringify({
+    userId,
+    phoneNumber: input.phoneNumber.trim(),
+    vehicleType: input.vehicleType.trim() || null,
+    vehicleNumber: input.vehicleNumber.trim() || null,
+    availability: input.availability,
   });
 }
 
-/** Bookings created since midnight. */
-export function countBookingsToday(): Promise<number> {
-  const today = dayKey(new Date());
-  return delay(sampleDeliveries.filter((d) => dayKey(new Date(d.createdAt)) === today).length);
+/** POST /api/dispatcher/couriers: only for an active account with the Courier role, one profile each. */
+export async function createCourierProfile(userId: string, input: CourierProfileInput): Promise<void> {
+  if (usingSampleData()) return sample.createCourierProfile(userId, input);
+  await dispatcherRequest('/couriers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: profileBody(input, userId) });
+  changed();
+}
+
+/** PUT /api/dispatcher/couriers/{courierId}: phone, vehicle, availability. */
+export async function updateCourierProfile(courierId: number, input: CourierProfileInput): Promise<void> {
+  if (usingSampleData()) return sample.updateCourierProfile(courierId, input);
+  await dispatcherRequest(`/couriers/${courierId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: profileBody(input) });
+  changed();
 }

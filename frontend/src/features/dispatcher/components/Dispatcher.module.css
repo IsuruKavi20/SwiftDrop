@@ -278,7 +278,8 @@
 
 /* ---------- Tables ---------- */
 .tableCard { border: 1px solid var(--d-line); border-radius: 1rem; background: var(--color-surface); overflow: hidden; }
-.tableScroll { overflow-x: auto; }
+/* position: relative keeps visually hidden headers (absolutely positioned) inside the scroller, not widening the page */
+.tableScroll { overflow-x: auto; position: relative; }
 .table { width: 100%; min-width: 48rem; border-collapse: collapse; text-align: start; }
 .table th {
   padding: 0.85rem 1rem;
@@ -580,3 +581,8 @@ a.cellSub:hover { color: var(--d-gold-deep); text-decoration: underline; }
   .select { flex: 1 1 100%; }
   .modalHeader, .modalBody, .modalFooter { padding-inline: 1rem; }
 }
+
+/* Find-by-email row in the Add courier dialog */
+.lookupRow { display: flex; gap: 0.5rem; align-items: stretch; }
+.lookupRow input { flex: 1; min-width: 0; }
+.field .lookupRow + small { justify-self: start; color: var(--tone-red); font-size: 0.8rem; }

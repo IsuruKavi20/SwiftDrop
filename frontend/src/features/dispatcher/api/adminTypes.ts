@@ -39,7 +39,10 @@ export interface MerchantApplication {
   reason: string | null;
 }
 
-/** A courier's work profile (dispatcher.entity.Courier); name and email come from the person (AppUser). */
+/**
+ * A courier's work profile (GET /api/dispatcher/couriers). Name, account state and roles come from the person
+ * (identity's AppUser); the email is read from the auth service and is empty when it can't be read.
+ */
 export interface CourierProfile {
   courierId: number;
   userId: string;
@@ -50,6 +53,10 @@ export interface CourierProfile {
   vehicleNumber: string | null;
   availability: CourierAvailability;
   activeDeliveries: number;
+  /** False once the account is blocked in the auth service. */
+  accountActive: boolean;
+  /** False once the Courier role is taken away in the auth service. */
+  courierRole: boolean;
 }
 
 export interface CourierProfileInput {
