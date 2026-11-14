@@ -4,6 +4,8 @@ import { logOut, refresh } from '../../auth/api/authApi';
 import { getAccessToken, readClaims } from '../../auth/lib/session';
 import { CompleteProfileForm } from '../components/CompleteProfileForm';
 import { CustomerSupportPage } from './CustomerSupportPage';
+import { NotificationsPage } from '../../notification/pages/NotificationsPage';
+import { NotificationBell } from '../../notification/components/NotificationBell';
 import {
   ApiError, STATUS_LABELS, getProfile, getDashboard, listDeliveries, getDelivery,
   estimateDelivery, createDelivery, confirmDelivery, cancelDelivery, trackMine, trackPublic, downloadReceipt,
@@ -52,17 +54,24 @@ export function CustomerPortal() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(()=>{void load()},[load]);
   async function logout(){await logOut();navigate(routes.login)}
-  const nav=[['Overview',routes.customerDashboard],['Send a parcel',routes.customerBook],['My deliveries',routes.customerDeliveries],['Track parcel',routes.customerTrack],['My account',routes.customerAccount],['Help & support',routes.customerSupport]] as const;
+  const nav=[['Overview',routes.customerDashboard],['Send a parcel',routes.customerBook],['My deliveries',routes.customerDeliveries],['Track parcel',routes.customerTrack],['Notifications',routes.customerNotifications],['My account',routes.customerAccount],['Help & support',routes.customerSupport]] as const;
   const selected = path.startsWith('/customer/deliveries/')&&path!==routes.customerBook ? routes.customerDeliveries : path;
-  const title=path===routes.customerDashboard?'Overview':path===routes.customerBook?'Create delivery':path===routes.customerDeliveries?'My deliveries':path===routes.customerTrack?'Track a parcel':path===routes.customerAccount?'My account':path===routes.customerSupport?'Help & support':'Delivery details';
+  const title=path===routes.customerDashboard?'Overview':path===routes.customerBook?'Create delivery':path===routes.customerDeliveries?'My deliveries':path===routes.customerTrack?'Track a parcel':path===routes.customerNotifications?'Notifications & Alerts':path===routes.customerAccount?'My account':path===routes.customerSupport?'Help & support':'Delivery details';
   return <div className={s.app}>
     <aside className={s.sidebar}>
       <div className={s.brand}><span className={s.brandMark}>S</span><div><strong>SwiftDrop</strong><small>CUSTOMER PORTAL</small></div></div>
-      <nav aria-label="Customer navigation" className={s.nav}>{nav.map(([label,to],i)=><button key={label} type="button" className={`${s.navItem} ${selected===to?s.active:''}`} onClick={()=>navigate(to)}><span className={s.navIcon}>{['▦','◫','▤','◎','◯','?'][i]}</span>{label}</button>)}</nav>
+      <nav aria-label="Customer navigation" className={s.nav}>{nav.map(([label,to],i)=><button key={label} type="button" className={`${s.navItem} ${selected===to?s.active:''}`} onClick={()=>navigate(to)}><span className={s.navIcon}>{['▦','◫','▤','◎','🔔','◯','?'][i]}</span>{label}</button>)}</nav>
       <div className={s.sidebarBottom}><div className={s.accountSummary}><strong>{profile?.name||'Customer'}</strong><small>Customer account</small></div><button className={s.navItem} onClick={()=>void logout()}>↪ &nbsp; Sign out</button></div>
     </aside>
     <div className={s.column}>
-      <header className={s.topbar}><div><span className={s.eyebrow}>CUSTOMER / {title.toUpperCase()}</span><h1>{title}</h1></div><div className={s.topActions}>{link(routes.customerBook,'+ New delivery',s.primarySmall)}<span className={s.avatar}>{(profile?.name||'C').charAt(0).toUpperCase()}</span></div></header>
+      <header className={s.topbar}>
+        <div><span className={s.eyebrow}>CUSTOMER / {title.toUpperCase()}</span><h1>{title}</h1></div>
+        <div className={s.topActions}>
+          <NotificationBell onViewAll={()=>navigate(routes.customerNotifications)} />
+          {link(routes.customerBook,'+ New delivery',s.primarySmall)}
+          <span className={s.avatar}>{(profile?.name||'C').charAt(0).toUpperCase()}</span>
+        </div>
+      </header>
       <main className={s.content}>
         {state==='loading'&&<Spinner/>}
         {state==='error'&&<><Notice error>{error}</Notice><button onClick={()=>{setState('loading');void load()}}>Retry</button></>}
@@ -72,13 +81,14 @@ export function CustomerPortal() {
           {path===routes.customerBook?<BookingPage/>:null}
           {path===routes.customerDeliveries?<DeliveriesPage/>:null}
           {path===routes.customerTrack?<PrivateTrackingSearch/>:null}
+          {path===routes.customerNotifications?<NotificationsPage/>:null}
           {path===routes.customerAccount?<ProfilePage profile={profile!} onChange={setProfile}/>:null}
           {path===routes.customerSupport?<CustomerSupportPage/>:null}
           {/^\/customer\/deliveries\/\d+$/.test(path)?<DetailPage id={Number(path.split('/').pop())}/>:null}
         </>}
       </main>
     </div>
-    <nav aria-label="Mobile customer navigation" className={s.mobileNav}>{nav.slice(0,5).map(([,to],i)=><button type="button" key={to} className={selected===to?s.mobileActive:''} onClick={()=>navigate(to)}><span>{['▦','◫','▤','◎','◯','?'][i]}</span><small>{['Home','Send','Deliveries','Track','Account'][i]}</small></button>)}</nav>
+    <nav aria-label="Mobile customer navigation" className={s.mobileNav}>{nav.slice(0,6).map(([,to],i)=><button type="button" key={to} className={selected===to?s.mobileActive:''} onClick={()=>navigate(to)}><span>{['▦','◫','▤','◎','🔔','◯'][i]}</span><small>{['Home','Send','Deliveries','Track','Alerts','Account'][i]}</small></button>)}</nav>
   </div>;
 }
 
@@ -92,7 +102,7 @@ function DashboardPage(){
     <div className={s.headingRow}><div><h2>Your shipping overview</h2><p>Manage bookings and follow the progress of every parcel.</p></div>{link(routes.customerBook,'Create a delivery',s.primary)}</div>
     <div className={s.stats}>{stats.map(([name,count])=><div key={name} className={s.stat}><div className={s.muted}>{name}</div><strong>{count}</strong></div>)}</div>
     <div className={s.twoColumns}><section className={s.card}><div className={s.cardHead}><h3>Quick actions</h3></div><div className={s.actionList}>
-      {link(routes.customerBook,'＋ Book a parcel',s.action)}{link(routes.customerDeliveries,'▤ View delivery history',s.action)}{link(routes.customerTrack,'◎ Track a parcel',s.action)}{link(routes.customerSupport,'? Get customer support',s.action)}
+      {link(routes.customerBook,'＋ Book a parcel',s.action)}{link(routes.customerDeliveries,'▤ View delivery history',s.action)}{link(routes.customerTrack,'◎ Track a parcel',s.action)}{link(routes.customerNotifications,'🔔 Notifications & alerts',s.action)}{link(routes.customerSupport,'? Get customer support',s.action)}
     </div></section><section className={s.card}><h3>Delivery status</h3><p className={s.muted}>Track the status of your shipments. Courier updates appear automatically on the tracking screen.</p><div className={s.statusColumns}><div><strong>{data.countsByStatus.IN_TRANSIT+data.countsByStatus.OUT_FOR_DELIVERY}</strong><span>In transit</span></div><div><strong>{data.countsByStatus.FAILED}</strong><span>Failed</span></div></div></section></div>
     <section className={s.card}><div className={s.cardHead}><h3>Recent deliveries</h3>{link(routes.customerDeliveries,'View all →')}</div><DeliveryTable rows={data.recentDeliveries}/></section>
   </div>
