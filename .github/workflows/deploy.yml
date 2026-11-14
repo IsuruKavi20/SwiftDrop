@@ -140,14 +140,19 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-      # Files with a hash in the name never change → cache 1 year. index.html always fresh → new versions show at once.
+      # Only files with a hash in the name (dist/assets) never change → cache 1 year. Fixed names (favicon.svg,
+      # icons.svg) can change, so 1 hour. index.html always fresh → new versions show at once.
       - name: Upload to S3 and refresh CloudFront
         env:
           BUCKET: ${{ vars.FRONTEND_BUCKET }}
           DISTRIBUTION: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
         run: |
-          aws s3 sync dist/ "s3://$BUCKET/" --delete --exclude index.html \
+          aws s3 sync dist/assets/ "s3://$BUCKET/assets/" --delete \
             --cache-control "public,max-age=31536000,immutable"
+          aws s3 sync dist/ "s3://$BUCKET/" --delete --exclude "assets/*" --exclude index.html \
+            --cache-control "public,max-age=3600"
           aws s3 cp dist/index.html "s3://$BUCKET/index.html" --cache-control "no-cache"
-          # CloudFront keeps "/" and "/index.html" as two separate copies: refresh both, or "/" shows the old site
-          aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION" --paths "/" "/index.html"
+          # CloudFront keeps "/" and "/index.html" as two separate copies: refresh both, or "/" shows the old site.
+          # The fixed-name files are refreshed too, so a changed icon shows at once.
+          aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION" \
+            --paths "/" "/index.html" "/favicon.svg" "/icons.svg"
