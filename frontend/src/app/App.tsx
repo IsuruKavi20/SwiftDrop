@@ -2,7 +2,6 @@ import { AccountPage } from '../features/account/pages/AccountPage';
 import { GoogleCallbackPage } from '../features/auth/pages/GoogleCallbackPage';
 import { LoginPage } from '../features/auth/pages/LoginPage';
 import { SignupPage } from '../features/auth/pages/SignupPage';
-import { CustomerDashboardPage } from '../features/customer/pages/CustomerDashboardPage';
 import { CustomerPortal, PublicTrackingPage } from '../features/customer/pages/CustomerPortal';
 import { NotificationsPage } from '../features/notification/pages/NotificationsPage';
 import { MerchantApplyPage } from '../features/merchant/pages/MerchantApplyPage';
