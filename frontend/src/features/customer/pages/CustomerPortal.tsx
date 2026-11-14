@@ -8,7 +8,7 @@ import { NotificationsPage } from '../../notification/pages/NotificationsPage';
 import { NotificationBell } from '../../notification/components/NotificationBell';
 import {
   ApiError, STATUS_LABELS, getProfile, getDashboard, listDeliveries, getDelivery,
-  estimateDelivery, createDelivery, confirmDelivery, cancelDelivery, trackMine, trackPublic, downloadReceipt,
+  estimateDelivery, createDelivery, confirmDelivery, cancelDelivery, trackMine, trackPublic, trackPublicLink, downloadReceipt,
   updateCustomer, getSavedAddresses, addSavedAddress, updateSavedAddress, deleteSavedAddress,
   type Dashboard, type CustomerProfile, type DeliverySummary, type DeliveryStatus,
   type DeliveryDetails, type BookingInput, type FeeEstimate, type Tracking,
@@ -257,13 +257,21 @@ function PrivateTrackingSearch(){
   return <div className={s.stack}><section className={s.card}><h2>Track your delivery</h2><p>Enter a tracking number belonging to your account to check delivery progress.</p><form onSubmit={e=>void submit(e)} className={s.searchBar}><input aria-label="Your tracking number" required maxLength={30} placeholder="SD-XXXXXXXXXX" value={number} onChange={e=>setNumber(e.target.value)}/><button className={s.primary} disabled={busy}>{busy?'Searching…':'Track my parcel'}</button></form>{error&&<Notice error>{error}</Notice>}</section>
   {data&&<section className={s.card}><div className={s.cardHead}><div><span className={s.eyebrow}>YOUR DELIVERY</span><h2 className={s.mono}>{data.trackingNumber}</h2></div><Status value={data.status}/></div><div className={s.route}><div><small>FROM</small><strong>{data.fromCity||'—'}</strong></div><span>→</span><div><small>TO</small><strong>{data.toCity||'—'}</strong></div></div><TrackingTimeline status={data.status} events={data.events}/><p className={s.smallNote}>Automatically refreshes every 15 seconds while this page is open.</p></section>}</div>;
 }
+/** "link:<code>" = a tracking link from a message; anything else = a tracking number. */
+const lookupTracking=(key:string)=>key.startsWith('link:')?trackPublicLink(key.slice(5)):trackPublic(key);
+
 export function PublicTrackingPage(){
-  const path=usePath();const initial=path.startsWith('/track/')?decodeURIComponent(path.split('/').slice(2).join('/')):'';
-  const [number,setNumber]=useState(initial);const [data,setData]=useState<Tracking|null>(null),[error,setError]=useState(''),[loading,setLoading]=useState(false);
+  const path=usePath();
+  // Two kinds of address: /track/link/<random code> (the link from the SMS/email: can't be guessed) and
+  // /track/<tracking number> (typed by hand). The link code is never shown in the search box.
+  const LINK_PREFIX='/track/link/';
+  const isLink=path.startsWith(LINK_PREFIX);
+  const initial=isLink?`link:${decodeURIComponent(path.slice(LINK_PREFIX.length))}`:path.startsWith('/track/')?decodeURIComponent(path.split('/').slice(2).join('/')):'';
+  const [number,setNumber]=useState(isLink?'':initial);const [data,setData]=useState<Tracking|null>(null),[error,setError]=useState(''),[loading,setLoading]=useState(false);
   // A new tracking number in the address resets the page while rendering (React's "adjust state on prop change")
   const [shownFor,setShownFor]=useState(initial);
-  if(shownFor!==initial){setShownFor(initial);setNumber(initial);setData(null);setError('')}
-  useEffect(()=>{if(!initial)return;let live=true;const run=()=>trackPublic(initial).then(d=>{if(live){setData(d);setError('')}}).catch(e=>{if(live)setError(message(e))});void run();const timer=window.setInterval(()=>void run(),15000);return()=>{live=false;clearInterval(timer)}},[initial]);
+  if(shownFor!==initial){setShownFor(initial);setNumber(isLink?'':initial);setData(null);setError('')}
+  useEffect(()=>{if(!initial)return;let live=true;const run=()=>lookupTracking(initial).then(d=>{if(live){setData(d);setError('')}}).catch(e=>{if(live)setError(message(e))});void run();const timer=window.setInterval(()=>void run(),15000);return()=>{live=false;clearInterval(timer)}},[initial]);
   async function search(e:FormEvent){e.preventDefault();setLoading(true);setError('');try{const result=await trackPublic(number);setData(result);navigate(`/track/${encodeURIComponent(number.trim())}`)}catch(e){setData(null);setError(message(e))}finally{setLoading(false)}}
   return <div className={s.publicPage}><div className={s.publicHeader}><button className={s.publicBrand} onClick={()=>navigate(routes.publicTrack)}><span className={s.brandMark}>S</span><strong>SwiftDrop</strong></button><div>{link(routes.login,'Customer login',s.secondary)}</div></div><main className={s.publicBody}><div className={s.publicIntro}><span className={s.eyebrow}>PARCEL TRACKING</span><h1>Know where your parcel is.</h1><p>Track SwiftDrop deliveries using the tracking number supplied by your sender.</p></div><section className={s.card}><form className={s.searchBar} onSubmit={e=>void search(e)}><input aria-label="Tracking number" required placeholder="Enter tracking number · SD-XXXXXXXXXX" value={number} onChange={e=>setNumber(e.target.value)}/><button className={s.primary} disabled={loading}>{loading?'Searching…':'Track parcel'}</button></form>{error&&<Notice error>{error}</Notice>}</section>
   {data&&<section className={s.card}><div className={s.cardHead}><div><span className={s.eyebrow}>TRACKING NUMBER</span><h2 className={s.mono}>{data.trackingNumber}</h2></div><Status value={data.status}/></div><div className={s.route}><div><small>FROM</small><strong>{data.fromCity||'—'}</strong></div><span>→</span><div><small>TO</small><strong>{data.toCity||'—'}</strong></div></div><TrackingTimeline status={data.status} events={data.events}/><p className={s.smallNote}>Updates refresh automatically. Personal contact details and addresses are not shown publicly.</p></section>}
