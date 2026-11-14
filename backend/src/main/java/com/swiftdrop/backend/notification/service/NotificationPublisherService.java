@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -30,6 +31,9 @@ public class NotificationPublisherService {
     private final RabbitTemplate rabbitTemplate;
     private final UserDirectory userDirectory;
     private final EntityManager entityManager;
+
+    @Value("${swiftdrop.mail.fallback-recipient:${swiftdrop.mail.from:}}")
+    private String fallbackRecipient;
 
     @Autowired
     public NotificationPublisherService(RabbitTemplate rabbitTemplate,
@@ -75,9 +79,16 @@ public class NotificationPublisherService {
         String customerPhone = null;
 
         if (customer != null) {
-            if (customer.getUser() != null) {
+            if (customer.getFullName() != null && !customer.getFullName().isBlank()) {
+                customerName = customer.getFullName();
+            } else if (customer.getUser() != null) {
                 customerName = customer.getUser().getName().orElse("Customer");
-                if ((customerEmail == null || customerEmail.isBlank()) && userDirectory != null) {
+            }
+
+            if (customerEmail == null || customerEmail.isBlank()) {
+                if (customer.getEmail() != null && !customer.getEmail().isBlank()) {
+                    customerEmail = customer.getEmail();
+                } else if (customer.getUser() != null && userDirectory != null) {
                     try {
                         customerEmail = userDirectory.email(customer.getUser().getId()).orElse(null);
                     } catch (Exception ex) {
@@ -92,6 +103,11 @@ public class NotificationPublisherService {
             customerPhone = merchant.getContactNumber();
         } else if (merchantId != null) {
             customerName = "Merchant";
+        }
+
+        if ((customerEmail == null || customerEmail.isBlank()) && fallbackRecipient != null && !fallbackRecipient.isBlank()) {
+            customerEmail = fallbackRecipient;
+            log.info("No customer email found for delivery {}; falling back to notification recipient {}", delivery.getId(), customerEmail);
         }
 
         String destPhone = null;
@@ -155,6 +171,41 @@ public class NotificationPublisherService {
                 null
         );
         publishDeliveryStatusChanged(delivery, event);
+    }
+
+    /**
+     * Publishes a synthetic test status changed event to RabbitMQ for verification and testing.
+     */
+    public void publishTestStatusChanged(String trackingNumber, String status, String customerEmail) {
+        String trk = (trackingNumber != null && !trackingNumber.isBlank()) ? trackingNumber : "SD-DEMO-TEST";
+        String st = (status != null && !status.isBlank()) ? status.toUpperCase() : "CONFIRMED";
+        String recipient = (customerEmail != null && !customerEmail.isBlank()) ? customerEmail : fallbackRecipient;
+        String routingKey = "delivery.status." + st.toLowerCase();
+
+        DeliveryStatusChangedEvent payload = new DeliveryStatusChangedEvent(
+                999L,
+                trk,
+                "token-" + trk,
+                st,
+                "Status updated to " + st + " (Verification Test)",
+                "Colombo Distribution Center",
+                "SwiftDrop Test Customer",
+                recipient,
+                "+94771234567",
+                "SwiftDrop Express Courier",
+                null,
+                null,
+                Instant.now(),
+                Map.of()
+        );
+
+        try {
+            log.info("Publishing test DeliveryStatusChangedEvent to {} [routingKey={}, email={}]",
+                    RabbitMqConfig.EXCHANGE_SWIFTDROP, routingKey, recipient);
+            rabbitTemplate.convertAndSend(RabbitMqConfig.EXCHANGE_SWIFTDROP, routingKey, payload);
+        } catch (Exception ex) {
+            log.warn("Could not publish test event to RabbitMQ: {}", ex.getMessage());
+        }
     }
 
     /**

@@ -18,10 +18,10 @@ public class SmtpEmailSender implements EmailSender {
 
     private final JavaMailSender mailSender;
 
-    @Value("${spring.mail.username:}")
+    @Value("${swiftdrop.mail.from:${spring.mail.username:}}")
     private String configuredUsername;
 
-    private static final String DEFAULT_FROM = "notifications@swiftdrop.me";
+    private static final String DEFAULT_FROM = "swiftdroplk.delivery@gmail.com";
 
     public SmtpEmailSender(JavaMailSender mailSender) {
         this.mailSender = mailSender;
@@ -40,7 +40,11 @@ public class SmtpEmailSender implements EmailSender {
             String sender = (configuredUsername != null && !configuredUsername.isBlank())
                     ? configuredUsername
                     : DEFAULT_FROM;
-            helper.setFrom(sender);
+            try {
+                helper.setFrom(sender, "SwiftDrop Delivery Notifications");
+            } catch (Exception e) {
+                helper.setFrom(sender);
+            }
             helper.setTo(to);
             helper.setSubject(subject);
             helper.setText(bodyHtml, true);

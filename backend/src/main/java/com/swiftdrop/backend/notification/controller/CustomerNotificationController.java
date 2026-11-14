@@ -13,7 +13,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/customers/me/notifications")
+@RequestMapping({"/api/customers/me/notifications", "/api/v1/customer/notifications"})
 @PreAuthorize("hasAuthority('parcel:read-own')")
 public class CustomerNotificationController {
 
