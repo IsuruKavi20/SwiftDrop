@@ -10,6 +10,7 @@ import { ProtectedMerchantRoute } from '../features/merchant/components/Protecte
 import { MerchantPortal } from '../features/merchant/MerchantPortal';
 import { matchMerchantRoute } from '../features/merchant/merchantRoutes';
 import { routes, usePath } from './router';
+import { LandingPage } from '../features/landing/pages/LandingPage';
 
 export default function App() {
   const path = usePath();
@@ -38,7 +39,10 @@ export default function App() {
       return <AccountPage />;
     case routes.merchantApply:
       return <MerchantApplyPage />;
-    default:
+    case routes.login:
       return <LoginPage />;
+    // The home page (and any unknown address): tracking for everyone, login only when needed
+    default:
+      return <LandingPage />;
   }
 }
