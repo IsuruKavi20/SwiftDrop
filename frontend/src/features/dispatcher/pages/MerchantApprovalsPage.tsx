@@ -57,7 +57,7 @@ export function MerchantApprovalsPage() {
       <PageHeader title="Merchant Approvals" subtitle="Approving a merchant unlocks business orders, API keys and webhooks." />
       {error && <p className={styles.errorBox} role="alert">{error}</p>}
 
-      <h2 className={styles.sectionTitle}>Waiting for a decision ({waiting.length})</h2>
+      <h2 className={styles.sectionTitle}>Waiting for a decision{data ? ` (${waiting.length})` : ''}</h2>
       {data && waiting.length === 0 && <p className={styles.infoBox}>No applications are waiting.</p>}
       <div className={styles.cardGrid} aria-busy={loading}>
         {waiting.map((m) => (
@@ -86,7 +86,7 @@ export function MerchantApprovalsPage() {
       </div>
 
       <h2 className={styles.sectionTitle}>Reviewed</h2>
-      <div className={styles.tableCard}>
+      <div className={styles.tableCard} aria-busy={loading}>
         <div className={styles.tableScroll}>
           <table className={styles.table}>
             <thead>

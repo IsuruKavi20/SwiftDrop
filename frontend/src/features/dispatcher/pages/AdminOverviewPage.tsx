@@ -7,6 +7,7 @@ import { PageHeader } from '../components/DispatcherLayout';
 import { dispatcherPath } from '../dispatcherRoutes';
 import { formatPercent, formatToday, successRate } from '../lib/format';
 import { useDispatchData } from '../lib/useDispatchData';
+import { ChartSkeleton } from '../components/Skeleton';
 import styles from '../components/Dispatcher.module.css';
 
 async function loadAdminOverview() {
@@ -42,7 +43,7 @@ export function AdminOverviewPage({ preview }: { preview: boolean }) {
       <PageHeader title="Admin Overview" subtitle={formatToday()} />
       {error && <p className={styles.errorBox} role="alert">{error}</p>}
 
-      <ul className={styles.statGrid} aria-busy={loading}>
+      <ul className={styles.statGrid} aria-busy={loading} data-loading={!data || undefined}>
         {cards.map((card) => (
           <li key={card.label} className={styles.statCard}>
             <div className={styles.statTop}>
@@ -64,7 +65,7 @@ export function AdminOverviewPage({ preview }: { preview: boolean }) {
             </div>
             <DispatcherLink className={styles.textLink} href={dispatcherPath('reports', preview)}>Reports</DispatcherLink>
           </header>
-          {data && <DeliveriesChart days={data.week.perDay} />}
+          {data ? <DeliveriesChart days={data.week.perDay} /> : !error && <ChartSkeleton />}
         </section>
 
         <section className={styles.panel}>

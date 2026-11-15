@@ -8,6 +8,7 @@ import { Dropdown } from '../components/Dropdown';
 import { formatDate, formatLkr } from '../lib/format';
 import { useDispatchData } from '../lib/useDispatchData';
 import { useToast } from '../lib/useToast';
+import { PanelSkeleton } from '../components/Skeleton';
 import styles from '../components/Dispatcher.module.css';
 
 const districtOptions = allDistricts.map((d) => ({ value: d, label: d }));
@@ -154,7 +155,17 @@ export function PricingPage() {
     <>
       {error && <p className={styles.errorBox} role="alert">{error}</p>}
       {/* Keyed by version, so the draft starts again from what was just published */}
-      {data ? <PricingEditor key={data.version} published={data} onPublished={showToast} /> : <PageHeader title="Pricing" />}
+      {data ? <PricingEditor key={data.version} published={data} onPublished={showToast} /> : (
+        <>
+          <PageHeader title="Pricing" subtitle="Loading the published rates…" />
+          {!error && (
+            <div className={styles.pricingGrid}>
+              <PanelSkeleton rows={5} />
+              <PanelSkeleton rows={3} />
+            </div>
+          )}
+        </>
+      )}
       {toast}
     </>
   );
