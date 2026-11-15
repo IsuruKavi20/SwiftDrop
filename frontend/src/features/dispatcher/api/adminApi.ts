@@ -163,7 +163,7 @@ function usersFromAccessReview(body: unknown): AdminUser[] {
     const role = text(item, 'role', 'name');
     const members = ['users', 'members', 'holders', 'people', 'accounts'].map((key) => item[key]).find(Array.isArray) as unknown[] | undefined;
     if (role && members) members.forEach((member) => add(member, role));
-    else add(item);
+    else add(item, text(item, 'role') ?? undefined);   // one grant per row: { userId, role, grantedBy, … }
   };
   const readByRole = (grouped: Json) => {
     for (const [role, members] of Object.entries(grouped)) {
@@ -216,7 +216,30 @@ function checkReason(reason: string, required: boolean): string {
  */
 export async function listUsers(): Promise<AdminUser[]> {
   if (usingSampleData()) return sample.listUsers();
-  return usersFromAccessReview(await authAdmin<unknown>('/access-review'));
+  const [review, couriers] = await Promise.all([
+    authAdmin<unknown>('/access-review'),
+    // The access review leaves Courier grants out; the backend's courier profiles name those people
+    dispatcherRequest<CourierWorkload[]>('/couriers').catch(() => [] as CourierWorkload[]),
+  ]);
+  const granted = usersFromAccessReview(review);
+  const listed = new Set(granted.map((person) => person.id));
+  for (const courier of couriers) {
+    if (courier.userId && !listed.has(courier.userId)) {
+      listed.add(courier.userId);
+      granted.push({ id: courier.userId, name: courier.name, email: '', active: courier.accountActive ?? true, roles: ['COURIER'] });
+    }
+  }
+  // The access review lists grants only (user id + role): read each account for its email, state and every role
+  return Promise.all(granted.map(async (person) => {
+    try {
+      const full = await getPerson(person.id);
+      // Auth accounts have no name field yet: keep a real name we already have (e.g. the courier's) over the email
+      const name = full.name === full.email && person.name && person.name !== 'Unnamed account' ? person.name : full.name;
+      return { id: full.id, name, email: full.email, active: full.active, roles: full.roles };
+    } catch {
+      return person;   // shown from the grant alone if the account can't be read right now
+    }
+  }));
 }
 
 /** GET /admin/users?email=… ; null when nobody has that email. */
