@@ -5,10 +5,12 @@ import type { DeliveryType } from '../api/dispatcherTypes';
 import { DispatcherIcon } from '../components/DispatcherIcon';
 import { PageHeader } from '../components/DispatcherLayout';
 import { Dropdown } from '../components/Dropdown';
+import { FormDialog } from '../components/FormDialog';
 import { formatDate, formatLkr } from '../lib/format';
 import { useDispatchData } from '../lib/useDispatchData';
 import { useToast } from '../lib/useToast';
 import { PanelSkeleton } from '../components/Skeleton';
+import { LoadError } from '../components/States';
 import styles from '../components/Dispatcher.module.css';
 
 const districtOptions = allDistricts.map((d) => ({ value: d, label: d }));
@@ -82,24 +84,17 @@ function QuotePreview({ rates, usingDraft }: { rates: PricingRates; usingDraft: 
 
 function PricingEditor({ published, onPublished }: { published: PublishedPricing; onPublished: (message: string) => void }) {
   const [draft, setDraft] = useState<Draft>(() => toDraft(published.rates));
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string>();
+  const [confirming, setConfirming] = useState(false);
   const saved = toDraft(published.rates);
   const dirty = RATE_FIELDS.some(({ key }) => draft[key] !== saved[key]);
   const rates = fromDraft(draft);
   const invalid = Object.values(rates).some((r) => !Number.isFinite(r) || r < 0) || Object.values(draft).some((v) => v.trim() === '');
+  const changes = RATE_FIELDS.filter(({ key }) => Number(draft[key]) !== published.rates[key]);
 
   async function publish() {
-    setSaving(true);
-    setError(undefined);
-    try {
-      const next = await publishPricing(rates);
-      onPublished(`Rate version ${next.version} is published. New bookings are quoted with it; existing parcels keep their fee.`);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Could not publish. Please try again.');
-    } finally {
-      setSaving(false);
-    }
+    const next = await publishPricing(rates);
+    setConfirming(false);
+    onPublished(`Rate version ${next.version} is published. New bookings are quoted with it; existing parcels keep their fee.`);
   }
 
   return (
@@ -110,16 +105,14 @@ function PricingEditor({ published, onPublished }: { published: PublishedPricing
           : <>Published rate version <strong>v{published.version}</strong>, since {formatDate(published.publishedAt)}{published.publishedBy ? ` by ${published.publishedBy}` : ''}. Existing parcels keep the fee they were booked with.</>}
         action={(
           <div className={styles.rowActions}>
-            <button className={styles.secondaryButton} type="button" disabled={!dirty || saving} onClick={() => { setDraft(saved); setError(undefined); }}>
+            <button className={styles.secondaryButton} type="button" disabled={!dirty} onClick={() => setDraft(saved)}>
               <DispatcherIcon name="reassign" size={16} /> Discard changes
             </button>
-            <button className={styles.primaryButton} type="button" disabled={!dirty || invalid || saving} onClick={() => void publish()}>
-              {saving ? 'Publishing…' : 'Save and publish'}
+            <button className={styles.primaryButton} type="button" disabled={!dirty || invalid} onClick={() => setConfirming(true)}>
+              Save and publish
             </button>
           </div>
         )} />
-      {error && <p className={styles.errorBox} role="alert">{error}</p>}
-
       <div className={styles.pricingGrid}>
         <section className={styles.panel}>
           <header className={styles.panelHeader}>
@@ -144,16 +137,41 @@ function PricingEditor({ published, onPublished }: { published: PublishedPricing
         </section>
         <QuotePreview rates={rates} usingDraft={dirty} />
       </div>
+
+      {confirming && (
+        <FormDialog title={`Publish rate version ${published.version + 1}?`} subtitle="Check the new rates before they go live."
+          submitLabel="Publish rates" onClose={() => setConfirming(false)} onSubmit={publish}>
+          <ul className={styles.rateChanges}>
+            {changes.map(({ key, label }) => {
+              const before = published.rates[key];
+              const after = Number(draft[key]);
+              return (
+                <li key={key}>
+                  <span>{label}</span>
+                  <span className={styles.rateChange}>
+                    <s>{formatLkr(before)}</s>
+                    <DispatcherIcon name="right" size={14} />
+                    <strong data-trend={after > before ? 'up' : 'down'}>{formatLkr(after)}</strong>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          <p className={styles.warnBox}>
+            Every new quote and booking uses these rates as soon as you publish. Parcels already booked keep the fee they were quoted.
+          </p>
+        </FormDialog>
+      )}
     </>
   );
 }
 
 export function PricingPage() {
-  const { data, error } = useDispatchData(getPublishedPricing, []);
+  const { data, error, reload } = useDispatchData(getPublishedPricing, []);
   const { showToast, toast } = useToast();
   return (
     <>
-      {error && <p className={styles.errorBox} role="alert">{error}</p>}
+      {error && <LoadError message={error} onRetry={reload} />}
       {/* Keyed by version, so the draft starts again from what was just published */}
       {data ? <PricingEditor key={data.version} published={data} onPublished={showToast} /> : (
         <>

@@ -8,6 +8,7 @@ import { dispatcherPath } from '../dispatcherRoutes';
 import { formatPercent, formatToday, successRate } from '../lib/format';
 import { useDispatchData } from '../lib/useDispatchData';
 import { ChartSkeleton } from '../components/Skeleton';
+import { LoadError } from '../components/States';
 import styles from '../components/Dispatcher.module.css';
 
 async function loadAdminOverview() {
@@ -21,7 +22,7 @@ async function loadAdminOverview() {
 }
 
 export function AdminOverviewPage({ preview }: { preview: boolean }) {
-  const { data, error, loading } = useDispatchData(loadAdminOverview, []);
+  const { data, error, loading, reload } = useDispatchData(loadAdminOverview, []);
   const counts = data?.counts;
   const pending = data?.pending;
   const onDuty = data?.couriers.filter((c) => c.availability !== 'OFFLINE').length;
@@ -41,7 +42,7 @@ export function AdminOverviewPage({ preview }: { preview: boolean }) {
   return (
     <>
       <PageHeader title="Admin Overview" subtitle={formatToday()} />
-      {error && <p className={styles.errorBox} role="alert">{error}</p>}
+      {error && <LoadError message={error} onRetry={reload} />}
 
       <ul className={styles.statGrid} aria-busy={loading} data-loading={!data || undefined}>
         {cards.map((card) => (

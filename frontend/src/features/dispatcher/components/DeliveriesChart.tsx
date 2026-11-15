@@ -24,7 +24,7 @@ export function DeliveriesChart({ days }: { days: DayCount[] }) {
           return (
             <li key={d.day} title={`${fullLabel.format(date)}: ${d.delivered} delivered, ${d.failedAttempts} failed`}>
               <span className={styles.chartStack} style={{ height: `${(total / highest) * 100}%` }}>
-                {total > 0 && !sparse && <span className={styles.chartTotal}>{total}</span>}
+                {total > 0 && !sparse && <span className={styles.chartTotal} aria-hidden="true">{total}</span>}
                 {d.failedAttempts > 0 && <span className={styles.chartFailed} style={{ flexGrow: d.failedAttempts }} />}
                 {d.delivered > 0 && <span className={styles.chartDelivered} style={{ flexGrow: d.delivered }} />}
               </span>

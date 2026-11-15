@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { listUnassignedDeliveries } from '../api/dispatcherApi';
 import { SourceBadge } from '../components/Badges';
 import { DispatcherIcon } from '../components/DispatcherIcon';
@@ -7,13 +6,21 @@ import { SearchBox } from '../components/SearchBox';
 import { formatDateTime, parcelSummary, waitingLabel } from '../lib/format';
 import { useDeliveryDialogs } from '../lib/useDeliveryDialogs';
 import { useDebounced, useDispatchData } from '../lib/useDispatchData';
+import { EmptyState, LoadError } from '../components/States';
+import { useUrlState } from '../lib/useUrlState';
+import { SortHeader } from '../components/SortHeader';
+import { useSort } from '../lib/useSort';
 import styles from '../components/Dispatcher.module.css';
 
 export function UnassignedParcelsPage({ preview }: { preview: boolean }) {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useUrlState<string>('q', '');
   const text = useDebounced(query);
-  const { data, error, loading } = useDispatchData(() => listUnassignedDeliveries(text), [text]);
+  const { data, error, loading, reload } = useDispatchData(() => listUnassignedDeliveries(text), [text]);
   const { openDetails, openAssign, dialogs } = useDeliveryDialogs();
+  const { rows, sort, toggle } = useSort(data, {
+    tracking: (d) => d.trackingNumber, pickup: (d) => d.pickup.city, destination: (d) => d.destination.city,
+    booked: (d) => d.createdAt, source: (d) => d.source,
+  });
 
   function describe(count: number | undefined): string {
     if (count === undefined) return 'Loading…';
@@ -32,24 +39,24 @@ export function UnassignedParcelsPage({ preview }: { preview: boolean }) {
           placeholder="Search tracking number, name, street, city or district" />
       </div>
 
-      {error && <p className={styles.errorBox} role="alert">{error}</p>}
+      {error && <LoadError message={error} onRetry={reload} />}
 
       <div className={styles.tableCard} aria-busy={loading}>
         <div className={styles.tableScroll}>
           <table className={styles.table}>
             <thead>
               <tr>
-                <th scope="col">Tracking no.</th>
-                <th scope="col">Pickup</th>
-                <th scope="col">Destination</th>
-                <th scope="col">Booked</th>
+                <SortHeader label="Tracking no." column="tracking" sort={sort} onSort={toggle} />
+                <SortHeader label="Pickup" column="pickup" sort={sort} onSort={toggle} />
+                <SortHeader label="Destination" column="destination" sort={sort} onSort={toggle} />
+                <SortHeader label="Booked" column="booked" sort={sort} onSort={toggle} />
                 <th scope="col">Weight</th>
-                <th scope="col">Booked by</th>
+                <SortHeader label="Booked by" column="source" sort={sort} onSort={toggle} />
                 <th scope="col"><span className={styles.visuallyHidden}>Actions</span></th>
               </tr>
             </thead>
             <tbody>
-              {data?.map((d) => (
+              {rows?.map((d) => (
                 <tr key={d.id}>
                   <td>
                     <button className={styles.linkCell} type="button" onClick={() => openDetails(d.id)}>{d.trackingNumber}</button>
@@ -71,7 +78,14 @@ export function UnassignedParcelsPage({ preview }: { preview: boolean }) {
           </table>
         </div>
         {data?.length === 0 && (
-          <p className={styles.empty}>{text ? 'No unassigned parcels match your search.' : 'Every confirmed parcel has a courier.'}</p>
+          text ? (
+            <EmptyState icon="search" title="No parcels match your search"
+              action={<button className={styles.secondaryButton} type="button" onClick={() => setQuery('')}>Clear search</button>}>
+              Try a tracking number, name, street or district.
+            </EmptyState>
+          ) : (
+            <EmptyState icon="check" title="Every parcel has a courier" positive>New confirmed parcels waiting for a courier show up here.</EmptyState>
+          )
         )}
       </div>
       {dialogs}
