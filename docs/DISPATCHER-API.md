@@ -43,3 +43,23 @@ role). Emails are not returned: the admin page reads them from the auth service 
   never both succeed.
 
 Tests: `DispatcherApiTest`, `CourierProfileApiTest`.
+
+## Reports (Reports page and Admin Overview)
+`GET /api/admin/reports?days=7` (ADMIN only; `days` 1 to 90, default 7, `1` = today) → the last `days` days, today
+included:
+
+```json
+{ "from": "2026-11-09", "to": "2026-11-15", "bookingsCreated": 23, "delivered": 17, "failedAttempts": 3,
+  "perDay":   [{ "day": "2026-11-09", "bookings": 3, "delivered": 2, "failedAttempts": 0 }, …],
+  "couriers": [{ "courierId": 1, "name": "Kasun Fernando", "delivered": 9, "failedAttempts": 1, "active": 2 }, …] }
+```
+
+- **Days are Sri Lanka days** (Asia/Colombo), not UTC: a booking at 01:30 in Colombo counts for that day.
+- Bookings: deliveries created in the period, any status. Delivered: by delivery date (`delivered_at`).
+- Failed attempts: FAILED tracking events, so a parcel that failed once and arrived later counts in both. Each is
+  credited to the courier who recorded it, or else to the delivery's current courier.
+- `perDay` has every day of the period, oldest first. `couriers` lists every courier profile, most deliveries
+  first; `active` = active assignments right now.
+- The Admin Overview's "Bookings today" is `bookingsCreated` with `days=1`.
+
+Tests: `AdminReportApiTest`.

@@ -29,9 +29,6 @@ async function loadNavCounts(): Promise<Partial<Record<DispatcherPageId, number>
   };
 }
 
-/** Admin pages that still show sample data while signed in (their backends come later). */
-const SAMPLE_PAGES: readonly DispatcherPageId[] = ['admin', 'reports'];
-
 export function DispatcherLayout({ page, preview, name, children }: DispatcherLayoutProps) {
   const { data: counts } = useDispatchData(loadNavCounts, []);
 
@@ -89,11 +86,9 @@ export function DispatcherLayout({ page, preview, name, children }: DispatcherLa
       </aside>
 
       <main className={styles.main}>
-        {(usingSampleData() || SAMPLE_PAGES.includes(page)) && (
+        {usingSampleData() && (
           <p className={styles.notice} role="note">
-            {usingSampleData()
-              ? 'Development preview: you are not signed in, so these screens show sample data and changes stay in this browser tab.'
-              : 'This page still shows sample data: its backend is not built yet, so changes stay in this browser tab. The other admin pages and the Dispatch pages are live.'}
+            Development preview: you are not signed in, so these screens show sample data and changes stay in this browser tab.
           </p>
         )}
         {children}

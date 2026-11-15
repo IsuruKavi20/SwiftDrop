@@ -89,6 +89,32 @@ public interface DispatcherDeliveryRepository extends JpaRepository<Delivery, Lo
         long getTotal();
     }
 
+    /* ---- Reports: plain timestamps and ids, grouped into Sri Lanka days in Java (the same on H2 and PostgreSQL) ---- */
+
+    /** When each booking in the period was created. */
+    @Query("select d.createdAt from Delivery d where d.createdAt >= :from and d.createdAt < :to")
+    List<java.time.Instant> findCreatedTimes(@Param("from") java.time.Instant from, @Param("to") java.time.Instant to);
+
+    /** Deliveries completed in the period: [deliveredAt, the delivering courier's auth id or null]. */
+    @Query("""
+            select d.deliveredAt, c.id from Delivery d left join d.courier c
+            where d.status = com.swiftdrop.backend.customer.entity.DeliveryStatus.DELIVERED
+              and d.deliveredAt >= :from and d.deliveredAt < :to
+            """)
+    List<Object[]> findDeliveredInPeriod(@Param("from") java.time.Instant from, @Param("to") java.time.Instant to);
+
+    /**
+     * Failed attempts in the period (FAILED tracking events; a delivery can fail and later still arrive):
+     * [eventTime, who recorded it (auth id or null), the delivery's current courier (auth id or null)].
+     */
+    @Query("""
+            select e.eventTime, r.id, c.id from TrackingEvent e join e.delivery d
+            left join e.recordedBy r left join d.courier c
+            where e.status = com.swiftdrop.backend.customer.entity.DeliveryStatus.FAILED
+              and e.eventTime >= :from and e.eventTime < :to
+            """)
+    List<Object[]> findFailedAttemptsInPeriod(@Param("from") java.time.Instant from, @Param("to") java.time.Instant to);
+
     /** Call within a write transaction before assigning/reassigning; serializes writes to this delivery. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select d from Delivery d where d.id = :id")

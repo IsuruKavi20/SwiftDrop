@@ -111,8 +111,10 @@ export interface Quote {
 }
 
 export interface DayCount {
-  /** yyyy-mm-dd, local time */
+  /** yyyy-mm-dd, a Sri Lanka day */
   day: string;
+  /** Bookings created that day (the backend's report; the sample data leaves it out). */
+  bookings?: number;
   delivered: number;
   failedAttempts: number;
 }
@@ -125,7 +127,11 @@ export interface CourierReport {
   active: number;
 }
 
+/** GET /api/admin/reports?days=…: the last days, today included, in Sri Lanka days. */
 export interface DeliveryReport {
+  /** First and last day (yyyy-mm-dd, both included); the sample data leaves them out. */
+  from?: string;
+  to?: string;
   bookingsCreated: number;
   delivered: number;
   failedAttempts: number;

@@ -11,7 +11,10 @@ import styles from '../components/Dispatcher.module.css';
 
 async function loadAdminOverview() {
   const [today, couriers, pending, counts, week] = await Promise.all([
-    countBookingsToday(), listCourierProfiles(), listMerchantApplications('PENDING'), getStatusCounts(), getDeliveryReport(7),
+    countBookingsToday(), listCourierProfiles(),
+    // From the auth service: if it can't be reached, the rest of the overview still shows
+    listMerchantApplications('PENDING').catch(() => null),
+    getStatusCounts(), getDeliveryReport(7),
   ]);
   return { today, couriers, pending, counts, week };
 }
@@ -19,14 +22,18 @@ async function loadAdminOverview() {
 export function AdminOverviewPage({ preview }: { preview: boolean }) {
   const { data, error, loading } = useDispatchData(loadAdminOverview, []);
   const counts = data?.counts;
+  const pending = data?.pending;
   const onDuty = data?.couriers.filter((c) => c.availability !== 'OFFLINE').length;
   const inProgress = counts && counts.CONFIRMED + counts.PICKED_UP + counts.IN_TRANSIT + counts.OUT_FOR_DELIVERY;
   const rate = counts ? successRate(counts.DELIVERED, counts.FAILED) : null;
 
   const cards: { label: string; value: number | undefined; icon: DispatcherIconName; tone: string; hint: string }[] = [
-    { label: 'Bookings today', value: data?.today, icon: 'box', tone: 'blue', hint: 'Deliveries created since midnight' },
+    { label: 'Bookings today', value: data?.today, icon: 'box', tone: 'blue', hint: 'Deliveries created since midnight, Sri Lanka time' },
     { label: 'Couriers on duty', value: onDuty, icon: 'truck', tone: 'green', hint: `Available or busy, of ${data?.couriers.length ?? '–'} couriers` },
-    { label: 'Merchant approvals', value: data?.pending.length, icon: 'store', tone: 'amber', hint: 'Applications waiting for a decision' },
+    {
+      label: 'Merchant approvals', value: data?.pending?.length, icon: 'store', tone: 'amber',
+      hint: data && !data.pending ? 'Could not reach the auth service' : 'Applications waiting for a decision',
+    },
     { label: 'Failed deliveries', value: counts?.FAILED, icon: 'failed', tone: 'red', hint: 'Currently in Failed status' },
   ];
 
@@ -80,14 +87,14 @@ export function AdminOverviewPage({ preview }: { preview: boolean }) {
         </section>
       </div>
 
-      {data && data.pending.length > 0 && (
+      {pending && pending.length > 0 && (
         <div className={styles.banner} role="status">
           <DispatcherIcon name="alert" />
           <div>
             <strong>
-              {data.pending.length === 1 ? '1 merchant application is' : `${data.pending.length} merchant applications are`} waiting for review
+              {pending.length === 1 ? '1 merchant application is' : `${pending.length} merchant applications are`} waiting for review
             </strong>
-            <span>{data.pending.map((m) => m.businessName).join(', ')}</span>
+            <span>{pending.map((m) => m.businessName).join(', ')}</span>
           </div>
           <DispatcherLink className={styles.secondaryButton} href={dispatcherPath('merchants', preview)}>Review</DispatcherLink>
         </div>

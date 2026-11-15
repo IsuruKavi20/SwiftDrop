@@ -8,6 +8,7 @@ import type {
   AdminUser,
   CourierProfile,
   CourierProfileInput,
+  DeliveryReport,
   DeliveryZone,
   DeliveryZoneInput,
   MerchantApplication,
@@ -23,18 +24,11 @@ import * as sample from './sampleAdminApi';
  *   the browser with the admin's own token, so auth records which admin did what.
  * - Courier profiles: the backend's dispatcher module (/api/dispatcher/couriers, docs/DISPATCHER-API.md).
  * - Pricing and delivery zones: the backend (/api/admin/pricing, /api/admin/zones, docs/PRICING-AND-ZONES-API.md).
- * - Reports and the overview numbers: still sample data (sampleAdminApi.ts) until their backend exists.
+ * - Reports and the overview's booking numbers: the backend (/api/admin/reports).
  * The development preview (not signed in) answers everything from sample data.
  */
 
-export {
-  allDistricts,
-  countBookingsToday,
-  dayKey,
-  districtsByProvince,
-  getDeliveryReport,
-  quote,
-} from './sampleAdminApi';
+export { allDistricts, dayKey, districtsByProvince, quote } from './sampleAdminApi';
 
 const ADMIN_ROLES: readonly AdminRole[] = ['CUSTOMER', 'MERCHANT', 'COURIER', 'ADMIN'];
 const MERCHANT_STATUSES: readonly MerchantApplicationStatus[] = ['PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED'];
@@ -449,4 +443,21 @@ export async function saveZone(id: number | null, input: DeliveryZoneInput): Pro
   const body = JSON.stringify({ name: input.name.trim(), code: input.code.trim(), districts: input.districts, active: input.active });
   await backendAdmin<DeliveryZone>(id === null ? '/zones' : `/zones/${id}`, { method: id === null ? 'POST' : 'PUT', body });
   changed();
+}
+
+/* ---------- Reports (backend) ---------- */
+
+/**
+ * The last `days` Sri Lanka days, today included (1 to 90): bookings, deliveries by delivery date, failed attempts
+ * (FAILED tracking events), per day and per courier.
+ */
+export async function getDeliveryReport(days: number): Promise<DeliveryReport> {
+  if (usingSampleData()) return sample.getDeliveryReport(days);
+  return backendAdmin<DeliveryReport>(`/reports?days=${days}`);
+}
+
+/** Bookings created since midnight, Sri Lanka time. */
+export async function countBookingsToday(): Promise<number> {
+  if (usingSampleData()) return sample.countBookingsToday();
+  return (await getDeliveryReport(1)).bookingsCreated;
 }
