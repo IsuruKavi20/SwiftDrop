@@ -1,4 +1,5 @@
 import { routes } from '../../../app/router';
+import { dispatcherPath } from '../../dispatcher/dispatcherRoutes';
 import { getAccessToken, readClaims } from './session';
 
 const NEXT_KEY = 'swiftdrop.next';
@@ -27,7 +28,8 @@ export function withNext(page: string, next: string): string {
 
 /**
  * Where a user goes right after logging in: a remembered allowed page first (e.g. the merchant application);
- * otherwise users with "merchant:api-access" land on the merchant dashboard, customers (permission "parcel:read-own")
+ * otherwise admins ("user:read") land on the admin overview (/admin), users with "merchant:api-access" land on the
+ * merchant dashboard, customers (permission "parcel:read-own")
  * land on their dashboard, and every other role keeps the account page until its own home page exists.
  * This only picks a page: the backend still checks permissions on every request.
  */
@@ -43,6 +45,10 @@ export function landingPage(): string {
   const claims = readClaims(token);
   const permissions = claims.entitlements ?? [];
 
+  // Admins first: their token can also carry customer permissions, and "user:read" is what the admin area checks.
+  if (permissions.includes('user:read')) {
+    return dispatcherPath('admin', false);
+  }
   if (permissions.includes('merchant:api-access')) {
     return routes.merchantDashboard;
   }
