@@ -5,6 +5,7 @@ import { PageHeader } from '../components/DispatcherLayout';
 import { Dropdown } from '../components/Dropdown';
 import { formatPercent, successRate } from '../lib/format';
 import { useDispatchData } from '../lib/useDispatchData';
+import { ChartSkeleton } from '../components/Skeleton';
 import styles from '../components/Dispatcher.module.css';
 
 const RANGES = [7, 14, 30] as const;
@@ -26,7 +27,7 @@ export function ReportsPage() {
         )} />
       {error && <p className={styles.errorBox} role="alert">{error}</p>}
 
-      <ul className={styles.statGrid} aria-busy={loading}>
+      <ul className={styles.statGrid} aria-busy={loading} data-loading={!data || undefined}>
         <li className={styles.statCard}>
           <div className={styles.statTop}><span>Bookings created</span></div>
           <strong>{data?.bookingsCreated ?? '–'}</strong>
@@ -56,7 +57,7 @@ export function ReportsPage() {
             <p>Success rate = delivered ÷ (delivered + failed attempts) in the period. Parcels still in progress are left out.</p>
           </div>
         </header>
-        {data && <DeliveriesChart days={data.perDay} />}
+        {data ? <DeliveriesChart days={data.perDay} /> : !error && <ChartSkeleton />}
       </section>
 
       <h2 className={styles.sectionTitle} style={{ marginTop: '1.75rem' }}>Courier summary</h2>

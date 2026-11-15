@@ -5,6 +5,7 @@ import { useDispatchData } from '../lib/useDispatchData';
 import { SourceBadge, StatusBadge } from './Badges';
 import { DispatcherIcon } from './DispatcherIcon';
 import { Modal } from './Modal';
+import { SkeletonLines } from './Skeleton';
 import styles from './Dispatcher.module.css';
 
 const ASSIGNABLE = new Set(['CONFIRMED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'FAILED']);
@@ -46,7 +47,7 @@ export function DeliveryDetailsDialog({ deliveryId, onClose, onAssign }: Deliver
           </button>
         )}
       </>}>
-      {loading && !delivery && <p className={styles.muted} role="status">Loading delivery…</p>}
+      {loading && !delivery && <SkeletonLines lines={5} label="Loading delivery…" />}
       {error && <p className={styles.errorBox} role="alert">{error}</p>}
       {delivery && (
         <div className={styles.details}>

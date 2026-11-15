@@ -49,7 +49,7 @@ export function OverviewPage({ preview }: { preview: boolean }) {
 
       {error && <p className={styles.errorBox} role="alert">{error}</p>}
 
-      <ul className={styles.statGrid} aria-busy={loading}>
+      <ul className={styles.statGrid} aria-busy={loading} data-loading={!data || undefined}>
         {cards.map((card) => (
           <li key={card.label} className={styles.statCard}>
             <div className={styles.statTop}>

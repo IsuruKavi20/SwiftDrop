@@ -4,6 +4,7 @@ import type { DispatchDelivery } from '../api/dispatcherTypes';
 import { parcelSummary } from '../lib/format';
 import { useDispatchData } from '../lib/useDispatchData';
 import { Modal } from './Modal';
+import { SkeletonLines } from './Skeleton';
 import styles from './Dispatcher.module.css';
 
 interface AssignCourierDialogProps {
@@ -66,7 +67,7 @@ export function AssignCourierDialog({ delivery, onClose, onAssigned }: AssignCou
 
         <fieldset className={styles.courierChoices}>
           <legend>Available couriers</legend>
-          {loading && !couriers && <p className={styles.muted} role="status">Loading couriers…</p>}
+          {loading && !couriers && <SkeletonLines lines={3} label="Loading couriers…" />}
           {loadError && <p className={styles.errorBox} role="alert">{loadError}</p>}
           {couriers && choices.length === 0 && (
             <p className={styles.muted}>No other courier is available right now. Couriers marked Busy or Offline can't be assigned.</p>
