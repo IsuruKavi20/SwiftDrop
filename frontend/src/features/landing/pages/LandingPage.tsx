@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import logoIcon from '../../../assets/brand/logo-mark.svg';
 import { navigate, routes } from '../../../app/router';
-import { landingPage, withNext } from '../../auth/lib/landing';
+import { forgetNext, landingPage, withNext } from '../../auth/lib/landing';
 import { getAccessToken } from '../../auth/lib/session';
 import { Icon, type IconName } from '../../../shared/ui/Icon';
 import styles from './LandingPage.module.css';
@@ -67,8 +67,8 @@ export function LandingPage() {
               </button>
             ) : (
               <>
-                <button type="button" className={styles.textButton} onClick={() => navigate(routes.login)}>Log in</button>
-                <button type="button" className={styles.primaryButton} onClick={() => navigate(routes.signup)}>Sign up</button>
+                <button type="button" className={styles.textButton} onClick={() => { forgetNext(); navigate(routes.login); }}>Log in</button>
+                <button type="button" className={styles.primaryButton} onClick={() => { forgetNext(); navigate(routes.signup); }}>Sign up</button>
               </>
             )}
           </nav>
@@ -220,7 +220,7 @@ export function LandingPage() {
           </span>
           <span className={styles.footerLinks}>
             <button type="button" className={styles.footerLink} onClick={() => navigate(routes.publicTrack)}>Track</button>
-            <button type="button" className={styles.footerLink} onClick={() => navigate(routes.login)}>Log in</button>
+            <button type="button" className={styles.footerLink} onClick={() => { forgetNext(); navigate(routes.login); }}>Log in</button>
             <button type="button" className={styles.footerLink} onClick={merchantTarget}>Become a merchant</button>
           </span>
         </div>
