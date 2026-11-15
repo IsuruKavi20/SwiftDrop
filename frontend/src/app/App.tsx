@@ -4,7 +4,6 @@ import { LoginPage } from '../features/auth/pages/LoginPage';
 import { SignupPage } from '../features/auth/pages/SignupPage';
 import { CustomerPortal, PublicTrackingPage } from '../features/customer/pages/CustomerPortal';
 import { MerchantApplyPage } from '../features/merchant/pages/MerchantApplyPage';
-import { MerchantDashboardPage } from '../features/merchant/pages/MerchantDashboardPage';
 import { MerchantProfilePage } from '../features/merchant/pages/MerchantProfilePage';
 import { VerifyEmailPage } from '../features/auth/pages/VerifyEmailPage';
 import { ProtectedMerchantRoute } from '../features/merchant/components/ProtectedMerchantRoute';
@@ -24,7 +23,6 @@ export default function App() {
   const renderContent = () => {
     if (path === routes.publicTrack || path.startsWith('/track/')) return <PublicTrackingPage />;
     if (path.startsWith('/customer/')) return <CustomerPortal />;
-    if (path === routes.merchantDashboard) return <MerchantDashboardPage />;
     if (path === routes.merchantProfile) return <MerchantProfilePage />;
 
     const merchantRoute = matchMerchantRoute(path);

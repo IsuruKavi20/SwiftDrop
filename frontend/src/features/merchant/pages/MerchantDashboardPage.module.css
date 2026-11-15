@@ -56,3 +56,53 @@
 @container (max-width: 18rem) {
   .metrics { grid-template-columns: minmax(0, 1fr); }
 }
+
+@media (max-width: 48rem) {
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 28rem) {
+  .metrics { grid-template-columns: minmax(0, 1fr); }
+}
+
+.profileWarningBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid #fedb88;
+  border-radius: 1rem;
+  background: #fff8e6;
+  color: #7a5000;
+}
+.bannerContent {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.bannerTitle {
+  display: block;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.bannerText {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  color: #7a5000;
+}
+.bannerAction {
+  flex: none;
+}
+.metricLabel {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--merchant-secondary);
+}
+.metricValue {
+  display: block;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--merchant-text);
+  line-height: 1.2;
+}
