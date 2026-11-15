@@ -37,6 +37,17 @@ function Status({value}: {value: DeliveryStatus}) {return <span className={`${s.
 function Spinner() {return <div className={s.skeleton} role="status"><span className={s.srOnly}>Loading…</span><i/><i/><i/></div>}
 function Notice({children, error=false}:{children:ReactNode;error?:boolean}) {return <div role={error?'alert':'status'} className={error?s.alert:s.notice}>{children}</div>}
 
+function hasMerchantAccess(): boolean {
+  const token = getAccessToken();
+  if (!token) return false;
+  try {
+    const claims = readClaims(token);
+    return Boolean(claims.entitlements?.includes('merchant:api-access'));
+  } catch {
+    return false;
+  }
+}
+
 export function CustomerPortal() {
   const path=usePath();
   const [profile,setProfile]=useState<CustomerProfile|null>(null);
@@ -78,6 +89,17 @@ export function CustomerPortal() {
         </div>)}
       </nav>
       <div className={s.sidebarBottom}>
+        {hasMerchantAccess() && (
+          <button
+            type="button"
+            className={s.navItem}
+            onClick={() => navigate(routes.merchantDashboard)}
+            style={{ marginBottom: '8px' }}
+          >
+            <Icon name="package" className={s.navIcon} />
+            Merchant view
+          </button>
+        )}
         <div className={s.accountCard}>
           {profile?.pictureUrl
             ? <img className={s.accountPhoto} src={profile.pictureUrl} alt="" referrerPolicy="no-referrer" width={36} height={36}/>

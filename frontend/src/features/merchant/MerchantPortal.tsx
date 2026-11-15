@@ -18,7 +18,7 @@ export function MerchantPortal({ route, claims }: { route: PortalRoute; claims?:
   function renderPage() {
     switch (page.id) {
       case 'dashboard':
-        return <MerchantDashboardPage preview={preview} />;
+        return <MerchantDashboardPage preview={preview} claims={claims} />;
       case 'orders':
         return orderId ? (
           <OrderDetailsPage orderId={orderId} preview={preview} />
@@ -42,6 +42,7 @@ export function MerchantPortal({ route, claims }: { route: PortalRoute; claims?:
 
   return (
     <MerchantLayout
+      claims={claims}
       name={claims?.name?.trim()}
       title={orderId ? 'Order Details' : page.id === 'dashboard' ? 'Merchant Dashboard' : page.title}
       page={page.id}
