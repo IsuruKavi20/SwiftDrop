@@ -14,6 +14,8 @@ const paths = {
   left: 'm15 6-6 6 6 6',
   right: 'm9 6 6 6-6 6',
   down: 'm6 9 6 6 6-6',
+  up: 'm6 15 6-6 6 6',
+  sort: 'm8 9 4-4 4 4M8 15l4 4 4-4',
   menu: 'M4 7h16M4 12h16M4 17h10',
   tick: 'm5 12.5 4.5 4.5L19 7.5',
   close: 'M6 6l12 12M18 6 6 18',

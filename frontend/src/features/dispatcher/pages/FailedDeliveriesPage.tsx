@@ -4,10 +4,16 @@ import { PageHeader } from '../components/DispatcherLayout';
 import { formatDateTime, latestFailure } from '../lib/format';
 import { useDeliveryDialogs } from '../lib/useDeliveryDialogs';
 import { useDispatchData } from '../lib/useDispatchData';
+import { EmptyState, LoadError } from '../components/States';
+import { SortHeader } from '../components/SortHeader';
+import { useSort } from '../lib/useSort';
 import styles from '../components/Dispatcher.module.css';
 
 export function FailedDeliveriesPage({ preview }: { preview: boolean }) {
-  const { data, error, loading } = useDispatchData(() => searchDeliveries({ status: 'FAILED', size: 100 }), []);
+  const { data, error, loading, reload } = useDispatchData(() => searchDeliveries({ status: 'FAILED', size: 100 }), []);
+  const { rows, sort, toggle } = useSort(data?.items, {
+    tracking: (d) => d.trackingNumber, courier: (d) => d.courier?.name, failed: (d) => latestFailure(d).latest?.eventTime,
+  });
   const { openDetails, openAssign, dialogs } = useDeliveryDialogs();
 
   return (
@@ -15,22 +21,22 @@ export function FailedDeliveriesPage({ preview }: { preview: boolean }) {
       <PageHeader breadcrumb preview={preview} title="Failed Deliveries"
         subtitle="Assign or reassign a courier for another attempt. Earlier assignments and the failed attempt stay in the delivery's history." />
 
-      {error && <p className={styles.errorBox} role="alert">{error}</p>}
+      {error && <LoadError message={error} onRetry={reload} />}
 
       <div className={styles.tableCard} aria-busy={loading}>
         <div className={styles.tableScroll}>
           <table className={styles.table}>
             <thead>
               <tr>
-                <th scope="col">Tracking no.</th>
-                <th scope="col">Courier</th>
+                <SortHeader label="Tracking no." column="tracking" sort={sort} onSort={toggle} />
+                <SortHeader label="Courier" column="courier" sort={sort} onSort={toggle} />
                 <th scope="col">Failure reason</th>
-                <th scope="col">Failed attempt</th>
+                <SortHeader label="Failed attempt" column="failed" sort={sort} onSort={toggle} />
                 <th scope="col"><span className={styles.visuallyHidden}>Actions</span></th>
               </tr>
             </thead>
             <tbody>
-              {data?.items.map((d) => {
+              {rows?.map((d) => {
                 const { latest, attempts } = latestFailure(d);
                 return (
                   <tr key={d.id}>
@@ -59,7 +65,9 @@ export function FailedDeliveriesPage({ preview }: { preview: boolean }) {
             </tbody>
           </table>
         </div>
-        {data?.totalItems === 0 && <p className={styles.empty}>No failed deliveries. Nice work.</p>}
+        {data?.totalItems === 0 && (
+          <EmptyState icon="check" title="No failed deliveries" positive>Every delivery attempt has gone through. Nice work.</EmptyState>
+        )}
       </div>
       {dialogs}
     </>

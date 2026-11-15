@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { searchDeliveries } from '../api/dispatcherApi';
 import type { DeliveryStatus } from '../api/dispatcherTypes';
 import { StatusBadge } from '../components/Badges';
@@ -9,17 +8,20 @@ import { SearchBox } from '../components/SearchBox';
 import { formatDate, formatFee, statusLabels } from '../lib/format';
 import { useDeliveryDialogs } from '../lib/useDeliveryDialogs';
 import { useDebounced, useDispatchData } from '../lib/useDispatchData';
+import { EmptyState, LoadError } from '../components/States';
+import { useUrlNumber, useUrlState } from '../lib/useUrlState';
 import styles from '../components/Dispatcher.module.css';
 
 const PAGE_SIZE = 10;
 const STATUSES = Object.keys(statusLabels) as DeliveryStatus[];
 
 export function AllDeliveriesPage({ preview }: { preview: boolean }) {
-  const [query, setQuery] = useState('');
-  const [status, setStatus] = useState<DeliveryStatus | ''>('');
-  const [page, setPage] = useState(0);
+  // Kept in the address bar: ?q=…&status=…&page=2 (page shown 1-based)
+  const [query, setQuery] = useUrlState<string>('q', '');
+  const [status, setStatus] = useUrlState<DeliveryStatus | ''>('status', '', ['', ...STATUSES]);
+  const [page, setPage] = useUrlNumber('page', 0, { offset: 1 });
   const text = useDebounced(query);
-  const { data, error, loading } = useDispatchData(
+  const { data, error, loading, reload } = useDispatchData(
     () => searchDeliveries({ status: status || undefined, text, page, size: PAGE_SIZE }),
     [status, text, page],
   );
@@ -43,7 +45,7 @@ export function AllDeliveriesPage({ preview }: { preview: boolean }) {
         </label>
       </div>
 
-      {error && <p className={styles.errorBox} role="alert">{error}</p>}
+      {error && <LoadError message={error} onRetry={reload} />}
 
       <div className={styles.tableCard} aria-busy={loading}>
         <div className={styles.tableScroll}>
@@ -76,7 +78,14 @@ export function AllDeliveriesPage({ preview }: { preview: boolean }) {
             </tbody>
           </table>
         </div>
-        {data?.totalItems === 0 && <p className={styles.empty}>No deliveries match these filters.</p>}
+        {data?.totalItems === 0 && (
+          <EmptyState icon="box" title={query || status ? 'No deliveries match' : 'No deliveries yet'}
+            action={(query || status) && (
+              <button className={styles.secondaryButton} type="button" onClick={() => { setQuery(''); setStatus(''); setPage(0); }}>Clear filters</button>
+            )}>
+            {query || status ? 'Try another search or status.' : 'Bookings from customers and merchants show up here.'}
+          </EmptyState>
+        )}
       </div>
 
       {data && data.totalItems > 0 && (

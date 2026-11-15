@@ -11,14 +11,24 @@ import { Dropdown } from '../components/Dropdown';
 import { FormDialog } from '../components/FormDialog';
 import { availabilityLabels } from '../lib/format';
 import { useDispatchData } from '../lib/useDispatchData';
-import { useToast } from '../lib/useToast';
+import { useToast, type ToastOptions } from '../lib/useToast';
+import { EmptyState, LoadError } from '../components/States';
+import { SortHeader } from '../components/SortHeader';
+import { useSort } from '../lib/useSort';
+import { PersonName } from '../components/PersonName';
+import { personName } from '../lib/names';
+import { Email } from '../components/Email';
+import { useFlash } from '../lib/useFlash';
 import styles from '../components/Dispatcher.module.css';
 
 const AVAILABILITIES = Object.keys(availabilityLabels) as CourierAvailability[];
-const withEmail = (name: string, email: string) => (email ? `${name} · ${email}` : name);
+const withEmail = (name: string, email: string) => {
+  const { display } = personName(name, email);
+  return email ? `${display} · ${email}` : display;
+};
 
 /** Add (courier undefined) or edit a courier's work profile: the courier table's phone, vehicle and availability. */
-function CourierDialog({ courier, onClose, onSaved }: { courier?: CourierProfile; onClose: () => void; onSaved: (message: string) => void }) {
+function CourierDialog({ courier, onClose, onSaved }: { courier?: CourierProfile; onClose: () => void; onSaved: (message: string, options?: ToastOptions, changed?: string) => void }) {
   const { data: listed } = useDispatchData(listCourierAccountsWithoutProfile, []);
   const [userId, setUserId] = useState('');
   // A Courier account the backend hasn't seen yet, found in the auth service by email
@@ -58,10 +68,15 @@ function CourierDialog({ courier, onClose, onSaved }: { courier?: CourierProfile
       onSubmit={async () => {
         if (courier) {
           await updateCourierProfile(courier.courierId, form);
-          onSaved(`${courier.name}'s profile is saved.`);
+          // Undo saves what the profile held before
+          const previous: CourierProfileInput = {
+            phoneNumber: courier.phoneNumber, vehicleType: courier.vehicleType ?? '',
+            vehicleNumber: courier.vehicleNumber ?? '', availability: courier.availability,
+          };
+          onSaved(`${personName(courier.name, courier.email).display}'s profile is saved.`, { undo: () => updateCourierProfile(courier.courierId, previous) }, courier.userId);
         } else {
           await createCourierProfile(userId, form);
-          onSaved(`${accounts?.find((a) => a.id === userId)?.name ?? 'The courier'} can now be assigned deliveries when Available.`);
+          onSaved(`${accounts?.find((a) => a.id === userId)?.name ?? 'The courier'} can now be assigned deliveries when Available.`, undefined, userId);
         }
       }}>
       <div className={styles.formGrid}>
@@ -110,9 +125,13 @@ function CourierDialog({ courier, onClose, onSaved }: { courier?: CourierProfile
 }
 
 export function CouriersPage() {
-  const { data, error, loading } = useDispatchData(listCourierProfiles, []);
+  const { data, error, loading, reload } = useDispatchData(listCourierProfiles, []);
+  const { rows, sort, toggle } = useSort(data, {
+    courier: (c) => personName(c.name, c.email).display, account: (c) => c.email, vehicle: (c) => c.vehicleType, availability: (c) => ({ AVAILABLE: 0, BUSY: 1, OFFLINE: 2 })[c.availability], active: (c) => c.activeDeliveries,
+  });
   const [editing, setEditing] = useState<CourierProfile | 'new'>();
   const { showToast, toast } = useToast();
+  const { mark, flashOf, withFlash } = useFlash();
 
   return (
     <>
@@ -122,34 +141,35 @@ export function CouriersPage() {
             <DispatcherIcon name="plus" size={18} /> Add courier
           </button>
         )} />
-      {error && <p className={styles.errorBox} role="alert">{error}</p>}
+      {error && <LoadError message={error} onRetry={reload} />}
 
       <div className={styles.tableCard} aria-busy={loading}>
         <div className={styles.tableScroll}>
           <table className={styles.table}>
             <thead>
               <tr>
-                <th scope="col">Courier</th>
-                <th scope="col">Account</th>
-                <th scope="col">Vehicle</th>
-                <th scope="col">Availability</th>
-                <th scope="col" className={styles.numeric}>Active deliveries</th>
+                <SortHeader label="Courier" column="courier" sort={sort} onSort={toggle} />
+                <SortHeader label="Account" column="account" sort={sort} onSort={toggle} />
+                <SortHeader label="Vehicle" column="vehicle" sort={sort} onSort={toggle} />
+                <SortHeader label="Availability" column="availability" sort={sort} onSort={toggle} />
+                <SortHeader label="Active deliveries" column="active" sort={sort} onSort={toggle} numeric />
                 <th scope="col"><span className={styles.visuallyHidden}>Actions</span></th>
               </tr>
             </thead>
             <tbody>
-              {data?.map((c) => (
-                <tr key={c.courierId}>
+              {rows?.map((c) => (
+                <tr key={c.courierId} data-flash={flashOf(c.userId)}>
                   <td>
-                    <strong>{c.name}</strong>
-                    {(!c.accountActive || !c.courierRole) && (
-                      <span className={styles.badgeRow}>
-                        {!c.accountActive && <ToneBadge tone="grey">Account blocked</ToneBadge>}
-                        {!c.courierRole && <ToneBadge tone="amber">No Courier role</ToneBadge>}
-                      </span>
-                    )}
+                    <PersonName name={c.name} email={c.email} id={c.userId}>
+                      {(!c.accountActive || !c.courierRole) && (
+                        <span className={styles.badgeRow}>
+                          {!c.accountActive && <ToneBadge tone="grey">Account blocked</ToneBadge>}
+                          {!c.courierRole && <ToneBadge tone="amber">No Courier role</ToneBadge>}
+                        </span>
+                      )}
+                    </PersonName>
                   </td>
-                  <td>{c.email || <span className={styles.muted}>Email unavailable</span>}<a className={styles.cellSub} href={`tel:${c.phoneNumber}`}>{c.phoneNumber}</a></td>
+                  <td>{c.email ? <Email address={c.email} /> : <span className={styles.muted}>Email unavailable</span>}<a className={styles.cellSub} href={`tel:${c.phoneNumber}`}>{c.phoneNumber}</a></td>
                   <td>
                     {c.vehicleType ?? <span className={styles.muted}>—</span>}
                     {c.vehicleNumber && <small className={styles.cellSub}>{c.vehicleNumber}</small>}
@@ -166,12 +186,17 @@ export function CouriersPage() {
             </tbody>
           </table>
         </div>
-        {data?.length === 0 && <p className={styles.empty}>No courier profiles yet.</p>}
+        {data?.length === 0 && (
+          <EmptyState icon="truck" title="No couriers yet"
+            action={<button className={styles.primaryButton} type="button" onClick={() => setEditing('new')}><DispatcherIcon name="plus" size={18} /> Add courier</button>}>
+            Give someone the Courier role in Users and Roles, then add their phone and vehicle here.
+          </EmptyState>
+        )}
       </div>
 
       {editing && (
         <CourierDialog courier={editing === 'new' ? undefined : editing} onClose={() => setEditing(undefined)}
-          onSaved={(message) => { setEditing(undefined); showToast(message); }} />
+          onSaved={(message, options, changed) => { setEditing(undefined); showToast(message, withFlash(options, changed)); mark(changed); }} />
       )}
       {toast}
     </>

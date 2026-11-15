@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { listCourierWorkloads } from '../api/dispatcherApi';
 import type { CourierAvailability } from '../api/dispatcherTypes';
 import { AvailabilityBadge } from '../components/Badges';
@@ -6,13 +5,22 @@ import { PageHeader } from '../components/DispatcherLayout';
 import { Dropdown } from '../components/Dropdown';
 import { availabilityLabels } from '../lib/format';
 import { useDispatchData } from '../lib/useDispatchData';
+import { EmptyState, LoadError } from '../components/States';
+import { useUrlState } from '../lib/useUrlState';
+import { SortHeader } from '../components/SortHeader';
+import { useSort } from '../lib/useSort';
+import { PersonName } from '../components/PersonName';
+import { personName } from '../lib/names';
 import styles from '../components/Dispatcher.module.css';
 
 const AVAILABILITIES = Object.keys(availabilityLabels) as CourierAvailability[];
 
 export function CourierWorkloadsPage({ preview }: { preview: boolean }) {
-  const [availability, setAvailability] = useState<CourierAvailability | ''>('');
-  const { data, error, loading } = useDispatchData(() => listCourierWorkloads(availability || undefined), [availability]);
+  const [availability, setAvailability] = useUrlState<CourierAvailability | ''>('availability', '', ['', ...AVAILABILITIES]);
+  const { data, error, loading, reload } = useDispatchData(() => listCourierWorkloads(availability || undefined), [availability]);
+  const { rows, sort, toggle } = useSort(data, {
+    courier: (c) => personName(c.name).display, vehicle: (c) => c.vehicleType, availability: (c) => ({ AVAILABLE: 0, BUSY: 1, OFFLINE: 2 })[c.availability], active: (c) => c.activeDeliveries,
+  });
 
   return (
     <>
@@ -27,26 +35,27 @@ export function CourierWorkloadsPage({ preview }: { preview: boolean }) {
         </label>
       </div>
 
-      {error && <p className={styles.errorBox} role="alert">{error}</p>}
+      {error && <LoadError message={error} onRetry={reload} />}
 
       <div className={styles.tableCard} aria-busy={loading}>
         <div className={styles.tableScroll}>
           <table className={styles.table}>
             <thead>
               <tr>
-                <th scope="col">Courier</th>
-                <th scope="col">Vehicle</th>
-                <th scope="col">Availability</th>
-                <th scope="col" className={styles.numeric}>Active</th>
+                <SortHeader label="Courier" column="courier" sort={sort} onSort={toggle} />
+                <SortHeader label="Vehicle" column="vehicle" sort={sort} onSort={toggle} />
+                <SortHeader label="Availability" column="availability" sort={sort} onSort={toggle} />
+                <SortHeader label="Active" column="active" sort={sort} onSort={toggle} numeric />
                 <th scope="col">Current parcels</th>
               </tr>
             </thead>
             <tbody>
-              {data?.map((c) => (
+              {rows?.map((c) => (
                 <tr key={c.courierId}>
                   <td>
-                    <strong>{c.name}</strong>
-                    <a className={styles.cellSub} href={`tel:${c.phoneNumber}`}>{c.phoneNumber}</a>
+                    <PersonName name={c.name} id={c.userId ?? String(c.courierId)}>
+                      <a className={styles.cellSub} href={`tel:${c.phoneNumber}`}>{c.phoneNumber}</a>
+                    </PersonName>
                   </td>
                   <td>
                     {c.vehicleType ?? <span className={styles.muted}>—</span>}
@@ -62,7 +71,12 @@ export function CourierWorkloadsPage({ preview }: { preview: boolean }) {
             </tbody>
           </table>
         </div>
-        {data?.length === 0 && <p className={styles.empty}>No couriers with this availability.</p>}
+        {data?.length === 0 && (
+          <EmptyState icon="truck" title={availability ? 'No couriers with this availability' : 'No couriers yet'}
+            action={availability && <button className={styles.secondaryButton} type="button" onClick={() => setAvailability('')}>Show all couriers</button>}>
+            {availability ? 'Pick another availability to see more couriers.' : 'Add courier profiles on the Couriers page.'}
+          </EmptyState>
+        )}
       </div>
     </>
   );

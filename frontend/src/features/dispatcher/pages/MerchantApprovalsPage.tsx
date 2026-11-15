@@ -7,6 +7,7 @@ import { FormDialog, ReasonField } from '../components/FormDialog';
 import { formatDateTime, merchantStatusLabels } from '../lib/format';
 import { useDispatchData } from '../lib/useDispatchData';
 import { useToast } from '../lib/useToast';
+import { EmptyState, LoadError } from '../components/States';
 import styles from '../components/Dispatcher.module.css';
 
 const statusTones: Record<MerchantApplicationStatus, Tone> = { PENDING: 'amber', APPROVED: 'green', REJECTED: 'red', SUSPENDED: 'grey' };
@@ -45,7 +46,7 @@ function DecisionDialog({ pending, onClose, onSaved }: { pending: Pending; onClo
 }
 
 export function MerchantApprovalsPage() {
-  const { data, error, loading } = useDispatchData(() => listMerchantApplications(), []);
+  const { data, error, loading, reload } = useDispatchData(() => listMerchantApplications(), []);
   const [pending, setPending] = useState<Pending>();
   const { showToast, toast } = useToast();
 
@@ -55,10 +56,12 @@ export function MerchantApprovalsPage() {
   return (
     <>
       <PageHeader title="Merchant Approvals" subtitle="Approving a merchant unlocks business orders, API keys and webhooks." />
-      {error && <p className={styles.errorBox} role="alert">{error}</p>}
+      {error && <LoadError message={error} onRetry={reload} />}
 
       <h2 className={styles.sectionTitle}>Waiting for a decision{data ? ` (${waiting.length})` : ''}</h2>
-      {data && waiting.length === 0 && <p className={styles.infoBox}>No applications are waiting.</p>}
+      {data && waiting.length === 0 && (
+        <EmptyState icon="check" title="All caught up" positive compact>No merchant applications are waiting for a decision.</EmptyState>
+      )}
       <div className={styles.cardGrid} aria-busy={loading}>
         {waiting.map((m) => (
           <article key={m.merchantId} className={styles.appCard}>
@@ -120,7 +123,9 @@ export function MerchantApprovalsPage() {
             </tbody>
           </table>
         </div>
-        {data && reviewed.length === 0 && <p className={styles.empty}>No decisions yet.</p>}
+        {data && reviewed.length === 0 && (
+          <EmptyState icon="store" title="No decisions yet">Approved, rejected and suspended merchants are listed here.</EmptyState>
+        )}
       </div>
 
       {pending && <DecisionDialog pending={pending} onClose={() => setPending(undefined)}

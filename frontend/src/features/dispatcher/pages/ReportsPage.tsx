@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { getDeliveryReport } from '../api/adminApi';
 import { DeliveriesChart } from '../components/DeliveriesChart';
 import { PageHeader } from '../components/DispatcherLayout';
@@ -6,13 +5,17 @@ import { Dropdown } from '../components/Dropdown';
 import { formatPercent, successRate } from '../lib/format';
 import { useDispatchData } from '../lib/useDispatchData';
 import { ChartSkeleton } from '../components/Skeleton';
+import { LoadError } from '../components/States';
+import { useUrlState } from '../lib/useUrlState';
 import styles from '../components/Dispatcher.module.css';
 
 const RANGES = [7, 14, 30] as const;
 
 export function ReportsPage() {
-  const [days, setDays] = useState<(typeof RANGES)[number]>(7);
-  const { data, error, loading } = useDispatchData(() => getDeliveryReport(days), [days]);
+  const [daysParam, setDaysParam] = useUrlState('days', '7', RANGES.map(String));
+  const days = Number(daysParam) as (typeof RANGES)[number];
+  const setDays = (value: (typeof RANGES)[number]) => setDaysParam(String(value));
+  const { data, error, loading, reload } = useDispatchData(() => getDeliveryReport(days), [days]);
   const rate = data ? successRate(data.delivered, data.failedAttempts) : null;
 
   return (
@@ -25,7 +28,7 @@ export function ReportsPage() {
               options={RANGES.map((r) => ({ value: String(r), label: `Last ${r} days` }))} />
           </label>
         )} />
-      {error && <p className={styles.errorBox} role="alert">{error}</p>}
+      {error && <LoadError message={error} onRetry={reload} />}
 
       <ul className={styles.statGrid} aria-busy={loading} data-loading={!data || undefined}>
         <li className={styles.statCard}>
