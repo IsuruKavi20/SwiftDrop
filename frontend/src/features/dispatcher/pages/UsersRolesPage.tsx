@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { listUsers, setUserBlocked, setUserRoles } from '../api/adminApi';
+import { findUserByEmail, listUsers, setUserBlocked, setUserRoles } from '../api/adminApi';
 import type { AdminRole, AdminUser } from '../api/adminTypes';
 import { ToneBadge, type Tone } from '../components/Badges';
 import { DispatcherIcon } from '../components/DispatcherIcon';
@@ -20,12 +20,15 @@ const roleHints: Record<AdminRole, string> = {
   ADMIN: 'Everything, including dispatch',
 };
 
+const whoLine = (user: AdminUser) => (user.email ? `${user.name} · ${user.email}` : user.name);
+const looksLikeEmail = (text: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text.trim());
+
 function RolesDialog({ user, onClose, onSaved }: { user: AdminUser; onClose: () => void; onSaved: (message: string) => void }) {
   const [roles, setRoles] = useState<AdminRole[]>(user.roles);
   const toggle = (role: AdminRole) => setRoles((current) => (current.includes(role) ? current.filter((r) => r !== role) : [...current, role]));
 
   return (
-    <FormDialog title="Edit roles" subtitle={`${user.name} · ${user.email}`} submitLabel="Save roles"
+    <FormDialog title="Edit roles" subtitle={whoLine(user)} submitLabel="Save roles"
       canSubmit={roles.length > 0} onClose={onClose}
       onSubmit={async () => {
         await setUserRoles(user.id, roles);
@@ -50,7 +53,7 @@ function BlockDialog({ user, onClose, onSaved }: { user: AdminUser; onClose: () 
   const blocking = user.active;
   const [reason, setReason] = useState('');
   return (
-    <FormDialog title={blocking ? 'Block account' : 'Unblock account'} subtitle={`${user.name} · ${user.email}`}
+    <FormDialog title={blocking ? 'Block account' : 'Unblock account'} subtitle={whoLine(user)}
       submitLabel={blocking ? 'Block' : 'Unblock'} danger={blocking} canSubmit={reason.trim().length > 0} onClose={onClose}
       onSubmit={async () => {
         await setUserBlocked(user.id, blocking, reason);
@@ -74,10 +77,34 @@ export function UsersRolesPage() {
   const [blocking, setBlocking] = useState<AdminUser>();
   const { showToast, toast } = useToast();
   const { data, error, loading } = useDispatchData(listUsers, []);
+  // People found by email: accounts with no role listed by the access review (e.g. plain customers)
+  const [found, setFound] = useState<AdminUser[]>([]);
+  const [lookup, setLookup] = useState<{ busy: boolean; message?: string }>({ busy: false });
+  const { data: refreshedFound } = useDispatchData(
+    () => Promise.all(found.map((u) => findUserByEmail(u.email).then((fresh) => fresh ?? u))), [found.map((u) => u.id).join()],
+  );
 
+  const known = new Set(data?.map((u) => u.id));
+  const all = data ? [...data, ...(refreshedFound ?? found).filter((u) => !known.has(u.id))] : undefined;
   const needle = text.trim().toLowerCase();
-  const rows = data?.filter((u) => (!role || u.roles.includes(role))
+  const rows = all?.filter((u) => (!role || u.roles.includes(role))
     && (!needle || u.name.toLowerCase().includes(needle) || u.email.toLowerCase().includes(needle)));
+  const canLookUp = looksLikeEmail(text) && rows?.length === 0;
+
+  async function lookUp() {
+    setLookup({ busy: true });
+    try {
+      const person = await findUserByEmail(text);
+      if (person) {
+        setFound((current) => [...current.filter((u) => u.id !== person.id), person]);
+        setLookup({ busy: false });
+      } else {
+        setLookup({ busy: false, message: `No SwiftDrop account uses ${text.trim()}.` });
+      }
+    } catch (failure) {
+      setLookup({ busy: false, message: failure instanceof Error ? failure.message : 'The lookup failed. Please try again.' });
+    }
+  }
 
   const done = (message: string) => {
     setEditing(undefined);
@@ -87,10 +114,12 @@ export function UsersRolesPage() {
 
   return (
     <>
-      <PageHeader title="Users and Roles" subtitle={data ? `${data.length} accounts` : 'Accounts in the SwiftDrop auth service'} />
+      <PageHeader title="Users and Roles"
+        subtitle={data ? `${data.length} accounts with a role. Type a full email to find anyone else.` : 'Accounts in the SwiftDrop auth service'} />
 
       <div className={styles.toolbar}>
-        <SearchBox value={text} onChange={setText} label="Search accounts" placeholder="Search by name or email" />
+        <SearchBox value={text} onChange={(value) => { setText(value); setLookup({ busy: false }); }} label="Search accounts"
+          placeholder="Search by name or email" />
         <label className={styles.select}>
           <span className={styles.visuallyHidden}>Role</span>
           <select value={role} onChange={(e) => setRole(e.target.value as AdminRole | '')}>
@@ -118,7 +147,7 @@ export function UsersRolesPage() {
               {rows?.map((u) => (
                 <tr key={u.id}>
                   <td><strong>{u.name}</strong></td>
-                  <td>{u.email}</td>
+                  <td>{u.email || <span className={styles.muted}>—</span>}</td>
                   <td>
                     <span className={styles.badgeRow}>
                       {u.roles.map((r) => <ToneBadge key={r} tone={roleTones[r]}>{roleLabels[r]}</ToneBadge>)}
@@ -146,7 +175,18 @@ export function UsersRolesPage() {
             </tbody>
           </table>
         </div>
-        {rows?.length === 0 && <p className={styles.empty}>No accounts match.</p>}
+        {rows?.length === 0 && (
+          <div className={styles.empty}>
+            {lookup.message ?? (canLookUp ? 'Nobody with a role matches this email.' : 'No accounts match. Type a full email to look someone up.')}
+            {canLookUp && !lookup.message && (
+              <p>
+                <button className={styles.secondaryButton} type="button" onClick={() => void lookUp()} disabled={lookup.busy}>
+                  <DispatcherIcon name="search" size={16} /> {lookup.busy ? 'Looking up…' : `Find ${text.trim()}`}
+                </button>
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {editing && <RolesDialog user={editing} onClose={() => setEditing(undefined)} onSaved={done} />}

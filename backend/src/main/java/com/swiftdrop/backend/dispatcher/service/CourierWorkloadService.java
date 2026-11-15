@@ -18,8 +18,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Couriers with their current workload, for Courier Workloads and the assign dialog. Read-only: creating and editing
- * courier profiles is a separate piece of work.
+ * Couriers with their current workload, for Couriers, Courier Workloads and the assign dialog. Read-only: creating and
+ * editing profiles is CourierProfileService.
  */
 @Service
 @Transactional(readOnly = true)
@@ -56,10 +56,17 @@ public class CourierWorkloadService {
         Map<Long, List<String>> tracking = assignments.findAllActiveWithDelivery().stream()
                 .collect(Collectors.groupingBy(a -> a.getCourier().getId(),
                         Collectors.mapping((CourierAssignment a) -> a.getDelivery().getTrackingNumber(), Collectors.toList())));
-        return list.stream().map(c -> {
-            List<String> current = tracking.getOrDefault(c.getId(), List.of());
-            return new CourierWorkloadResponse(c.getId(), AssignmentResponse.nameOf(c.getUser()), c.getPhoneNumber(),
-                    c.getVehicleType(), c.getVehicleNumber(), c.getAvailability(), current.size(), current);
-        }).toList();
+        return list.stream().map(c -> response(c, tracking.getOrDefault(c.getId(), List.of()))).toList();
+    }
+
+    /** One courier with its workload (e.g. right after creating or editing the profile). */
+    CourierWorkloadResponse one(Courier courier) {
+        return response(courier, assignments.findActiveTrackingNumbers(courier.getId()));
+    }
+
+    private static CourierWorkloadResponse response(Courier c, List<String> current) {
+        return new CourierWorkloadResponse(c.getId(), AssignmentResponse.nameOf(c.getUser()), c.getPhoneNumber(),
+                c.getVehicleType(), c.getVehicleNumber(), c.getAvailability(), current.size(), current,
+                c.getUser().getId(), c.getUser().isActive(), c.getUser().hasRole("COURIER"));
     }
 }

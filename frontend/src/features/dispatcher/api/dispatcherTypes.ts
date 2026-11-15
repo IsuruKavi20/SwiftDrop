@@ -97,6 +97,12 @@ export interface CourierWorkload {
   activeDeliveries: number;
   /** Tracking numbers of the courier's active assignments, oldest first. */
   currentTrackingNumbers: string[];
+  /** The person's auth id (from the backend; the sample data leaves these out). */
+  userId?: string;
+  /** False once the account is blocked in the auth service. */
+  accountActive?: boolean;
+  /** False once the Courier role is taken away. */
+  courierRole?: boolean;
 }
 
 /** DispatcherDeliveryRepository.countByStatus: statuses with no deliveries are 0. */

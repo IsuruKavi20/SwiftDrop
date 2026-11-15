@@ -2,6 +2,7 @@ package com.swiftdrop.backend.customer.service;
 
 import com.swiftdrop.backend.customer.dto.*;
 import com.swiftdrop.backend.customer.entity.DeliveryType;
+import com.swiftdrop.backend.pricing.Tariff;
 import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.util.List;
@@ -9,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Fee is displayed before booking and saved unchanged on confirmation. */
 class CustomerPricingServiceTest {
-    private final CustomerPricingService pricing = new CustomerPricingService();
+    private final CustomerPricingService pricing = new CustomerPricingService(Tariff::defaults);
     private CreateDeliveryRequest booking(String origin, String destination, DeliveryType service) {
         var pickup=new DeliveryAddressRequest("Sender","0771234567","Main Road","Colombo",origin,"00100");
         var dropoff=new DeliveryAddressRequest("Recipient","0711234567","Lake Road","Kandy",destination,"20000");

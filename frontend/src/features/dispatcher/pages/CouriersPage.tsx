@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { createCourierProfile, listCourierAccountsWithoutProfile, listCourierProfiles, updateCourierProfile } from '../api/adminApi';
-import type { CourierProfile, CourierProfileInput } from '../api/adminTypes';
+import {
+  createCourierProfile, findUserByEmail, listCourierAccountsWithoutProfile, listCourierProfiles, updateCourierProfile,
+} from '../api/adminApi';
+import type { AdminUser, CourierProfile, CourierProfileInput } from '../api/adminTypes';
 import type { CourierAvailability } from '../api/dispatcherTypes';
-import { AvailabilityBadge } from '../components/Badges';
+import { AvailabilityBadge, ToneBadge } from '../components/Badges';
 import { DispatcherIcon } from '../components/DispatcherIcon';
 import { PageHeader } from '../components/DispatcherLayout';
 import { FormDialog } from '../components/FormDialog';
@@ -12,11 +14,34 @@ import { useToast } from '../lib/useToast';
 import styles from '../components/Dispatcher.module.css';
 
 const AVAILABILITIES = Object.keys(availabilityLabels) as CourierAvailability[];
+const withEmail = (name: string, email: string) => (email ? `${name} · ${email}` : name);
 
 /** Add (courier undefined) or edit a courier's work profile: the courier table's phone, vehicle and availability. */
 function CourierDialog({ courier, onClose, onSaved }: { courier?: CourierProfile; onClose: () => void; onSaved: (message: string) => void }) {
-  const { data: accounts } = useDispatchData(listCourierAccountsWithoutProfile, []);
+  const { data: listed } = useDispatchData(listCourierAccountsWithoutProfile, []);
   const [userId, setUserId] = useState('');
+  // A Courier account the backend hasn't seen yet, found in the auth service by email
+  const [found, setFound] = useState<AdminUser>();
+  const [email, setEmail] = useState('');
+  const [lookup, setLookup] = useState<{ busy: boolean; message?: string }>({ busy: false });
+  const accounts = found && !listed?.some((a) => a.id === found.id) ? [...(listed ?? []), found] : listed;
+
+  async function lookUp() {
+    setLookup({ busy: true });
+    try {
+      const person = await findUserByEmail(email);
+      if (!person) setLookup({ busy: false, message: `No SwiftDrop account uses ${email.trim()}.` });
+      else if (!person.roles.includes('COURIER')) setLookup({ busy: false, message: `${person.name} doesn't have the Courier role. Give it in Users and Roles first.` });
+      else if (!person.active) setLookup({ busy: false, message: `${person.name}'s account is blocked.` });
+      else {
+        setFound(person);
+        setUserId(person.id);
+        setLookup({ busy: false });
+      }
+    } catch (failure) {
+      setLookup({ busy: false, message: failure instanceof Error ? failure.message : 'The lookup failed. Please try again.' });
+    }
+  }
   const [form, setForm] = useState<CourierProfileInput>({
     phoneNumber: courier?.phoneNumber ?? '',
     vehicleType: courier?.vehicleType ?? '',
@@ -27,7 +52,7 @@ function CourierDialog({ courier, onClose, onSaved }: { courier?: CourierProfile
   const adding = !courier;
 
   return (
-    <FormDialog title={adding ? 'Add courier' : 'Edit courier'} subtitle={courier ? `${courier.name} · ${courier.email}` : 'Create the work profile for a Courier account.'}
+    <FormDialog title={adding ? 'Add courier' : 'Edit courier'} subtitle={courier ? withEmail(courier.name, courier.email) : 'Create the work profile for a Courier account.'}
       submitLabel={adding ? 'Add courier' : 'Save'} canSubmit={(!adding || userId !== '') && form.phoneNumber.trim() !== ''} onClose={onClose}
       onSubmit={async () => {
         if (courier) {
@@ -44,12 +69,23 @@ function CourierDialog({ courier, onClose, onSaved }: { courier?: CourierProfile
             <span>Courier account</span>
             <select value={userId} onChange={(e) => setUserId(e.target.value)} required>
               <option value="">Choose an account…</option>
-              {accounts?.map((a) => <option key={a.id} value={a.id}>{a.name} · {a.email}</option>)}
+              {accounts?.map((a) => <option key={a.id} value={a.id}>{withEmail(a.name, a.email)}</option>)}
             </select>
           </label>
         )}
-        {adding && accounts?.length === 0 && (
-          <p className={styles.infoBox}>Every Courier account already has a profile. Give someone the Courier role in Users and Roles first.</p>
+        {adding && (
+          <div className={`${styles.field} ${styles.wide}`}>
+            <label htmlFor="courier-email">Not in the list? Find a Courier account by email</label>
+            <span className={styles.lookupRow}>
+              <input id="courier-email" type="email" value={email} placeholder="courier@example.com"
+                onChange={(e) => { setEmail(e.target.value); setLookup({ busy: false }); }} />
+              <button className={styles.secondaryButton} type="button" disabled={lookup.busy || !email.includes('@')}
+                onClick={() => void lookUp()}>
+                {lookup.busy ? 'Looking up…' : 'Find'}
+              </button>
+            </span>
+            {lookup.message && <small role="alert">{lookup.message}</small>}
+          </div>
         )}
         <label className={styles.field}>
           <span>Phone number</span>
@@ -105,8 +141,16 @@ export function CouriersPage() {
             <tbody>
               {data?.map((c) => (
                 <tr key={c.courierId}>
-                  <td><strong>{c.name}</strong></td>
-                  <td>{c.email}<a className={styles.cellSub} href={`tel:${c.phoneNumber}`}>{c.phoneNumber}</a></td>
+                  <td>
+                    <strong>{c.name}</strong>
+                    {(!c.accountActive || !c.courierRole) && (
+                      <span className={styles.badgeRow}>
+                        {!c.accountActive && <ToneBadge tone="grey">Account blocked</ToneBadge>}
+                        {!c.courierRole && <ToneBadge tone="amber">No Courier role</ToneBadge>}
+                      </span>
+                    )}
+                  </td>
+                  <td>{c.email || <span className={styles.muted}>Email unavailable</span>}<a className={styles.cellSub} href={`tel:${c.phoneNumber}`}>{c.phoneNumber}</a></td>
                   <td>
                     {c.vehicleType ?? <span className={styles.muted}>—</span>}
                     {c.vehicleNumber && <small className={styles.cellSub}>{c.vehicleNumber}</small>}

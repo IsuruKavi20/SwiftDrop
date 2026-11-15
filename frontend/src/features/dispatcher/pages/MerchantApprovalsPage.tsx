@@ -28,7 +28,7 @@ function DecisionDialog({ pending, onClose, onSaved }: { pending: Pending; onClo
   }[action];
 
   return (
-    <FormDialog title={copy.title} subtitle={`${m.businessName} · ${m.registrationNumber}`} submitLabel={copy.button} danger={copy.danger}
+    <FormDialog title={copy.title} subtitle={m.registrationNumber ? `${m.businessName} · ${m.registrationNumber}` : m.businessName} submitLabel={copy.button} danger={copy.danger}
       canSubmit={action !== 'REJECT' || reason.trim().length > 0} onClose={onClose}
       onSubmit={async () => {
         if (action === 'APPROVE' || action === 'REJECT') await decideMerchant(m.merchantId, action, reason);
@@ -65,16 +65,17 @@ export function MerchantApprovalsPage() {
             <header>
               <div>
                 <h3>{m.businessName}</h3>
-                <small>Applied {formatDateTime(m.submittedAt)}</small>
+                {m.submittedAt && <small>Applied {formatDateTime(m.submittedAt)}</small>}
               </div>
               <MerchantStatus status={m.status} />
             </header>
             <dl>
-              <dt>Registration no.</dt><dd className={styles.mono}>{m.registrationNumber}</dd>
+              <dt>Registration no.</dt><dd className={styles.mono}>{m.registrationNumber || '—'}</dd>
               <dt>Website</dt>
               <dd>{m.website ? <a href={m.website} target="_blank" rel="noreferrer">{m.website}</a> : <span className={styles.muted}>Not given</span>}</dd>
-              <dt>Applicant</dt><dd>{m.applicantName}</dd>
-              <dt>Email</dt><dd><a href={`mailto:${m.applicantEmail}`}>{m.applicantEmail}</a></dd>
+              <dt>Applicant</dt><dd>{m.applicantName || <span className={styles.muted}>Not given</span>}</dd>
+              <dt>Email</dt>
+              <dd>{m.applicantEmail ? <a href={`mailto:${m.applicantEmail}`}>{m.applicantEmail}</a> : <span className={styles.muted}>Not given</span>}</dd>
             </dl>
             <div className={styles.cardActions}>
               <button className={styles.primaryButton} type="button" onClick={() => setPending({ application: m, action: 'APPROVE' })}>Approve</button>
@@ -102,7 +103,7 @@ export function MerchantApprovalsPage() {
               {reviewed.map((m) => (
                 <tr key={m.merchantId}>
                   <td><strong>{m.businessName}</strong><small className={styles.cellSub}>{m.registrationNumber}</small></td>
-                  <td>{m.applicantName}<small className={styles.cellSub}>{m.applicantEmail}</small></td>
+                  <td>{m.applicantName || <span className={styles.muted}>—</span>}<small className={styles.cellSub}>{m.applicantEmail}</small></td>
                   <td className={styles.dateCell}>{m.decidedAt ? formatDateTime(m.decidedAt) : '—'}</td>
                   <td><MerchantStatus status={m.status} /></td>
                   <td className={styles.reasonCell}>{m.reason ?? <span className={styles.muted}>—</span>}</td>
