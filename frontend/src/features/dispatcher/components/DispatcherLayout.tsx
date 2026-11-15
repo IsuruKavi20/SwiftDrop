@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import logoMark from '../../../assets/brand/logo-mark.svg';
 import { navigate, routes } from '../../../app/router';
 import { logOut } from '../../auth/api/authApi';
+import { otherAreas } from '../../auth/lib/areas';
 import { countUnassignedDeliveries, getStatusCounts, usingSampleData } from '../api/dispatcherApi';
 import { listMerchantApplications } from '../api/adminApi';
 import { dispatcherPages, dispatcherPath, dispatcherSections, type DispatcherPageId } from '../dispatcherRoutes';
@@ -108,6 +109,13 @@ export function DispatcherLayout({ page, preview, name, children }: DispatcherLa
             </div>
           ))}
         </nav>
+
+        {!preview && otherAreas('admin').filter((area) => area.id === 'customer').map((area) => (
+          <button key={area.id} type="button" className={`${styles.navItem} ${styles.switchView}`} onClick={() => navigate(area.path)}>
+            <DispatcherIcon name="user" />
+            <span className={styles.navLabel}>Customer view</span>
+          </button>
+        ))}
 
         <div className={styles.sidebarFooter}>
           <span className={styles.avatar} aria-hidden="true">{initials}</span>
