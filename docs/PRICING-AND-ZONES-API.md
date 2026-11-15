@@ -13,7 +13,7 @@ the shared problem JSON (`docs/ERRORS.md`): field errors as `errors.<field>`.
   Same day; none for Standard). All LKR.
 - **Version 0** = nothing published yet: the server's settings apply (`swiftdrop.customer.pricing.*`, by default
   350 / 650 / 120 / 350 / 650). `publishedAt` and `publishedBy` are then `null`.
-- Each publish adds a row to `pricing_version` (V15); old versions are kept. Rates: required, 0 to 999,999.99, at most
+- Each publish adds a row to `pricing_version` (V16); old versions are kept. Rates: required, 0 to 999,999.99, at most
   2 decimals → `400`. Two admins publishing at the same moment: the second gets `409`, publish again.
 - **Bookings keep their fee.** `delivery.estimated_fee` is stored when the booking is made, so a new tariff never
   reprices a parcel. New quotes (`POST /api/customers/me/deliveries/estimate`) and bookings use it at once; the
@@ -32,7 +32,7 @@ the shared problem JSON (`docs/ERRORS.md`): field errors as `errors.<field>`.
 - Districts: at least one, only Sri Lanka's 25 (any letter case; returned in province order) → `400` for others.
   Each district is in **one zone at most** → `409` naming the district and its zone. To move a district, take it
   out of its zone first.
-- Tables `delivery_zone` and `delivery_zone_district` (V16); the UNIQUE `district` column backs the one-zone rule.
+- Tables `delivery_zone` and `delivery_zone_district` (V17); the UNIQUE `district` column backs the one-zone rule.
 - **Zones don't change prices or bookings yet.** What an inactive zone should do (refuse bookings there? tie couriers
   to zones?) is still a team decision.
 
