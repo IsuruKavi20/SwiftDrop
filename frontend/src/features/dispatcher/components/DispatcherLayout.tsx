@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import logoMark from '../../../assets/brand/logo-mark.svg';
 import { navigate, routes } from '../../../app/router';
 import { logOut } from '../../auth/api/authApi';
+import { otherAreas } from '../../auth/lib/areas';
 import { countUnassignedDeliveries, getStatusCounts, usingSampleData } from '../api/dispatcherApi';
 import { listMerchantApplications } from '../api/adminApi';
 import { dispatcherPages, dispatcherPath, dispatcherSections, type DispatcherPageId } from '../dispatcherRoutes';
@@ -156,11 +157,12 @@ export function DispatcherLayout({ page, preview, name, children }: DispatcherLa
           ))}
         </nav>
 
-        <button className={styles.collapseButton} type="button" onClick={toggleCollapsed}
-          aria-expanded={!collapsed} title={collapsed ? 'Expand sidebar' : undefined}>
-          <DispatcherIcon name={collapsed ? 'right' : 'left'} size={18} />
-          <span className={styles.collapseLabel}>{collapsed ? 'Expand sidebar' : 'Collapse'}</span>
-        </button>
+        {!preview && otherAreas('admin').filter((area) => area.id === 'customer').map((area) => (
+          <button key={area.id} type="button" className={`${styles.navItem} ${styles.switchView}`} onClick={() => navigate(area.path)}>
+            <DispatcherIcon name="user" />
+            <span className={styles.navLabel}>Customer view</span>
+          </button>
+        ))}
 
         <div className={styles.sidebarFooter}>
           <span className={styles.avatar} aria-hidden="true">{initials}</span>

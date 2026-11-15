@@ -84,11 +84,10 @@ export function landingPage(): string {
   const claims = readClaims(token);
   const permissions = claims.entitlements ?? [];
 
-  // Already a merchant: the application page has nothing left to do, open the dashboard
-  if (next === routes.merchantApply && permissions.includes('merchant:api-access')) {
-    return routes.merchantDashboard;
-  }
-  if (next) return next;
+  // The merchant application is only for plain customers: admins and existing merchants ignore an old
+  // "Sell with SwiftDrop" click (e.g. from testing) and go to their own area below
+  const canApply = !permissions.includes('user:read') && !permissions.includes('merchant:api-access');
+  if (next && (next !== routes.merchantApply || canApply)) return next;
 
   // Admins first: their token can also carry customer permissions, and "user:read" is what the admin area checks.
   if (permissions.includes('user:read')) {
