@@ -158,11 +158,18 @@ export function DispatcherLayout({ page, preview, name, children }: DispatcherLa
         </nav>
 
         {!preview && otherAreas('admin').filter((area) => area.id === 'customer').map((area) => (
-          <button key={area.id} type="button" className={`${styles.navItem} ${styles.switchView}`} onClick={() => navigate(area.path)}>
-            <DispatcherIcon name="user" />
+          <button key={area.id} type="button" className={`${styles.navItem} ${styles.switchView}`} onClick={() => navigate(area.path)}
+            title={collapsed ? 'Customer view' : undefined}>
+            <span className={styles.navIcon}><DispatcherIcon name="user" size={18} /></span>
             <span className={styles.navLabel}>Customer view</span>
           </button>
         ))}
+
+        <button className={styles.collapseButton} type="button" onClick={toggleCollapsed}
+          aria-expanded={!collapsed} title={collapsed ? 'Expand sidebar' : undefined}>
+          <DispatcherIcon name={collapsed ? 'right' : 'left'} size={18} />
+          <span className={styles.collapseLabel}>{collapsed ? 'Expand sidebar' : 'Collapse'}</span>
+        </button>
 
         <div className={styles.sidebarFooter}>
           <span className={styles.avatar} aria-hidden="true">{initials}</span>
