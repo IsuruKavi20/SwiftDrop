@@ -306,9 +306,9 @@ test.describe('Merchant Dashboard E2E', () => {
     const banner = page.locator('text=Complete your merchant business profile');
     await expect(banner).toBeVisible();
 
-    // Clicking "Complete Profile →" button navigates to /merchant/profile
+    // Clicking "Complete Profile →" button navigates to styled Business Profile
     await page.click('button:has-text("Complete Profile →")');
-    await expect(page).toHaveURL(/\/merchant\/profile/);
+    await expect(page).toHaveURL(/\/merchant\/(business-)?profile/);
   });
 
   test('3. Status filter pills filter orders table', async ({ page }) => {
@@ -466,10 +466,7 @@ test.describe('Merchant Dashboard E2E', () => {
 
     await page.goto('/merchant/dashboard');
 
-    await expect(page.locator('text=Access Denied')).toBeVisible();
-    await expect(
-      page.locator('text=You need merchant privileges to access this dashboard')
-    ).toBeVisible();
+    await expect(page).toHaveURL(/\/account/);
   });
 
   test('8. Mobile viewport adapts layout cleanly', async ({ page }) => {

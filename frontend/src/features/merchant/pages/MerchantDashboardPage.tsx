@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import logoIcon from '../../../assets/auth/logo-box.svg';
 import { navigate, routes } from '../../../app/router';
-import { logOut, refresh } from '../../auth/api/authApi';
+import { logOut } from '../../auth/api/authApi';
 import { Alert } from '../../auth/components/FormControls';
-import { getAccessToken, readClaims, type AccessClaims } from '../../auth/lib/session';
+import { claimsWithFreshRoles } from '../../auth/lib/freshClaims';
+import type { AccessClaims } from '../../auth/lib/session';
 import {
   getMerchantDashboard,
   getMerchantDeliveries,
@@ -16,6 +16,9 @@ import { MerchantApiError } from '../api/merchantApi';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
 import styles from '../components/MerchantDashboard.module.css';
 import previewStyles from './MerchantDashboardPage.module.css';
+import ordersStyles from './MerchantOrders.module.css';
+import shared from './MerchantPages.module.css';
+import extra from './StoreOrdersPage.module.css';
 import { MerchantIcon, type MerchantIconName } from '../components/MerchantIcon';
 import { MerchantLink } from '../components/MerchantLink';
 import { ParcelIllustration } from '../components/ParcelIllustration';
@@ -38,16 +41,21 @@ const STATUS_LABELS: Record<DeliveryStatus, string> = {
   CANCELLED: 'Cancelled',
 };
 
-const STATUS_TONE: Record<DeliveryStatus, string> = {
-  PENDING: styles.toneNeutral,
-  CONFIRMED: styles.toneInfo,
-  PICKED_UP: styles.toneInfo,
-  IN_TRANSIT: styles.toneInfo,
-  OUT_FOR_DELIVERY: styles.toneInfo,
-  DELIVERED: styles.toneSuccess,
-  FAILED: styles.toneError,
-  CANCELLED: styles.toneNeutral,
-};
+function statusBadgeClass(status: DeliveryStatus): string {
+  switch (status) {
+    case 'DELIVERED':
+      return extra.statusSuccess;
+    case 'FAILED':
+      return extra.statusError;
+    case 'CONFIRMED':
+    case 'PICKED_UP':
+    case 'IN_TRANSIT':
+    case 'OUT_FOR_DELIVERY':
+      return extra.statusInfo;
+    default:
+      return extra.statusNeutral;
+  }
+}
 
 const FILTER_OPTIONS: Array<{ label: string; value: DeliveryStatus | 'ALL' }> = [
   { label: 'All', value: 'ALL' },
@@ -71,23 +79,8 @@ function formatDate(iso: string | null | undefined): string {
   }
 }
 
+// Always start by loading: a missing merchant role is only final after a fresh token (see fetchDashboardData)
 function getInitialPageState(): PageState {
-  const token = getAccessToken();
-  if (token) {
-    try {
-      const claims = readClaims(token);
-      const permissions = claims.entitlements ?? [];
-      if (!permissions.includes('merchant:api-access')) {
-        return {
-          kind: 'accessDenied',
-          message:
-            'You need merchant privileges to access this dashboard. Please sign in with an authorized merchant account.',
-        };
-      }
-    } catch {
-      // Ignored: malformed or expired token will be recovered via refresh flow
-    }
-  }
   return { kind: 'loading' };
 }
 
@@ -96,19 +89,11 @@ async function fetchDashboardData(): Promise<{
   deliveries: PageResponse<MerchantDeliverySummary>;
   claims: AccessClaims;
 }> {
-  let token = getAccessToken();
-  if (!token) {
-    const refreshed = await refresh();
-    if (!refreshed) {
-      throw new MerchantApiError(401, 'Session expired');
-    }
-    token = getAccessToken();
-    if (!token) {
-      throw new MerchantApiError(401, 'Session expired');
-    }
+  // A just-approved merchant still holds the old token: claimsWithFreshRoles refreshes once before saying no
+  const claims = await claimsWithFreshRoles('merchant:api-access');
+  if (!claims) {
+    throw new MerchantApiError(401, 'Session expired');
   }
-
-  const claims = readClaims(token);
   const permissions = claims.entitlements ?? [];
   if (!permissions.includes('merchant:api-access')) {
     throw new MerchantApiError(
@@ -125,8 +110,20 @@ async function fetchDashboardData(): Promise<{
   return { dashboard, deliveries, claims };
 }
 
-function RealMerchantDashboard() {
-  const [pageState, setPageState] = useState<PageState>(getInitialPageState);
+function RealMerchantDashboard({ claims: propClaims }: { claims?: AccessClaims } = {}) {
+  const [pageState, setPageState] = useState<PageState>(() => {
+    if (propClaims) {
+      const permissions = propClaims.entitlements ?? [];
+      if (!permissions.includes('merchant:api-access')) {
+        return {
+          kind: 'accessDenied',
+          message:
+            'You need merchant privileges to access this dashboard. Please sign in with an authorized merchant account.',
+        };
+      }
+    }
+    return getInitialPageState();
+  });
   const [deliveries, setDeliveries] = useState<PageResponse<MerchantDeliverySummary> | null>(null);
   const [loadingOrders, setLoadingOrders] = useState<boolean>(false);
   const [statusFilter, setStatusFilter] = useState<DeliveryStatus | 'ALL'>('ALL');
@@ -151,7 +148,7 @@ function RealMerchantDashboard() {
     fetchDashboardData()
       .then(({ dashboard, deliveries: deliveriesPage, claims }) => {
         if (active) {
-          setPageState({ kind: 'ready', dashboard, claims });
+          setPageState({ kind: 'ready', dashboard, claims: propClaims || claims });
           setDeliveries(deliveriesPage);
         }
       })
@@ -178,22 +175,9 @@ function RealMerchantDashboard() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [propClaims]);
 
-  useEffect(() => {
-    const initialToken = getAccessToken();
-    if (initialToken) {
-      try {
-        const claims = readClaims(initialToken);
-        if (!(claims.entitlements ?? []).includes('merchant:api-access')) {
-          return;
-        }
-      } catch {
-        // proceed to loadDashboard
-      }
-    }
-    return loadDashboard();
-  }, [loadDashboard]);
+  useEffect(() => loadDashboard(), [loadDashboard]);
 
   function handleFilterChange(newFilter: DeliveryStatus | 'ALL') {
     setStatusFilter(newFilter);
@@ -218,336 +202,282 @@ function RealMerchantDashboard() {
 
   if (pageState.kind === 'loading') {
     return (
-      <div className={styles.page}>
-        <div style={{ textAlign: 'center', padding: '64px 20px', color: 'var(--color-text-muted)' }}>
-          <p>Loading merchant dashboard…</p>
-        </div>
+      <div style={{ textAlign: 'center', padding: '64px 20px', color: 'var(--color-text-muted)' }}>
+        <p>Loading merchant dashboard…</p>
       </div>
     );
   }
 
   if (pageState.kind === 'accessDenied') {
     return (
-      <div className={styles.page}>
-        <main className={styles.main}>
-          <div className={styles.ordersSection}>
-            <h2 className={styles.sectionTitle} style={{ color: 'var(--color-error)' }}>
-              Access Denied
-            </h2>
-            <Alert kind="error">{pageState.message}</Alert>
-            <div style={{ marginTop: '16px', display: 'flex', gap: '12px' }}>
-              <button
-                type="button"
-                className={styles.primaryButton}
-                onClick={() => navigate(routes.account)}
-              >
-                Go to Account
-              </button>
-              <button
-                type="button"
-                className={styles.ghostButton}
-                onClick={() => void onLogOut()}
-              >
-                Sign in with another account
-              </button>
-            </div>
-          </div>
-        </main>
+      <div className={shared.state} style={{ padding: '2rem 1rem' }}>
+        <h2 style={{ color: 'var(--color-error)' }}>Access Denied</h2>
+        <Alert kind="error">{pageState.message}</Alert>
+        <div style={{ marginTop: '16px', display: 'flex', gap: '12px' }}>
+          <button
+            type="button"
+            className={shared.button}
+            onClick={() => navigate(routes.account)}
+          >
+            Go to Account
+          </button>
+          <button
+            type="button"
+            className={shared.button}
+            onClick={() => void onLogOut()}
+          >
+            Sign in with another account
+          </button>
+        </div>
       </div>
     );
   }
 
   if (pageState.kind === 'error') {
     return (
-      <div className={styles.page}>
-        <main className={styles.main}>
-          <div className={styles.ordersSection}>
-            <h2 className={styles.sectionTitle} style={{ color: 'var(--color-error)' }}>
-              Error Loading Dashboard
-            </h2>
-            <Alert kind="error">{pageState.message}</Alert>
-            <div style={{ marginTop: '16px', display: 'flex', gap: '12px' }}>
-              <button
-                type="button"
-                className={styles.primaryButton}
-                onClick={handleRetry}
-              >
-                Retry
-              </button>
-              <button
-                type="button"
-                className={styles.ghostButton}
-                onClick={() => navigate(routes.account)}
-              >
-                Go to Account
-              </button>
-            </div>
-          </div>
-        </main>
+      <div className={shared.state} style={{ padding: '2rem 1rem' }}>
+        <h2 style={{ color: 'var(--color-error)' }}>Error Loading Dashboard</h2>
+        <Alert kind="error">{pageState.message}</Alert>
+        <div style={{ marginTop: '16px', display: 'flex', gap: '12px' }}>
+          <button
+            type="button"
+            className={shared.button}
+            onClick={handleRetry}
+          >
+            Retry
+          </button>
+          <button
+            type="button"
+            className={shared.button}
+            onClick={() => navigate(routes.account)}
+          >
+            Go to Account
+          </button>
+        </div>
       </div>
     );
   }
 
-  const { dashboard, claims } = pageState;
-  const permissions = claims.entitlements ?? [];
+  const { dashboard } = pageState;
   const tradingName = dashboard.businessName || 'Merchant Portal';
 
+  const metricCards: { label: string; icon: MerchantIconName; tone: string; count: number }[] = [
+    { label: 'Total Orders', icon: 'box', tone: 'orange', count: dashboard.totalOrders ?? 0 },
+    { label: 'Pending', icon: 'cart', tone: 'amber', count: dashboard.pendingOrders ?? 0 },
+    { label: 'In Transit', icon: 'truck', tone: 'blue', count: dashboard.inTransitOrders ?? 0 },
+    { label: 'Delivered', icon: 'completed', tone: 'green', count: dashboard.deliveredOrders ?? 0 },
+  ];
+
   return (
-    <div className={styles.page}>
-      {/* Top Navbar */}
-      <header className={styles.navbar}>
-        <div className={styles.merchantIdentity}>
-          <a
-            href={routes.merchantDashboard}
-            className={styles.navBrand}
-            onClick={(e) => {
-              e.preventDefault();
-            }}
-          >
-            <span className={styles.logoMark}>
-              <img src={logoIcon} width={20} height={20} alt="" />
+    <div className={previewStyles.dashboard}>
+      {/* Profile Completion Warning Banner */}
+      {!dashboard.profileComplete && (
+        <div className={previewStyles.profileWarningBanner} role="alert">
+          <div className={previewStyles.bannerContent}>
+            <span style={{ fontSize: '24px' }} aria-hidden="true">
+              ⚠️
             </span>
-            SwiftDrop <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text-muted)' }}>Merchant</span>
-          </a>
-          <span className={styles.tradingName}>• {tradingName}</span>
-        </div>
-
-        <div className={styles.navActions}>
-          <button
-            type="button"
-            className={styles.ghostButton}
-            onClick={() => navigate('/merchant/orders')}
-          >
-            Store Orders
-          </button>
-          <button
-            type="button"
-            className={styles.ghostButton}
-            onClick={() => navigate('/merchant/create-order')}
-          >
-            Create Order
-          </button>
-          <button
-            type="button"
-            className={styles.ghostButton}
-            onClick={() => navigate('/merchant/api-credentials')}
-          >
-            API Keys
-          </button>
-          <button
-            type="button"
-            className={styles.ghostButton}
-            onClick={() => navigate('/merchant/webhooks')}
-          >
-            Webhooks
-          </button>
-          <button
-            type="button"
-            className={styles.ghostButton}
-            onClick={() => navigate(routes.merchantProfile)}
-          >
-            Business Profile
-          </button>
-          {permissions.includes('parcel:read-own') && (
-            <button
-              type="button"
-              className={styles.ghostButton}
-              onClick={() => navigate(routes.customerDashboard)}
-            >
-              Customer Dashboard
-            </button>
-          )}
-          <button
-            type="button"
-            className={styles.ghostButton}
-            onClick={() => navigate(routes.account)}
-          >
-            Account
-          </button>
-          <button
-            type="button"
-            className={styles.ghostButton}
-            onClick={() => void onLogOut()}
-          >
-            Sign out
-          </button>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className={styles.main}>
-        {/* Profile Completion Warning Banner */}
-        {!dashboard.profileComplete && (
-          <div className={styles.profileWarningBanner}>
-            <div className={styles.bannerContent}>
-              <span className={styles.bannerIcon} aria-hidden="true">
-                ⚠️
-              </span>
-              <div>
-                <span className={styles.bannerTitle}>Complete your merchant business profile</span>
-                <p className={styles.bannerText}>
-                  Your merchant business profile is missing required address or contact details.
-                  Complete it to enable full dispatch services.
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              className={styles.bannerAction}
-              onClick={() => navigate(routes.merchantProfile)}
-            >
-              Complete Profile →
-            </button>
-          </div>
-        )}
-
-        {/* Statistics Cards */}
-        <section
-          className={styles.statsSection}
-          aria-label="Order summary statistics"
-          role="region"
-        >
-          <div className={styles.statCard}>
-            <span className={styles.statLabel}>Total Orders</span>
-            <span className={styles.statValue}>{dashboard.totalOrders}</span>
-          </div>
-          <div className={styles.statCard}>
-            <span className={styles.statLabel}>Pending</span>
-            <span className={styles.statValue}>{dashboard.pendingOrders}</span>
-          </div>
-          <div className={styles.statCard}>
-            <span className={styles.statLabel}>In Transit</span>
-            <span className={styles.statValue}>{dashboard.inTransitOrders}</span>
-          </div>
-          <div className={styles.statCard}>
-            <span className={styles.statLabel}>Delivered</span>
-            <span className={styles.statValue}>{dashboard.deliveredOrders}</span>
-          </div>
-        </section>
-
-        {/* Orders Table Section */}
-        <section className={styles.ordersSection}>
-          <div className={styles.ordersSectionHeader}>
-            <h2 className={styles.sectionTitle}>Merchant Store Deliveries</h2>
-
-            {/* Status Filter Buttons */}
-            <div className={styles.filterGroup}>
-              {FILTER_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  className={
-                    statusFilter === opt.value
-                      ? `${styles.filterButton} ${styles.filterButtonActive}`
-                      : styles.filterButton
-                  }
-                  onClick={() => handleFilterChange(opt.value)}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Table / Empty State / Loading */}
-          {loadingOrders ? (
-            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--color-text-muted)' }}>
-              <p>Loading deliveries…</p>
-            </div>
-          ) : !deliveries || deliveries.content.length === 0 ? (
-            <div className={styles.emptyState}>
-              <p className={styles.emptyTitle}>No store deliveries found</p>
-              <p className={styles.emptySubtitle}>
-                {statusFilter === 'ALL'
-                  ? 'Your store does not have any deliveries yet.'
-                  : `No deliveries found with status "${STATUS_LABELS[statusFilter]}".`}
+            <div>
+              <span className={previewStyles.bannerTitle}>Complete your merchant business profile</span>
+              <p className={previewStyles.bannerText}>
+                Your merchant business profile is missing required address or contact details.
+                Complete it to enable full dispatch services.
               </p>
             </div>
-          ) : (
-            <>
-              <div className={styles.tableWrapper}>
-                <table className={styles.ordersTable}>
-                  <thead>
-                    <tr>
-                      <th>Tracking Number</th>
-                      <th>Recipient</th>
-                      <th>Destination</th>
-                      <th>Type</th>
-                      <th>Status</th>
-                      <th>Date</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {deliveries.content.map((delivery) => (
-                      <tr
-                        key={delivery.id}
-                        className={styles.tableRow}
-                        onClick={() => setSelectedDeliveryId(delivery.id)}
-                      >
-                        <td className={styles.mono}>{delivery.trackingNumber}</td>
-                        <td>{delivery.receiverName || '—'}</td>
-                        <td>{delivery.destinationCity || '—'}</td>
-                        <td>
-                          <span className={styles.typeBadge}>{delivery.deliveryType}</span>
-                        </td>
-                        <td>
-                          <span
-                            className={`${styles.badge} ${
-                              STATUS_TONE[delivery.status] || styles.toneNeutral
-                            }`}
-                          >
-                            {STATUS_LABELS[delivery.status] || delivery.status}
-                          </span>
-                        </td>
-                        <td>{formatDate(delivery.createdAt)}</td>
-                        <td>
-                          <button
-                            type="button"
-                            className={styles.ghostButton}
-                            style={{ padding: '4px 10px', fontSize: '12px' }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedDeliveryId(delivery.id);
-                            }}
-                          >
-                            View Details
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+          </div>
+          <button
+            type="button"
+            className={`${shared.button} ${previewStyles.bannerAction}`}
+            onClick={() => navigate(merchantPath('business-profile', false))}
+          >
+            Complete Profile →
+          </button>
+        </div>
+      )}
 
-              {/* Pagination */}
-              <div className={styles.paginationBar}>
-                <span className={styles.pageInfo}>
-                  Showing page {deliveries.page + 1} of {Math.max(deliveries.totalPages, 1)} ({deliveries.totalElements} orders total)
-                </span>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    type="button"
-                    className={styles.ghostButton}
-                    disabled={currentPage === 0}
-                    onClick={() => handlePageChange(currentPage - 1)}
-                  >
-                    ← Previous
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.ghostButton}
-                    disabled={currentPage + 1 >= deliveries.totalPages}
-                    onClick={() => handlePageChange(currentPage + 1)}
-                  >
-                    Next →
-                  </button>
-                </div>
+      {/* Welcome / Business Name Banner */}
+      <section className={previewStyles.welcome} aria-labelledby="merchant-welcome">
+        <div>
+          <span className={previewStyles.eyebrow}>SwiftDrop Merchant</span>
+          <h2 id="merchant-welcome">• {tradingName}</h2>
+          <p style={{ margin: '0.4rem 0 0.8rem', color: 'var(--merchant-secondary)' }}>
+            Your store deliveries, tracking, and fulfillment overview.
+          </p>
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
+            <button
+              type="button"
+              className={shared.button}
+              onClick={() => navigate(routes.merchantProfile)}
+            >
+              Business Profile
+            </button>
+            <MerchantLink className={shared.button} href={merchantPath('orders', false)}>
+              Store Orders
+            </MerchantLink>
+          </div>
+        </div>
+        <ParcelIllustration />
+      </section>
+
+      {/* Summary Statistics Cards */}
+      <ul
+        className={previewStyles.metrics}
+        aria-label="Order summary statistics"
+        role="region"
+      >
+        {metricCards.map(({ label, icon, tone, count }) => (
+          <li className={previewStyles.metric} key={label}>
+            <span className={previewStyles.metricIcon} data-tone={tone}>
+              <MerchantIcon name={icon} size={23} />
+            </span>
+            <div>
+              <span className={previewStyles.metricLabel}>{label}</span>
+              <strong className={previewStyles.metricValue}>{count}</strong>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      {/* Orders Table Section */}
+      <section className={ordersStyles.orders} aria-labelledby="orders-title">
+        <div className={ordersStyles.heading}>
+          <div>
+            <h2 id="orders-title">Merchant Store Deliveries</h2>
+            <p style={{ margin: '0.25rem 0 0', color: 'var(--merchant-secondary)', fontSize: '0.875rem' }}>
+              Monitor, filter, and view details for all deliveries created by your store.
+            </p>
+          </div>
+          <MerchantLink className={shared.button} href={merchantPath('create-order', false)}>
+            + Create Order
+          </MerchantLink>
+        </div>
+
+        {/* Status Filter Buttons */}
+        <div className={extra.filterBar} role="group" aria-label="Order status filters">
+          {FILTER_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              className={`${extra.filterBtn} ${statusFilter === opt.value ? extra.filterBtnActive : ''}`}
+              onClick={() => handleFilterChange(opt.value)}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Table / Empty State / Loading */}
+        {loadingOrders ? (
+          <div className={shared.state} style={{ textAlign: 'center', padding: '40px' }}>
+            <p>Loading deliveries…</p>
+          </div>
+        ) : !deliveries || deliveries.content.length === 0 ? (
+          <div className={ordersStyles.empty} style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+            {statusFilter === 'ALL' ? (
+              <>
+                <p style={{ fontWeight: 700, fontSize: '1.1rem', margin: '0 0 0.5rem', color: 'var(--merchant-text)' }}>
+                  No orders yet
+                </p>
+                <p style={{ margin: '0 0 1rem', color: 'var(--merchant-secondary)' }}>
+                  No orders have been placed for your store yet. Create your first delivery shipment to get started.
+                </p>
+                <MerchantLink className={shared.button} href={merchantPath('create-order', false)}>
+                  + Create Order
+                </MerchantLink>
+              </>
+            ) : (
+              <>
+                <p style={{ fontWeight: 700, fontSize: '1.1rem', margin: '0 0 0.5rem', color: 'var(--merchant-text)' }}>
+                  No matching orders
+                </p>
+                <p style={{ margin: '0 0 1rem', color: 'var(--merchant-secondary)' }}>
+                  No deliveries found with status "{STATUS_LABELS[statusFilter]}".
+                </p>
+                <button type="button" className={shared.button} onClick={() => handleFilterChange('ALL')}>
+                  Clear Filter
+                </button>
+              </>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className={ordersStyles.tableRegion} role="region" aria-label="Store orders table" tabIndex={0}>
+              <table className={ordersStyles.table} aria-labelledby="orders-title">
+                <thead>
+                  <tr>
+                    <th scope="col">Tracking Number</th>
+                    <th scope="col">Recipient</th>
+                    <th scope="col">Destination</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Date</th>
+                    <th scope="col">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deliveries.content.map((delivery) => (
+                    <tr
+                      key={delivery.id}
+                      className={styles.tableRow}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => setSelectedDeliveryId(delivery.id)}
+                    >
+                      <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>{delivery.trackingNumber}</td>
+                      <td>{delivery.receiverName || '—'}</td>
+                      <td>{delivery.destinationCity || '—'}</td>
+                      <td>{delivery.deliveryType}</td>
+                      <td>
+                        <span className={`${extra.statusBadge} ${statusBadgeClass(delivery.status)}`}>
+                          {STATUS_LABELS[delivery.status] || delivery.status}
+                        </span>
+                      </td>
+                      <td>{formatDate(delivery.createdAt)}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className={shared.button}
+                          style={{ minHeight: '2rem', padding: '0.25rem 0.6rem', fontSize: '0.8rem' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedDeliveryId(delivery.id);
+                          }}
+                        >
+                          View Details
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            <div className={extra.pagination}>
+              <span className={extra.pageInfo}>
+                Showing page {deliveries.page + 1} of {Math.max(deliveries.totalPages, 1)} ({deliveries.totalElements} orders total)
+              </span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  className={extra.pageBtn}
+                  disabled={currentPage === 0}
+                  onClick={() => handlePageChange(currentPage - 1)}
+                >
+                  ← Previous
+                </button>
+                <button
+                  type="button"
+                  className={extra.pageBtn}
+                  disabled={currentPage + 1 >= deliveries.totalPages}
+                  onClick={() => handlePageChange(currentPage + 1)}
+                >
+                  Next →
+                </button>
               </div>
-            </>
-          )}
-        </section>
-      </main>
+            </div>
+          </>
+        )}
+      </section>
 
       {/* Order Details Modal */}
       {selectedDeliveryId !== null && (
@@ -620,9 +550,15 @@ function PreviewMerchantDashboard() {
   );
 }
 
-export function MerchantDashboardPage({ preview }: { preview?: boolean } = {}) {
+export function MerchantDashboardPage({
+  preview,
+  claims,
+}: {
+  preview?: boolean;
+  claims?: AccessClaims;
+} = {}) {
   if (preview) {
     return <PreviewMerchantDashboard />;
   }
-  return <RealMerchantDashboard />;
+  return <RealMerchantDashboard claims={claims} />;
 }
