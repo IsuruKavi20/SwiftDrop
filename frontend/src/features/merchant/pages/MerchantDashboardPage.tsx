@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import logoIcon from '../../../assets/auth/logo-box.svg';
 import { navigate, routes } from '../../../app/router';
-import { logOut, refresh } from '../../auth/api/authApi';
+import { logOut } from '../../auth/api/authApi';
 import { Alert } from '../../auth/components/FormControls';
-import { getAccessToken, readClaims, type AccessClaims } from '../../auth/lib/session';
+import { claimsWithFreshRoles } from '../../auth/lib/freshClaims';
+import type { AccessClaims } from '../../auth/lib/session';
 import {
   getMerchantDashboard,
   getMerchantDeliveries,
@@ -71,23 +72,8 @@ function formatDate(iso: string | null | undefined): string {
   }
 }
 
+// Always start by loading: a missing merchant role is only final after a fresh token (see fetchDashboardData)
 function getInitialPageState(): PageState {
-  const token = getAccessToken();
-  if (token) {
-    try {
-      const claims = readClaims(token);
-      const permissions = claims.entitlements ?? [];
-      if (!permissions.includes('merchant:api-access')) {
-        return {
-          kind: 'accessDenied',
-          message:
-            'You need merchant privileges to access this dashboard. Please sign in with an authorized merchant account.',
-        };
-      }
-    } catch {
-      // Ignored: malformed or expired token will be recovered via refresh flow
-    }
-  }
   return { kind: 'loading' };
 }
 
@@ -96,19 +82,11 @@ async function fetchDashboardData(): Promise<{
   deliveries: PageResponse<MerchantDeliverySummary>;
   claims: AccessClaims;
 }> {
-  let token = getAccessToken();
-  if (!token) {
-    const refreshed = await refresh();
-    if (!refreshed) {
-      throw new MerchantApiError(401, 'Session expired');
-    }
-    token = getAccessToken();
-    if (!token) {
-      throw new MerchantApiError(401, 'Session expired');
-    }
+  // A just-approved merchant still holds the old token: claimsWithFreshRoles refreshes once before saying no
+  const claims = await claimsWithFreshRoles('merchant:api-access');
+  if (!claims) {
+    throw new MerchantApiError(401, 'Session expired');
   }
-
-  const claims = readClaims(token);
   const permissions = claims.entitlements ?? [];
   if (!permissions.includes('merchant:api-access')) {
     throw new MerchantApiError(
@@ -180,20 +158,7 @@ function RealMerchantDashboard() {
     };
   }, []);
 
-  useEffect(() => {
-    const initialToken = getAccessToken();
-    if (initialToken) {
-      try {
-        const claims = readClaims(initialToken);
-        if (!(claims.entitlements ?? []).includes('merchant:api-access')) {
-          return;
-        }
-      } catch {
-        // proceed to loadDashboard
-      }
-    }
-    return loadDashboard();
-  }, [loadDashboard]);
+  useEffect(() => loadDashboard(), [loadDashboard]);
 
   function handleFilterChange(newFilter: DeliveryStatus | 'ALL') {
     setStatusFilter(newFilter);

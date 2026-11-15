@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import userIcon from '../../../assets/auth/icon-user.svg';
-import mailIcon from '../../../assets/auth/icon-mail.svg';
+import storeIcon from '../../../assets/auth/icon-store.svg';
+import idIcon from '../../../assets/auth/icon-id.svg';
+import globeIcon from '../../../assets/auth/icon-globe.svg';
 import { navigate, routes } from '../../../app/router';
 import { refresh } from '../../auth/api/authApi';
 import { AuthLayout } from '../../auth/components/AuthLayout';
@@ -231,7 +232,7 @@ export function MerchantApplyPage() {
         <TextField
           id="businessName"
           label="Legal Business Name"
-          icon={userIcon}
+          icon={storeIcon}
           placeholder="e.g. Ceylon Tea House"
           required
           maxLength={150}
@@ -243,7 +244,7 @@ export function MerchantApplyPage() {
         <TextField
           id="registrationNumber"
           label="Business Registration Number"
-          icon={userIcon}
+          icon={idIcon}
           placeholder="e.g. PV12345 or BRN-8921"
           required
           maxLength={50}
@@ -255,7 +256,7 @@ export function MerchantApplyPage() {
         <TextField
           id="website"
           label="Business Website or Online Store (Optional)"
-          icon={mailIcon}
+          icon={globeIcon}
           placeholder="https://ceylontea.lk"
           maxLength={255}
           value={website}
