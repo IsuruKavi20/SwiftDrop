@@ -12,9 +12,10 @@ The backend is one app made of **modules** (one folder each under `com.swiftdrop
 ## Front doors
 | Module | Others may use | Used by |
 |---|---|---|
-| identity | `entity` (AppUser), `UserDirectory`, `event`, `exception` | customer, dispatcher, merchant |
+| identity | `entity` (AppUser), `UserDirectory`, `event`, `exception` | customer, dispatcher, merchant, pricing |
 | customer | `entity`, the `CustomerStatusChange` event | dispatcher, merchant, notification |
 | merchant | `entity` (Merchant), the `MerchantStatusChange` event | notification |
+| pricing | `Tariff`, `TariffSource` (its base package) | customer |
 | dispatcher | nothing yet | |
 | notification | nothing (it only listens) | |
 | shared, security | everything (open) | all |

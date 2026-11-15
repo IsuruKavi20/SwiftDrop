@@ -3,7 +3,7 @@ import type { CourierAvailability, DeliveryType } from './dispatcherTypes';
 /**
  * Shapes for the admin screens. Users, roles and merchant applications live in the auth service
  * (docs/auth-api/admin.md, merchants.md); courier profiles in the backend's dispatcher module (courier table);
- * prices in the backend's customer.service.CustomerPricingService. Zones have no backend counterpart yet.
+ * published prices and zones in the backend (/api/admin/pricing, /api/admin/zones).
  */
 
 /**
@@ -86,9 +86,12 @@ export interface PricingRates {
   sameDaySurcharge: number;
 }
 
+/** GET /api/admin/pricing. Version 0: nothing published yet, the server's settings apply (no date or publisher). */
 export interface PublishedPricing {
   version: number;
-  publishedAt: string;
+  publishedAt: string | null;
+  /** The admin who published it. */
+  publishedBy?: string | null;
   rates: PricingRates;
 }
 

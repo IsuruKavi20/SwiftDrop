@@ -8,8 +8,12 @@ import type {
   AdminUser,
   CourierProfile,
   CourierProfileInput,
+  DeliveryZone,
+  DeliveryZoneInput,
   MerchantApplication,
   MerchantApplicationStatus,
+  PricingRates,
+  PublishedPricing,
 } from './adminTypes';
 import * as sample from './sampleAdminApi';
 
@@ -18,7 +22,8 @@ import * as sample from './sampleAdminApi';
  * - Users and roles, merchant approvals: the SwiftDrop auth service (docs/auth-api/admin.md), called straight from
  *   the browser with the admin's own token, so auth records which admin did what.
  * - Courier profiles: the backend's dispatcher module (/api/dispatcher/couriers, docs/DISPATCHER-API.md).
- * - Zones, pricing and reports: still sample data (sampleAdminApi.ts) until their backends exist.
+ * - Pricing and delivery zones: the backend (/api/admin/pricing, /api/admin/zones, docs/PRICING-AND-ZONES-API.md).
+ * - Reports and the overview numbers: still sample data (sampleAdminApi.ts) until their backend exists.
  * The development preview (not signed in) answers everything from sample data.
  */
 
@@ -28,11 +33,7 @@ export {
   dayKey,
   districtsByProvince,
   getDeliveryReport,
-  getPublishedPricing,
-  listZones,
-  publishPricing,
   quote,
-  saveZone,
 } from './sampleAdminApi';
 
 const ADMIN_ROLES: readonly AdminRole[] = ['CUSTOMER', 'MERCHANT', 'COURIER', 'ADMIN'];
@@ -391,5 +392,61 @@ export async function createCourierProfile(userId: string, input: CourierProfile
 export async function updateCourierProfile(courierId: number, input: CourierProfileInput): Promise<void> {
   if (usingSampleData()) return sample.updateCourierProfile(courierId, input);
   await dispatcherRequest(`/couriers/${courierId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: profileBody(input) });
+  changed();
+}
+
+/* ---------- Pricing and delivery zones (backend) ---------- */
+
+/** A call to the backend's /api/admin endpoints with the admin's token; problems become a DispatchError. */
+async function backendAdmin<T>(path: string, init: RequestInit = {}): Promise<T> {
+  let response: Response;
+  try {
+    response = await authorizedFetch(`${env.apiUrl}/api/admin${path}`, {
+      ...init,
+      headers: init.body ? { 'Content-Type': 'application/json', ...init.headers } : init.headers,
+    });
+  } catch {
+    throw new DispatchError('Could not reach the SwiftDrop server. Check your connection and try again.');
+  }
+  if (!response.ok) {
+    let detail: string | undefined;
+    try {
+      const problem = (await response.json()) as { detail?: string; errors?: Record<string, string> };
+      detail = Object.values(problem.errors ?? {})[0] ?? problem.detail;
+    } catch {
+      // not JSON: use the generic sentence below
+    }
+    if (response.status === 401) detail = 'Your session has ended. Sign in again.';
+    if (response.status === 403) detail = 'Only admins can use the admin screens.';
+    throw new DispatchError(detail ?? 'Something went wrong. Please try again.');
+  }
+  return (await response.json()) as T;
+}
+
+/** The tariff quotes use now (GET /api/admin/pricing); version 0 while nothing is published. */
+export async function getPublishedPricing(): Promise<PublishedPricing> {
+  if (usingSampleData()) return sample.getPublishedPricing();
+  return backendAdmin<PublishedPricing>('/pricing');
+}
+
+/** POST /api/admin/pricing: the next version. New quotes use it at once; booked parcels keep their fee. */
+export async function publishPricing(rates: PricingRates): Promise<PublishedPricing> {
+  if (usingSampleData()) return sample.publishPricing(rates);
+  const published = await backendAdmin<PublishedPricing>('/pricing', { method: 'POST', body: JSON.stringify(rates) });
+  changed();
+  return published;
+}
+
+/** Every delivery zone by name (GET /api/admin/zones). */
+export async function listZones(): Promise<DeliveryZone[]> {
+  if (usingSampleData()) return sample.listZones();
+  return backendAdmin<DeliveryZone[]>('/zones');
+}
+
+/** POST /api/admin/zones (id null) or PUT /api/admin/zones/{id}. Each district may be in one zone only. */
+export async function saveZone(id: number | null, input: DeliveryZoneInput): Promise<void> {
+  if (usingSampleData()) return sample.saveZone(id, input);
+  const body = JSON.stringify({ name: input.name.trim(), code: input.code.trim(), districts: input.districts, active: input.active });
+  await backendAdmin<DeliveryZone>(id === null ? '/zones' : `/zones/${id}`, { method: id === null ? 'POST' : 'PUT', body });
   changed();
 }

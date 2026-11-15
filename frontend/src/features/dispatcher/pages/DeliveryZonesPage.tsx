@@ -77,7 +77,7 @@ export function DeliveryZonesPage() {
           </button>
         )} />
       <p className={styles.infoBox}>
-        Prices don't depend on zones: the backend compares the pickup and destination districts (see Pricing).
+        Zones group districts for planning. They don't change prices or bookings: prices compare the pickup and destination districts (see Pricing).
       </p>
       {error && <p className={styles.errorBox} role="alert">{error}</p>}
 

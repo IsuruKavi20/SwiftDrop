@@ -106,7 +106,9 @@ function PricingEditor({ published, onPublished }: { published: PublishedPricing
   return (
     <>
       <PageHeader title="Pricing"
-        subtitle={<>Published rate version <strong>v{published.version}</strong>, since {formatDate(published.publishedAt)}. Existing parcels keep the fee they were booked with.</>}
+        subtitle={published.version === 0 || !published.publishedAt
+          ? <>No rates published yet: quotes use the standard SwiftDrop rates below. Publishing creates <strong>v1</strong>.</>
+          : <>Published rate version <strong>v{published.version}</strong>, since {formatDate(published.publishedAt)}{published.publishedBy ? ` by ${published.publishedBy}` : ''}. Existing parcels keep the fee they were booked with.</>}
         action={(
           <div className={styles.rowActions}>
             <button className={styles.secondaryButton} type="button" disabled={!dirty || saving} onClick={() => { setDraft(saved); setError(undefined); }}>
