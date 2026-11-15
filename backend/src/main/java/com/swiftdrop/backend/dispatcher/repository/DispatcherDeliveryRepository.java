@@ -29,13 +29,39 @@ public interface DispatcherDeliveryRepository extends JpaRepository<Delivery, Lo
      * Address matching uses EXISTS so two matching addresses never duplicate a delivery or its page count.
      */
     default Page<Delivery> search(DeliveryStatus status, String text, Pageable pageable) {
-        String pattern = "%";
-        if (text != null && !text.isBlank()) {
-            pattern = "%" + text.trim().toLowerCase(Locale.ROOT)
-                    .replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
-        }
-        return searchByPattern(status, pattern, pageable);
+        return searchByPattern(status, likePattern(text), pageable);
     }
+
+    /** "%" for no text, otherwise a lower-case contains-pattern that takes %, _ and backslashes literally. */
+    static String likePattern(String text) {
+        if (text == null || text.isBlank()) {
+            return "%";
+        }
+        return "%" + text.trim().toLowerCase(Locale.ROOT)
+                .replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+    }
+
+    /** Confirmed deliveries with no courier yet, oldest first (they have waited longest). Same text matching as search. */
+    default Page<Delivery> searchUnassigned(String text, Pageable pageable) {
+        return searchUnassignedByPattern(DeliveryStatus.CONFIRMED, likePattern(text), pageable);
+    }
+
+    /** Internal query entry point: use searchUnassigned(...) for literal user input. */
+    @Query("""
+            select d from Delivery d
+            where d.status = :status and d.courier is null
+              and (lower(d.trackingNumber) like :pattern escape '\\'
+                   or exists (select 1 from DeliveryAddress a where a.delivery = d
+                              and (lower(a.contactName) like :pattern escape '\\'
+                                   or lower(a.street) like :pattern escape '\\'
+                                   or lower(a.city) like :pattern escape '\\'
+                                   or lower(a.district) like :pattern escape '\\')))
+            order by d.createdAt asc, d.id asc
+            """)
+    Page<Delivery> searchUnassignedByPattern(@Param("status") DeliveryStatus status,
+                                             @Param("pattern") String pattern, Pageable pageable);
+
+    long countByStatusAndCourierIsNull(DeliveryStatus status);
 
     /** Internal query entry point: use search(...) for literal user input and non-null patterns. */
     @Query("""

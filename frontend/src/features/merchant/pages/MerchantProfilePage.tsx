@@ -104,6 +104,34 @@ export function MerchantProfilePage() {
           >
             Dashboard
           </button>
+          <button
+            type="button"
+            className={styles.ghostButton}
+            onClick={() => navigate('/merchant/orders')}
+          >
+            Store Orders
+          </button>
+          <button
+            type="button"
+            className={styles.ghostButton}
+            onClick={() => navigate('/merchant/create-order')}
+          >
+            Create Order
+          </button>
+          <button
+            type="button"
+            className={styles.ghostButton}
+            onClick={() => navigate('/merchant/api-credentials')}
+          >
+            API Keys
+          </button>
+          <button
+            type="button"
+            className={styles.ghostButton}
+            onClick={() => navigate('/merchant/webhooks')}
+          >
+            Webhooks
+          </button>
           {claims?.entitlements?.includes('parcel:read-own') && (
             <button
               type="button"

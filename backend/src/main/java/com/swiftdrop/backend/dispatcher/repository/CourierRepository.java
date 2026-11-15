@@ -10,6 +10,8 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -20,6 +22,9 @@ public interface CourierRepository extends JpaRepository<Courier, Long> {
     Optional<Courier> findByUserId(UUID userId);
 
     boolean existsByUserId(UUID userId);
+
+    /** Profiles of these people (e.g. the couriers on a page of deliveries), in one query. */
+    List<Courier> findByUserIdIn(Collection<UUID> userIds);
 
     /** Management view includes matching profiles even when the linked auth account is disabled. */
     Page<Courier> findByAvailabilityOrderByIdAsc(CourierAvailability availability, Pageable pageable);

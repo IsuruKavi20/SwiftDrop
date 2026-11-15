@@ -12,6 +12,8 @@ import { VerifyEmailPage } from '../features/auth/pages/VerifyEmailPage';
 import { ProtectedMerchantRoute } from '../features/merchant/components/ProtectedMerchantRoute';
 import { MerchantPortal } from '../features/merchant/MerchantPortal';
 import { matchMerchantRoute } from '../features/merchant/merchantRoutes';
+import { DispatcherArea } from '../features/dispatcher/DispatcherPortal';
+import { matchDispatcherRoute } from '../features/dispatcher/dispatcherRoutes';
 import { routes, usePath } from './router';
 import { LandingPage } from '../features/landing/pages/LandingPage';
 import { DeliveryAiAssistant } from '../features/ai/components/DeliveryAiAssistant';
@@ -36,6 +38,10 @@ export default function App() {
         </ProtectedMerchantRoute>
       );
     }
+
+    // Admin area (admin and dispatch pages), ADMIN only
+    const dispatcherRoute = matchDispatcherRoute(path);
+    if (dispatcherRoute) return <DispatcherArea route={dispatcherRoute} />;
 
     switch (path) {
       case routes.signup:

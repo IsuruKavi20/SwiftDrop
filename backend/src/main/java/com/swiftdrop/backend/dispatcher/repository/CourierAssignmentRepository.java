@@ -31,6 +31,14 @@ public interface CourierAssignmentRepository extends JpaRepository<CourierAssign
 
     long countByCourierIdAndActiveTrue(Long courierId);
 
+    /** Every active assignment with its delivery, oldest first: the fleet's current work in one query. */
+    @Query("""
+            select a from CourierAssignment a join fetch a.delivery
+            where a.active = true
+            order by a.assignedAt asc, a.id asc
+            """)
+    List<CourierAssignment> findAllActiveWithDelivery();
+
     /** One query for fleet workloads. Couriers with no active assignments are absent; treat them as zero. */
     @Query("""
             select a.courier.id as courierId, count(a) as total
