@@ -60,6 +60,8 @@ export function DispatcherLayout({ page, preview, name, children }: DispatcherLa
   const menuOpen = menuPage === page;
   const setMenuOpen = (open: boolean) => setMenuPage(open ? page : null);
   const current = dispatcherPages.find((p) => p.id === page);
+  // Admins who are also customers can switch to the customer pages (not in the preview, which has no sign-in)
+  const customerArea = preview ? undefined : otherAreas('admin').find((area) => area.id === 'customer');
   // Desktop: the sidebar can shrink to icons only; remembered in this browser
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const toggleCollapsed = () => setCollapsed((was) => { writeCollapsed(!was); return !was; });
@@ -155,15 +157,17 @@ export function DispatcherLayout({ page, preview, name, children }: DispatcherLa
               </ul>
             </div>
           ))}
+          {customerArea && (
+            <div className={styles.navSection}>
+              <h2 className={styles.navHeading}>View</h2>
+              <button type="button" className={`${styles.navItem} ${styles.switchView}`} onClick={() => navigate(customerArea.path)}
+                title={collapsed ? 'Customer view' : undefined}>
+                <span className={styles.navIcon}><DispatcherIcon name="user" size={18} /></span>
+                <span className={styles.navLabel}>Customer view</span>
+              </button>
+            </div>
+          )}
         </nav>
-
-        {!preview && otherAreas('admin').filter((area) => area.id === 'customer').map((area) => (
-          <button key={area.id} type="button" className={`${styles.navItem} ${styles.switchView}`} onClick={() => navigate(area.path)}
-            title={collapsed ? 'Customer view' : undefined}>
-            <span className={styles.navIcon}><DispatcherIcon name="user" size={18} /></span>
-            <span className={styles.navLabel}>Customer view</span>
-          </button>
-        ))}
 
         <button className={styles.collapseButton} type="button" onClick={toggleCollapsed}
           aria-expanded={!collapsed} title={collapsed ? 'Expand sidebar' : undefined}>
