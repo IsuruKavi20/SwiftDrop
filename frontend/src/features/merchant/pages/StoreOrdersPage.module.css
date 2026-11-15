@@ -1,0 +1,137 @@
+.filterBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.filterBtn {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--merchant-line);
+  border-radius: 0.4rem;
+  background: var(--color-surface);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--merchant-secondary);
+  cursor: pointer;
+}
+
+.filterBtnActive {
+  background: var(--merchant-pale);
+  color: var(--merchant-accent);
+  border-color: var(--merchant-orange, #e06500);
+}
+
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1.25rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--merchant-line);
+}
+
+.pageInfo {
+  font-size: 0.875rem;
+  color: var(--merchant-secondary);
+}
+
+.pageBtn {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--merchant-line);
+  border-radius: 0.4rem;
+  background: var(--color-surface);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.pageBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.statusBadge {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.statusNeutral {
+  background: rgba(100, 116, 139, 0.12);
+  color: #475569;
+}
+
+.statusInfo {
+  background: rgba(2, 132, 199, 0.12);
+  color: #0284c7;
+}
+
+.statusSuccess {
+  background: rgba(22, 163, 74, 0.12);
+  color: #16a34a;
+}
+
+.statusError {
+  background: rgba(220, 38, 38, 0.12);
+  color: #dc2626;
+}
+
+.detailsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.25rem;
+  margin: 1.5rem 0;
+}
+
+.detailCard {
+  padding: 1.25rem;
+  border: 1px solid var(--merchant-line);
+  border-radius: 0.75rem;
+  background: var(--color-surface);
+}
+
+.detailCardTitle {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+  color: var(--merchant-text);
+  border-bottom: 1px solid var(--merchant-line);
+  padding-bottom: 0.5rem;
+}
+
+.detailList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.timelineItem {
+  position: relative;
+  padding-left: 1.5rem;
+  padding-bottom: 1.25rem;
+  border-left: 2px solid var(--merchant-line);
+}
+
+.timelineItem:last-child {
+  border-left-color: transparent;
+  padding-bottom: 0;
+}
+
+.timelineDot {
+  position: absolute;
+  left: -0.45rem;
+  top: 0.15rem;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: var(--merchant-orange, #e06500);
+}

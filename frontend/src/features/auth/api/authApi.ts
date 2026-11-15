@@ -43,7 +43,6 @@ export function verifyEmail(token: string): Promise<void> {
 /** Leaves the page: Google, then the auth service, then back to /auth/callback#code=... */
 export async function startGoogleLogin(): Promise<void> {
   const challenge = await createChallenge();
-  // frontend=<id>: come back to this website (not the auth service's default one) after Google
   const params = new URLSearchParams({ code_challenge: challenge, frontend: env.frontendId });
   window.location.assign(`${env.authUrl}/oauth2/authorization/google?${params}`);
 }

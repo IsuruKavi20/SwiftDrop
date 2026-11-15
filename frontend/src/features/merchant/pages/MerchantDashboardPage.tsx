@@ -316,6 +316,34 @@ function RealMerchantDashboard() {
           <button
             type="button"
             className={styles.ghostButton}
+            onClick={() => navigate('/merchant/orders')}
+          >
+            Store Orders
+          </button>
+          <button
+            type="button"
+            className={styles.ghostButton}
+            onClick={() => navigate('/merchant/create-order')}
+          >
+            Create Order
+          </button>
+          <button
+            type="button"
+            className={styles.ghostButton}
+            onClick={() => navigate('/merchant/api-credentials')}
+          >
+            API Keys
+          </button>
+          <button
+            type="button"
+            className={styles.ghostButton}
+            onClick={() => navigate('/merchant/webhooks')}
+          >
+            Webhooks
+          </button>
+          <button
+            type="button"
+            className={styles.ghostButton}
             onClick={() => navigate(routes.merchantProfile)}
           >
             Business Profile
