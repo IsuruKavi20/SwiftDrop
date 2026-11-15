@@ -4,6 +4,7 @@ import type { AdminRole, AdminUser } from '../api/adminTypes';
 import { ToneBadge, type Tone } from '../components/Badges';
 import { DispatcherIcon } from '../components/DispatcherIcon';
 import { PageHeader } from '../components/DispatcherLayout';
+import { Dropdown } from '../components/Dropdown';
 import { FormDialog, ReasonField } from '../components/FormDialog';
 import { SearchBox } from '../components/SearchBox';
 import { roleLabels } from '../lib/format';
@@ -79,16 +80,24 @@ export function UsersRolesPage() {
   const { data, error, loading } = useDispatchData(listUsers, []);
   // People found by email: accounts with no role listed by the access review (e.g. plain customers)
   const [found, setFound] = useState<AdminUser[]>([]);
+  // The email each found person was looked up by: the auth service may answer without the email (or with a name that
+  // doesn't contain it), and the search box must not then hide the person the admin just found
+  const [searchedAs, setSearchedAs] = useState<Record<string, string>>({});
   const [lookup, setLookup] = useState<{ busy: boolean; message?: string }>({ busy: false });
+  // Re-reads found people after a role change or block (the access review doesn't list people with no role)
   const { data: refreshedFound } = useDispatchData(
-    () => Promise.all(found.map((u) => findUserByEmail(u.email).then((fresh) => fresh ?? u))), [found.map((u) => u.id).join()],
+    () => Promise.all(found.map((u) => findUserByEmail(searchedAs[u.id] ?? u.email).then((fresh) => fresh ?? u))),
+    [found.map((u) => u.id).join()],
   );
+  // The newest copy of each found person; one found moments ago shows at once, before its re-read arrives
+  const foundNow = found.map((u) => refreshedFound?.find((fresh) => fresh.id === u.id) ?? u);
 
   const known = new Set(data?.map((u) => u.id));
-  const all = data ? [...data, ...(refreshedFound ?? found).filter((u) => !known.has(u.id))] : undefined;
+  const all = data ? [...data, ...foundNow.filter((u) => !known.has(u.id))] : undefined;
   const needle = text.trim().toLowerCase();
   const rows = all?.filter((u) => (!role || u.roles.includes(role))
-    && (!needle || u.name.toLowerCase().includes(needle) || u.email.toLowerCase().includes(needle)));
+    && (!needle || u.name.toLowerCase().includes(needle) || u.email.toLowerCase().includes(needle)
+      || searchedAs[u.id] === needle));
   const canLookUp = looksLikeEmail(text) && rows?.length === 0;
 
   async function lookUp() {
@@ -96,6 +105,7 @@ export function UsersRolesPage() {
     try {
       const person = await findUserByEmail(text);
       if (person) {
+        setSearchedAs((current) => ({ ...current, [person.id]: text.trim().toLowerCase() }));
         setFound((current) => [...current.filter((u) => u.id !== person.id), person]);
         setLookup({ busy: false });
       } else {
@@ -122,10 +132,8 @@ export function UsersRolesPage() {
           placeholder="Search by name or email" />
         <label className={styles.select}>
           <span className={styles.visuallyHidden}>Role</span>
-          <select value={role} onChange={(e) => setRole(e.target.value as AdminRole | '')}>
-            <option value="">All roles</option>
-            {ROLES.map((r) => <option key={r} value={r}>{roleLabels[r]}</option>)}
-          </select>
+          <Dropdown value={role} onChange={(v) => setRole(v as AdminRole | '')}
+            options={[{ value: '', label: 'All roles' }, ...ROLES.map((r) => ({ value: r, label: roleLabels[r] }))]} />
         </label>
       </div>
 
@@ -147,7 +155,7 @@ export function UsersRolesPage() {
               {rows?.map((u) => (
                 <tr key={u.id}>
                   <td><strong>{u.name}</strong></td>
-                  <td>{u.email || <span className={styles.muted}>—</span>}</td>
+                  <td>{u.email || searchedAs[u.id] || <span className={styles.muted}>—</span>}</td>
                   <td>
                     <span className={styles.badgeRow}>
                       {u.roles.map((r) => <ToneBadge key={r} tone={roleTones[r]}>{roleLabels[r]}</ToneBadge>)}

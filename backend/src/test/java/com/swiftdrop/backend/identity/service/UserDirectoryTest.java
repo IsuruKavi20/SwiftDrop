@@ -4,11 +4,13 @@ import com.swiftdrop.backend.identity.client.DirectoryClient;
 import com.swiftdrop.backend.identity.client.DirectoryPerson;
 import com.swiftdrop.backend.identity.entity.AppUser;
 import com.swiftdrop.backend.identity.entity.AppUserStatus;
+import com.swiftdrop.backend.identity.exception.DirectoryUnavailableException;
 import com.swiftdrop.backend.identity.exception.UnknownUserException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +29,8 @@ import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @Transactional
+// A service client turns the directory on (DirectoryClient itself is mocked below)
+@TestPropertySource(properties = {"swiftdrop.identity.client-id=svc_test", "swiftdrop.identity.client-secret=test"})
 public class UserDirectoryTest {
 
     @Autowired
@@ -52,6 +56,32 @@ public class UserDirectoryTest {
         assertThat(first.getName()).contains("Kasun Silva");
         assertThat(second.hasRole("COURIER")).isTrue();
         verify(directory, org.mockito.Mockito.times(1)).get(kasun, false);   // only the first call asked auth
+    }
+
+    @Test
+    void requireFreshSeesARoleGivenAfterTheCopyWasMade() {
+        UUID nadee = UUID.randomUUID();
+        when(directory.get(nadee, false)).thenReturn(Optional.of(new DirectoryPerson(nadee, "Nadee", null,
+                AppUserStatus.ACTIVE, true, List.of("CUSTOMER"), Instant.parse("2026-11-01T10:00:00Z"), null)));
+        assertThat(userDirectory.require(nadee).hasRole("COURIER")).isFalse();
+
+        // The admin gives the Courier role in auth; the copy would only learn of it at the next refresh
+        when(directory.get(nadee, false)).thenReturn(Optional.of(new DirectoryPerson(nadee, "Nadee", null,
+                AppUserStatus.ACTIVE, true, List.of("CUSTOMER", "COURIER"), Instant.parse("2026-11-02T10:00:00Z"), null)));
+
+        assertThat(userDirectory.require(nadee).hasRole("COURIER")).isFalse();      // the copy
+        assertThat(userDirectory.requireFresh(nadee).hasRole("COURIER")).isTrue();  // asked auth now
+        assertThat(userDirectory.require(nadee).hasRole("COURIER")).isTrue();       // and the copy is updated
+    }
+
+    @Test
+    void requireFreshFallsBackToTheCopyWhenAuthIsDown() {
+        UUID kasun = UUID.randomUUID();
+        when(directory.get(kasun, false)).thenReturn(Optional.of(person(kasun, "Kasun Silva", AppUserStatus.ACTIVE, true)));
+        userDirectory.require(kasun);
+        when(directory.get(kasun, false)).thenThrow(new DirectoryUnavailableException("down", new RuntimeException()));
+
+        assertThat(userDirectory.requireFresh(kasun).getName()).contains("Kasun Silva");
     }
 
     @Test

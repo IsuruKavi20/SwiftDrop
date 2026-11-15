@@ -4,6 +4,7 @@ import type { DeliveryStatus } from '../api/dispatcherTypes';
 import { StatusBadge } from '../components/Badges';
 import { DispatcherIcon } from '../components/DispatcherIcon';
 import { PageHeader } from '../components/DispatcherLayout';
+import { Dropdown } from '../components/Dropdown';
 import { SearchBox } from '../components/SearchBox';
 import { formatDate, formatFee, statusLabels } from '../lib/format';
 import { useDeliveryDialogs } from '../lib/useDeliveryDialogs';
@@ -37,10 +38,8 @@ export function AllDeliveriesPage({ preview }: { preview: boolean }) {
           placeholder="Search tracking number, courier, name, street, city or district" />
         <label className={styles.select}>
           <span className={styles.visuallyHidden}>Status</span>
-          <select value={status} onChange={(e) => { setStatus(e.target.value as DeliveryStatus | ''); setPage(0); }}>
-            <option value="">All statuses</option>
-            {STATUSES.map((s) => <option key={s} value={s}>{statusLabels[s]}</option>)}
-          </select>
+          <Dropdown value={status} onChange={(v) => { setStatus(v as DeliveryStatus | ''); setPage(0); }}
+            options={[{ value: '', label: 'All statuses' }, ...STATUSES.map((s) => ({ value: s, label: statusLabels[s] }))]} />
         </label>
       </div>
 

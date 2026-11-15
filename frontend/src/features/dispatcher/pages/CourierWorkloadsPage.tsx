@@ -3,6 +3,7 @@ import { listCourierWorkloads } from '../api/dispatcherApi';
 import type { CourierAvailability } from '../api/dispatcherTypes';
 import { AvailabilityBadge } from '../components/Badges';
 import { PageHeader } from '../components/DispatcherLayout';
+import { Dropdown } from '../components/Dropdown';
 import { availabilityLabels } from '../lib/format';
 import { useDispatchData } from '../lib/useDispatchData';
 import styles from '../components/Dispatcher.module.css';
@@ -21,10 +22,8 @@ export function CourierWorkloadsPage({ preview }: { preview: boolean }) {
       <div className={styles.toolbar}>
         <label className={styles.select}>
           <span className={styles.visuallyHidden}>Availability</span>
-          <select value={availability} onChange={(e) => setAvailability(e.target.value as CourierAvailability | '')}>
-            <option value="">All couriers</option>
-            {AVAILABILITIES.map((a) => <option key={a} value={a}>{availabilityLabels[a]}</option>)}
-          </select>
+          <Dropdown value={availability} onChange={(v) => setAvailability(v as CourierAvailability | '')}
+            options={[{ value: '', label: 'All couriers' }, ...AVAILABILITIES.map((a) => ({ value: a, label: availabilityLabels[a] }))]} />
         </label>
       </div>
 

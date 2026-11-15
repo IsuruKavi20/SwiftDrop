@@ -7,6 +7,7 @@ import type { CourierAvailability } from '../api/dispatcherTypes';
 import { AvailabilityBadge, ToneBadge } from '../components/Badges';
 import { DispatcherIcon } from '../components/DispatcherIcon';
 import { PageHeader } from '../components/DispatcherLayout';
+import { Dropdown } from '../components/Dropdown';
 import { FormDialog } from '../components/FormDialog';
 import { availabilityLabels } from '../lib/format';
 import { useDispatchData } from '../lib/useDispatchData';
@@ -67,10 +68,9 @@ function CourierDialog({ courier, onClose, onSaved }: { courier?: CourierProfile
         {adding && (
           <label className={`${styles.field} ${styles.wide}`}>
             <span>Courier account</span>
-            <select value={userId} onChange={(e) => setUserId(e.target.value)} required>
-              <option value="">Choose an account…</option>
-              {accounts?.map((a) => <option key={a.id} value={a.id}>{withEmail(a.name, a.email)}</option>)}
-            </select>
+            <Dropdown value={userId} onChange={setUserId} placeholder="Choose an account…"
+              emptyMessage={listed ? 'Every Courier account already has a profile. Find another one by email below.' : 'Loading accounts…'}
+              options={(accounts ?? []).map((a) => ({ value: a.id, label: withEmail(a.name, a.email) }))} />
           </label>
         )}
         {adding && (
@@ -93,9 +93,8 @@ function CourierDialog({ courier, onClose, onSaved }: { courier?: CourierProfile
         </label>
         <label className={styles.field}>
           <span>Availability</span>
-          <select value={form.availability} onChange={(e) => set('availability')(e.target.value)}>
-            {AVAILABILITIES.map((a) => <option key={a} value={a}>{availabilityLabels[a]}</option>)}
-          </select>
+          <Dropdown value={form.availability} onChange={set('availability')}
+            options={AVAILABILITIES.map((a) => ({ value: a, label: availabilityLabels[a] }))} />
         </label>
         <label className={styles.field}>
           <span>Vehicle type</span>
