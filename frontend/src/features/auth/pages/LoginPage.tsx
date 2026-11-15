@@ -3,7 +3,7 @@ import lockIcon from '../../../assets/auth/icon-lock.svg';
 import mailIcon from '../../../assets/auth/icon-mail.svg';
 import { navigate, routes } from '../../../app/router';
 import { AuthError, logIn, startGoogleLogin } from '../api/authApi';
-import { landingPage, rememberNextFromUrl, withNext } from '../lib/landing';
+import { forgetNext, landingPage, rememberNextFromUrl, withNext } from '../lib/landing';
 import { AuthLayout } from '../components/AuthLayout';
 import { Alert, Divider, EntryPoints, GoogleButton, PrimaryButton, TextField } from '../components/FormControls';
 import styles from '../components/FormControls.module.css';
@@ -54,7 +54,7 @@ export function LoginPage() {
       <GoogleButton onClick={() => void startGoogleLogin()} />
 
       <EntryPoints items={[
-        { icon: 'user', title: 'Create an account', text: 'New here?', onClick: () => navigate(routes.signup) },
+        { icon: 'user', title: 'Create an account', text: 'New here?', onClick: () => { forgetNext(); navigate(routes.signup); } },
         { icon: 'store', title: 'Sell with SwiftDrop', text: 'Are you a business?',
           onClick: () => navigate(withNext(routes.signup, routes.merchantApply)) },
         { icon: 'search', title: 'Track without logging in', text: 'Just tracking a parcel?',
