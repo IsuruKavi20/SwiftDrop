@@ -4,10 +4,13 @@ import type { PricingRates, PublishedPricing } from '../api/adminTypes';
 import type { DeliveryType } from '../api/dispatcherTypes';
 import { DispatcherIcon } from '../components/DispatcherIcon';
 import { PageHeader } from '../components/DispatcherLayout';
+import { Dropdown } from '../components/Dropdown';
 import { formatDate, formatLkr } from '../lib/format';
 import { useDispatchData } from '../lib/useDispatchData';
 import { useToast } from '../lib/useToast';
 import styles from '../components/Dispatcher.module.css';
+
+const districtOptions = allDistricts.map((d) => ({ value: d, label: d }));
 
 /** The rates CustomerPricingService uses, in the order of its formula. */
 const RATE_FIELDS: { key: keyof PricingRates; label: string; hint: string }[] = [
@@ -45,15 +48,11 @@ function QuotePreview({ rates, usingDraft }: { rates: PricingRates; usingDraft: 
         <div className={styles.formGrid}>
           <label className={styles.field}>
             <span>Pickup district</span>
-            <select value={pickup} onChange={(e) => setPickup(e.target.value)}>
-              {allDistricts.map((d) => <option key={d}>{d}</option>)}
-            </select>
+            <Dropdown value={pickup} onChange={setPickup} options={districtOptions} />
           </label>
           <label className={styles.field}>
             <span>Destination district</span>
-            <select value={destination} onChange={(e) => setDestination(e.target.value)}>
-              {allDistricts.map((d) => <option key={d}>{d}</option>)}
-            </select>
+            <Dropdown value={destination} onChange={setDestination} options={districtOptions} />
           </label>
           <label className={styles.field}>
             <span>Total weight (kg)</span>
@@ -61,9 +60,8 @@ function QuotePreview({ rates, usingDraft }: { rates: PricingRates; usingDraft: 
           </label>
           <label className={styles.field}>
             <span>Delivery type</span>
-            <select value={type} onChange={(e) => setType(e.target.value as DeliveryType)}>
-              {(Object.keys(deliveryTypeLabels) as DeliveryType[]).map((t) => <option key={t} value={t}>{deliveryTypeLabels[t]}</option>)}
-            </select>
+            <Dropdown value={type} onChange={(v) => setType(v as DeliveryType)}
+              options={(Object.keys(deliveryTypeLabels) as DeliveryType[]).map((t) => ({ value: t, label: deliveryTypeLabels[t] }))} />
           </label>
         </div>
       </div>

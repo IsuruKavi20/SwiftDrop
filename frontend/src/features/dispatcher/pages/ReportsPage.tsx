@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { getDeliveryReport } from '../api/adminApi';
 import { DeliveriesChart } from '../components/DeliveriesChart';
 import { PageHeader } from '../components/DispatcherLayout';
+import { Dropdown } from '../components/Dropdown';
 import { formatPercent, successRate } from '../lib/format';
 import { useDispatchData } from '../lib/useDispatchData';
 import styles from '../components/Dispatcher.module.css';
@@ -19,9 +20,8 @@ export function ReportsPage() {
         action={(
           <label className={styles.select}>
             <span className={styles.visuallyHidden}>Period</span>
-            <select value={days} onChange={(e) => setDays(Number(e.target.value) as (typeof RANGES)[number])}>
-              {RANGES.map((r) => <option key={r} value={r}>Last {r} days</option>)}
-            </select>
+            <Dropdown value={String(days)} onChange={(v) => setDays(Number(v) as (typeof RANGES)[number])}
+              options={RANGES.map((r) => ({ value: String(r), label: `Last ${r} days` }))} />
           </label>
         )} />
       {error && <p className={styles.errorBox} role="alert">{error}</p>}
