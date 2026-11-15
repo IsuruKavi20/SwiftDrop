@@ -1,0 +1,32 @@
+# Only what the build needs goes to Docker: faster builds, smaller "build context", and no local secrets in the image.
+# The build needs only: mvnw, .mvn/, pom.xml and src/main/.
+
+# Build output (the image builds its own)
+target/
+
+# Tests already ran in CI ("Backend tests"); the image skips them, so they don't need to be sent
+src/test/
+
+# Local secrets and settings: must NEVER end up inside an image
+src/main/resources/application-local.properties
+**/*-local.properties
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+
+# Editors and operating system files
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Logs and Windows-only files
+*.log
+logs/
+mvnw.cmd
+
+# Docker's own files (not needed inside the image)
+Dockerfile
+.dockerignore
