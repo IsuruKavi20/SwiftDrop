@@ -1288,3 +1288,6 @@ a.cellSub:hover { color: var(--d-gold-deep); text-decoration: underline; }
   .sidebar, .scrim, .navItem, .brandIcon, .statCard, .appCard, .bar span,
   .primaryButton, .secondaryButton, .dangerButton, .dropdownButton, .dropdownButton svg { transition: none; }
 }
+
+/* "Customer view" button above the footer (admins who are also customers) */
+.switchView { width: 100%; border: 0; background: none; font: inherit; text-align: left; cursor: pointer; }
