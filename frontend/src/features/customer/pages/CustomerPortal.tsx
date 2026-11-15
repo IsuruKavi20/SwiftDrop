@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import { navigate, routes, usePath } from '../../../app/router';
 import { logOut, refresh } from '../../auth/api/authApi';
 import { getAccessToken, readClaims } from '../../auth/lib/session';
+import { otherAreas } from '../../auth/lib/areas';
 import { CompleteProfileForm } from '../components/CompleteProfileForm';
 import { CustomerSupportPage } from './CustomerSupportPage';
 import { NotificationsPage } from '../../notification/pages/NotificationsPage';
@@ -37,17 +38,6 @@ function Status({value}: {value: DeliveryStatus}) {return <span className={`${s.
 function Spinner() {return <div className={s.skeleton} role="status"><span className={s.srOnly}>Loading…</span><i/><i/><i/></div>}
 function Notice({children, error=false}:{children:ReactNode;error?:boolean}) {return <div role={error?'alert':'status'} className={error?s.alert:s.notice}>{children}</div>}
 
-function hasMerchantAccess(): boolean {
-  const token = getAccessToken();
-  if (!token) return false;
-  try {
-    const claims = readClaims(token);
-    return Boolean(claims.entitlements?.includes('merchant:api-access'));
-  } catch {
-    return false;
-  }
-}
-
 export function CustomerPortal() {
   const path=usePath();
   const [profile,setProfile]=useState<CustomerProfile|null>(null);
@@ -58,6 +48,9 @@ export function CustomerPortal() {
       if (!getAccessToken() && !(await refresh())) {navigate(routes.login);return}
       const claims=readClaims(getAccessToken()!);
       if (!(claims.entitlements??[]).includes('parcel:read-own')) {navigate(routes.account);return}
+      // A merchant account is a business, not a shopper: it uses the merchant portal only (admins, dispatchers and
+      // couriers may still use their own customer screens)
+      if ((claims.entitlements??[]).includes('merchant:api-access')) {navigate(routes.merchantDashboard,{replace:true});return}
       const next=await getProfile();setProfile(next);setState('ready');
     } catch(e) {
       if(e instanceof ApiError && e.status===404) setState('missing');
@@ -89,17 +82,7 @@ export function CustomerPortal() {
         </div>)}
       </nav>
       <div className={s.sidebarBottom}>
-        {hasMerchantAccess() && (
-          <button
-            type="button"
-            className={s.navItem}
-            onClick={() => navigate(routes.merchantDashboard)}
-            style={{ marginBottom: '8px' }}
-          >
-            <Icon name="package" className={s.navIcon} />
-            Merchant view
-          </button>
-        )}
+        {otherAreas('customer').filter(area=>area.id==='admin').map(area=><button key={area.id} type="button" className={s.navItem} onClick={()=>navigate(area.path)}><Icon name="shield" className={s.navIcon}/>Admin view</button>)}
         <div className={s.accountCard}>
           {profile?.pictureUrl
             ? <img className={s.accountPhoto} src={profile.pictureUrl} alt="" referrerPolicy="no-referrer" width={36} height={36}/>
