@@ -63,8 +63,8 @@ public class CourierProfileService {
         if (couriers.existsByUserId(request.userId())) {
             throw new ConflictException("This person already has a courier profile.");
         }
-        // Copies the person from the auth service if we haven't seen them yet
-        AppUser person = userDirectory.require(request.userId());
+        // Asks the auth service now: the admin may have given the Courier role moments ago, before our copy refreshed
+        AppUser person = userDirectory.requireFresh(request.userId());
         if (!person.hasRole(COURIER)) {
             throw new ConflictException(AssignmentResponse.nameOf(person)
                     + " doesn't have the Courier role. Give it in Users and Roles first.");

@@ -2,8 +2,10 @@ package com.swiftdrop.backend.identity.service;
 
 import com.swiftdrop.backend.identity.client.DirectoryClient;
 import com.swiftdrop.backend.identity.client.DirectoryPerson;
+import com.swiftdrop.backend.identity.config.IdentityProperties;
 import com.swiftdrop.backend.identity.entity.AppUser;
 import com.swiftdrop.backend.identity.entity.AppUserStatus;
+import com.swiftdrop.backend.identity.exception.DirectoryUnavailableException;
 import com.swiftdrop.backend.identity.exception.UnknownUserException;
 import com.swiftdrop.backend.identity.repository.AppUserRepository;
 import com.swiftdrop.backend.identity.repository.AppUserWriter;
@@ -33,13 +35,15 @@ public class UserDirectory {
     private final AppUserWriter writer;
     private final DirectoryClient directory;
     private final EntityManager entityManager;
+    private final IdentityProperties properties;
 
     UserDirectory(AppUserRepository users, AppUserWriter writer, DirectoryClient directory,
-                  EntityManager entityManager) {
+                  EntityManager entityManager, IdentityProperties properties) {
         this.users = users;
         this.writer = writer;
         this.directory = directory;
         this.entityManager = entityManager;
+        this.properties = properties;
     }
 
     /** The person, copying them from auth the first time. Empty if auth doesn't know them. */
@@ -58,6 +62,32 @@ public class UserDirectory {
         // The writer uses SQL, so JPA's remembered placeholder is now old: forget it and read the fresh row
         local.ifPresent(entityManager::detach);
         return users.findById(id);
+    }
+
+    /**
+     * Like {@link #require}, but asks the auth service now and updates the copy first. For rare admin actions that
+     * depend on a change the admin may have made moments ago (e.g. giving the Courier role), which the copy only
+     * learns of at the next refresh. If auth can't be reached, it falls back to the copy.
+     */
+    @Transactional
+    public AppUser requireFresh(UUID id) {
+        if (!properties.directoryEnabled()) {
+            return require(id);   // no service client configured: the copy is all we have
+        }
+        Optional<DirectoryPerson> remote;
+        Instant lookedUpAt = Instant.now();
+        try {
+            remote = directory.get(id, false);
+        } catch (DirectoryUnavailableException unavailable) {
+            return require(id);
+        }
+        if (remote.isEmpty()) {
+            throw new UnknownUserException(id);
+        }
+        writer.saveFromDirectory(remote.get(), lookedUpAt);
+        // The writer uses SQL, so a row JPA already loaded is now old: forget it and read the fresh one
+        users.findById(id).ifPresent(entityManager::detach);
+        return users.findById(id).filter(AppUser::isActive).orElseThrow(() -> new UnknownUserException(id));
     }
 
     /** The person if they exist and may be used (not blocked or deleted); otherwise UnknownUserException. */
