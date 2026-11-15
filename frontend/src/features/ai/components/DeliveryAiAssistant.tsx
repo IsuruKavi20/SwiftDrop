@@ -17,6 +17,13 @@ const QUICK_PROMPTS = [
   'What items are prohibited from sending?',
 ];
 
+const MAX_HISTORY = 10;
+export const MAX_MESSAGE_CHARS = 500;
+
+// Event handlers create message ids; a counter keeps render pure (no Date.now() during render)
+let messageCounter = 0;
+const newId = (prefix: string) => `${prefix}-${++messageCounter}`;
+
 export function DeliveryAiAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -44,7 +51,7 @@ export function DeliveryAiAssistant() {
     if (!query || loading) return;
 
     const userMsg: MessageItem = {
-      id: 'user-' + Date.now(),
+      id: newId('user'),
       role: 'user',
       content: query,
       timestamp: new Date(),
@@ -56,30 +63,32 @@ export function DeliveryAiAssistant() {
 
     try {
       // Build history for context (exclude welcome message)
+      // Only the last 10 messages (the server keeps no more): smaller, cheaper requests
       const history: AiChatMessage[] = messages
-        .filter((m) => m.id !== 'welcome')
+        .filter((m) => m.id !== 'welcome' && !m.id.startsWith('error'))
+        .slice(-MAX_HISTORY)
         .map((m) => ({ role: m.role, content: m.content }));
 
       const res: AiChatResponse = await sendAiMessage(query, history, conversationId);
       setConversationId(res.conversationId);
 
       const aiMsg: MessageItem = {
-        id: 'ai-' + Date.now(),
+        id: newId('ai'),
         role: 'model',
         content: res.reply,
         toolsUsed: res.toolsUsed,
-        timestamp: new Date(res.timestamp || Date.now()),
+        timestamp: res.timestamp ? new Date(res.timestamp) : new Date(),
       };
 
       setMessages((prev) => [...prev, aiMsg]);
     } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : 'Something went wrong';
+      const errMsg = err instanceof Error ? err.message : 'Something went wrong. Please try again shortly.';
       setMessages((prev) => [
         ...prev,
         {
-          id: 'error-' + Date.now(),
+          id: newId('error'),
           role: 'model',
-          content: `⚠️ Sorry, I encountered an issue: ${errMsg}. Please try again shortly.`,
+          content: `⚠️ ${errMsg}`,
           timestamp: new Date(),
         },
       ]);
@@ -182,6 +191,8 @@ export function DeliveryAiAssistant() {
               type="text"
               className={s.chatInput}
               placeholder="Ask about tracking, shipping rates..."
+              aria-label="Message to the SwiftDrop assistant"
+              maxLength={MAX_MESSAGE_CHARS}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               disabled={loading}
