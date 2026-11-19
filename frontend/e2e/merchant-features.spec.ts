@@ -127,7 +127,7 @@ test.describe('Merchant Module Full Feature Set', () => {
     const holdConfirmation = new Promise<void>((resolve) => { finishConfirmation = resolve; });
     const pending = { ...MOCK_ORDER_DETAIL, status: 'PENDING', estimatedFee: 520, trackingEvents: [] };
     await page.route('**/api/merchants/me/deliveries/estimate', (route) => route.fulfill({
-      json: { currency: 'LKR', baseFee: 300, weightCharge: 100, serviceCharge: 120, totalFee: 520 },
+      json: { currency: 'LKR', distanceKm: 15, routeFrom: 'Colombo', routeTo: 'Kandy', distanceCharge: 100, baseFee: 200, weightCharge: 100, serviceCharge: 120, totalFee: 520, explanation: '15 km by road' },
     }));
     await page.route('**/api/merchants/me/deliveries/101', (route) => route.fulfill({ json: pending }));
     await page.route('**/api/merchants/me/deliveries/101/confirm', async (route) => {
@@ -180,6 +180,7 @@ test.describe('Merchant Module Full Feature Set', () => {
 
     await page.getByRole('button', { name: 'Get fee estimate' }).click();
     await expect(page.getByRole('status').filter({ hasText: 'Estimated delivery fee' })).toContainText('520');
+    await expect(page.getByText('15 km by road')).toBeVisible();
     await page.fill('input[name="parcel-1.weightKg"]', '2.25');
     await expect(page.getByRole('status').filter({ hasText: 'Estimated delivery fee' })).toHaveCount(0);
 

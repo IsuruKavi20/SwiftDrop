@@ -69,7 +69,7 @@ public class MerchantDeliveryService {
     }
 
     public DeliveryPricing.Quote estimate(CreateMerchantDeliveryRequest request) {
-        return pricing.estimate(request.pickup().district(), request.destination().district(),
+        return pricing.estimate(pricingAddress(request.pickup()), pricingAddress(request.destination()),
                 request.deliveryType().name(), request.parcels().stream().map(ParcelRequest::weightKg).toList());
     }
 
@@ -180,6 +180,10 @@ public class MerchantDeliveryService {
             case EXPRESS -> today.plusDays(1);
             case STANDARD -> today.plusDays(3);
         };
+    }
+
+    private static DeliveryPricing.Address pricingAddress(DeliveryAddressRequest request) {
+        return new DeliveryPricing.Address(request.street(), request.city(), request.district(), request.postalCode());
     }
 
     private static DeliveryAddress toDeliveryAddress(AddressType type, DeliveryAddressRequest request) {

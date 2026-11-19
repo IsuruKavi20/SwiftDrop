@@ -628,7 +628,8 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
 
               {currentQuote && <div className={extra.importStatus} role="status">
                 <strong>Estimated delivery fee {formatMerchantFee(currentQuote.totalFee, currentQuote.currency)}</strong>
-                <p>Base {formatMerchantFee(currentQuote.baseFee)} · Weight {formatMerchantFee(currentQuote.weightCharge)} · Service {formatMerchantFee(currentQuote.serviceCharge)}</p>
+                <p>Base {formatMerchantFee(currentQuote.baseFee)} · Distance {formatMerchantFee(currentQuote.distanceCharge)} · Weight {formatMerchantFee(currentQuote.weightCharge)} · Service {formatMerchantFee(currentQuote.serviceCharge)}</p>
+                <p>{currentQuote.explanation}</p>
                 <p>The server recalculates this fee when you book the shipment.</p>
               </div>}
               {quoteError && <p className={shared.error} role="alert">{quoteError}</p>}

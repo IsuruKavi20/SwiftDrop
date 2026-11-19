@@ -16,7 +16,9 @@ import {
   type PagedDeliveries, type SavedAddress,
 } from '../api/customerApi';
 import s from '../components/CustomerPortal.module.css';
-import logoIcon from '../../../assets/brand/logo-mark.svg';
+
+/** Google Maps directions for the same two addresses the server asked Google about, so anyone can compare the km. */
+const googleRouteUrl=(from:string,to:string)=>`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&travelmode=driving`;import logoIcon from '../../../assets/brand/logo-mark.svg';
 import { Icon, type IconName } from '../../../shared/ui/Icon';
 import { DeliveryScene } from '../../../shared/ui/DeliveryScene';
 
@@ -226,11 +228,16 @@ function BookingPage(){
         </div>
       </section>
       <section className={`${s.card} ${s.receipt}`}><h3>Estimated delivery fee</h3>
+        {quote.distanceKm!==null&&<div className={s.billRow}><span>Road distance</span><strong>{quote.distanceKm.toFixed(1)} km</strong></div>}
         <div className={s.billRow}><span>Base fee</span><strong>{fmtMoney(quote.baseFee)}</strong></div>
+        {quote.distanceKm!==null&&<div className={s.billRow}><span>Distance charge</span><strong>{fmtMoney(quote.distanceCharge)}</strong></div>}
         <div className={s.billRow}><span>Weight charge</span><strong>{fmtMoney(quote.weightCharge)}</strong></div>
         <div className={s.billRow}><span>Service surcharge</span><strong>{fmtMoney(quote.serviceCharge)}</strong></div>
         <div className={s.total}><span>Total estimate</span><strong>{fmtMoney(quote.totalFee)}</strong></div>
         <p className={s.smallNote}>{quote.explanation}</p>
+        <a className={`${s.subtleLink} ${s.routeCheck}`} href={googleRouteUrl(quote.routeFrom,quote.routeTo)} target="_blank" rel="noopener noreferrer">
+          <Icon name="pin" size={14}/>{quote.distanceKm!==null?'Check this route on Google Maps':'Road distance unavailable · view the route on Google Maps'}
+        </a>
         {pending&&<Notice>Your booking was saved. Retry confirmation to finish it safely without creating a duplicate.</Notice>}
         <div className={s.receiptActions}>
           <button type="button" className={s.primary} onClick={()=>void book()} disabled={busy}>{busy?'Processing…':pending?'Retry confirmation':'Confirm delivery'}</button>

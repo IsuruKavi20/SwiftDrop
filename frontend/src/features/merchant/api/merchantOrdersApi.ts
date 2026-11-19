@@ -71,6 +71,10 @@ export interface MerchantDeliveryDetail {
 }
 
 export interface MerchantDeliveryEstimate {
+  distanceKm: number | null;
+  routeFrom: string;
+  routeTo: string;
+  distanceCharge: number;
   currency: string;
   baseFee: number;
   weightCharge: number;

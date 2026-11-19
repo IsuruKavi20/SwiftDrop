@@ -76,8 +76,16 @@ export interface DeliveryZone {
 
 export type DeliveryZoneInput = Omit<DeliveryZone, 'id'>;
 
-/** The tariff CustomerPricingService quotes with (swiftdrop.customer.pricing.* settings), all in LKR. */
+/**
+ * The tariff CustomerPricingService quotes with (swiftdrop.customer.pricing.* settings), in LKR except includedKm.
+ * Fee = distanceBase (first includedKm of road distance) + perKm × km after that + weight + surcharge. The road
+ * distance comes from Google Maps; when it can't be found, the district bases replace the distance part.
+ */
 export interface PricingRates {
+  distanceBase: number;
+  /** The km of road distance the base fee covers. */
+  includedKm: number;
+  perKm: number;
   sameDistrictBase: number;
   otherDistrictBase: number;
   /** Charged for each kg of total parcel weight above the first kg. */
@@ -96,6 +104,8 @@ export interface PublishedPricing {
 }
 
 export interface QuoteRequest {
+  /** Road distance in km; undefined = unknown, so the district bases apply. */
+  distanceKm?: number;
   pickupDistrict: string;
   destinationDistrict: string;
   totalWeightKg: number;
@@ -105,6 +115,7 @@ export interface QuoteRequest {
 /** Same parts as customer.dto.FeeEstimateResponse. */
 export interface Quote {
   baseFee: number;
+  distanceCharge: number;
   weightCharge: number;
   serviceCharge: number;
   totalFee: number;

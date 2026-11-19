@@ -7,8 +7,29 @@ import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
 
-/** The five rates to publish, in LKR: zero or more, under 1,000,000, at most 2 decimals. */
+/**
+ * The rates to publish: zero or more, at most 2 decimals. Money in LKR, under 1,000,000; {@code includedKm} in km,
+ * under 10,000.
+ */
 public record PricingRatesRequest(
+        @NotNull(message = "Enter the base fee")
+        @DecimalMin(value = "0", message = "Rates must be zero or more")
+        @DecimalMax(value = "999999.99", message = "Rates must be under LKR 1,000,000")
+        @Digits(integer = 6, fraction = 2, message = "Use at most 2 decimals")
+        BigDecimal distanceBase,
+
+        @NotNull(message = "Enter the km the base fee covers")
+        @DecimalMin(value = "0", message = "Distance must be zero or more")
+        @DecimalMax(value = "9999.99", message = "Distance must be under 10,000 km")
+        @Digits(integer = 4, fraction = 2, message = "Use at most 2 decimals")
+        BigDecimal includedKm,
+
+        @NotNull(message = "Enter the charge per km")
+        @DecimalMin(value = "0", message = "Rates must be zero or more")
+        @DecimalMax(value = "999999.99", message = "Rates must be under LKR 1,000,000")
+        @Digits(integer = 6, fraction = 2, message = "Use at most 2 decimals")
+        BigDecimal perKm,
+
         @NotNull(message = "Enter the same-district base fee")
         @DecimalMin(value = "0", message = "Rates must be zero or more")
         @DecimalMax(value = "999999.99", message = "Rates must be under LKR 1,000,000")

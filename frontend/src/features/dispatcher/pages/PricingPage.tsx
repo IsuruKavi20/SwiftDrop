@@ -15,14 +15,19 @@ import styles from '../components/Dispatcher.module.css';
 
 const districtOptions = allDistricts.map((d) => ({ value: d, label: d }));
 
-/** The rates CustomerPricingService uses, in the order of its formula. */
-const RATE_FIELDS: { key: keyof PricingRates; label: string; hint: string }[] = [
-  { key: 'sameDistrictBase', label: 'Base fee, same district', hint: 'Pickup and destination in the same district' },
-  { key: 'otherDistrictBase', label: 'Base fee, other district', hint: 'Pickup and destination in different districts' },
-  { key: 'additionalKg', label: 'Each additional kg', hint: 'Per kg of total parcel weight above the first kg' },
-  { key: 'expressSurcharge', label: 'Express surcharge', hint: 'Added for Express deliveries' },
-  { key: 'sameDaySurcharge', label: 'Same-day surcharge', hint: 'Added for Same-day deliveries' },
+/** The rates CustomerPricingService uses, in the order of its formula. includedKm is a distance, the rest LKR. */
+const RATE_FIELDS: { key: keyof PricingRates; label: string; hint: string; unit: 'LKR' | 'km' }[] = [
+  { key: 'distanceBase', label: 'Base fee', hint: 'Every delivery; covers the first km of road distance', unit: 'LKR' },
+  { key: 'includedKm', label: 'Km in the base fee', hint: 'Road distance the base fee covers', unit: 'km' },
+  { key: 'perKm', label: 'Each km after that', hint: 'Per km of road distance (Google Maps) beyond the base fee', unit: 'LKR' },
+  { key: 'additionalKg', label: 'Each additional kg', hint: 'Per kg of total parcel weight above the first kg', unit: 'LKR' },
+  { key: 'expressSurcharge', label: 'Express surcharge', hint: 'Added for Express deliveries', unit: 'LKR' },
+  { key: 'sameDaySurcharge', label: 'Same-day surcharge', hint: 'Added for Same-day deliveries', unit: 'LKR' },
+  { key: 'sameDistrictBase', label: 'Fallback: same district', hint: 'Replaces base fee + km when Google Maps finds no route', unit: 'LKR' },
+  { key: 'otherDistrictBase', label: 'Fallback: other district', hint: 'Replaces base fee + km when Google Maps finds no route', unit: 'LKR' },
 ];
+
+const formatRate = (unit: 'LKR' | 'km', value: number) => (unit === 'km' ? `${value} km` : formatLkr(value));
 
 const deliveryTypeLabels: Record<DeliveryType, string> = { STANDARD: 'Standard', EXPRESS: 'Express', SAME_DAY: 'Same day' };
 
@@ -33,11 +38,17 @@ const fromDraft = (draft: Draft) => Object.fromEntries(RATE_FIELDS.map(({ key })
 function QuotePreview({ rates, usingDraft }: { rates: PricingRates; usingDraft: boolean }) {
   const [pickup, setPickup] = useState('Colombo');
   const [destination, setDestination] = useState('Kandy');
+  const [distance, setDistance] = useState('115');
   const [weight, setWeight] = useState('2');
   const [type, setType] = useState<DeliveryType>('STANDARD');
   const kg = Number(weight);
-  const valid = Number.isFinite(kg) && kg > 0 && Object.values(rates).every((r) => Number.isFinite(r) && r >= 0);
-  const result = valid ? quote(rates, { pickupDistrict: pickup, destinationDistrict: destination, totalWeightKg: kg, deliveryType: type }) : undefined;
+  // Blank distance: as if Google Maps found no route, so the district fallback applies
+  const km = distance.trim() === '' ? undefined : Number(distance);
+  const valid = Number.isFinite(kg) && kg > 0 && (km === undefined || (Number.isFinite(km) && km >= 0))
+    && Object.values(rates).every((r) => Number.isFinite(r) && r >= 0);
+  const result = valid
+    ? quote(rates, { distanceKm: km, pickupDistrict: pickup, destinationDistrict: destination, totalWeightKg: kg, deliveryType: type })
+    : undefined;
 
   return (
     <section className={styles.panel}>
@@ -50,16 +61,21 @@ function QuotePreview({ rates, usingDraft }: { rates: PricingRates; usingDraft: 
       <div className={styles.quoteForm}>
         <div className={styles.formGrid}>
           <label className={styles.field}>
+            <span>Road distance (km)</span>
+            <input type="number" min="0" step="1" placeholder="Unknown: district fallback" value={distance}
+              onChange={(e) => setDistance(e.target.value)} />
+          </label>
+          <label className={styles.field}>
+            <span>Total weight (kg)</span>
+            <input type="number" min="0.1" step="0.1" value={weight} onChange={(e) => setWeight(e.target.value)} />
+          </label>
+          <label className={styles.field}>
             <span>Pickup district</span>
             <Dropdown value={pickup} onChange={setPickup} options={districtOptions} />
           </label>
           <label className={styles.field}>
             <span>Destination district</span>
             <Dropdown value={destination} onChange={setDestination} options={districtOptions} />
-          </label>
-          <label className={styles.field}>
-            <span>Total weight (kg)</span>
-            <input type="number" min="0.1" step="0.1" value={weight} onChange={(e) => setWeight(e.target.value)} />
           </label>
           <label className={styles.field}>
             <span>Delivery type</span>
@@ -70,13 +86,20 @@ function QuotePreview({ rates, usingDraft }: { rates: PricingRates; usingDraft: 
       </div>
       {result ? (
         <div className={styles.quoteResult} aria-live="polite">
-          <div><span>Base ({pickup === destination ? 'same district' : 'other district'})</span><span>{formatLkr(result.baseFee)}</span></div>
+          {km === undefined ? (
+            <div><span>Fallback base ({pickup === destination ? 'same district' : 'other district'})</span><span>{formatLkr(result.baseFee)}</span></div>
+          ) : (
+            <>
+              <div><span>Base fee (first {rates.includedKm} km)</span><span>{formatLkr(result.baseFee)}</span></div>
+              <div><span>Distance ({Math.max(0, km - rates.includedKm).toFixed(1)} km × {formatLkr(rates.perKm)})</span><span>{formatLkr(result.distanceCharge)}</span></div>
+            </>
+          )}
           <div><span>Additional weight</span><span>{formatLkr(result.weightCharge)}</span></div>
           <div><span>Service ({deliveryTypeLabels[type]})</span><span>{formatLkr(result.serviceCharge)}</span></div>
           <div><span>Total</span><span>{formatLkr(result.totalFee)}</span></div>
         </div>
       ) : (
-        <p className={styles.panelNote}>Enter a weight above 0 and valid rates to see a quote.</p>
+        <p className={styles.panelNote}>Enter a weight above 0, a distance of 0 or more (or leave it blank) and valid rates to see a quote.</p>
       )}
     </section>
   );
@@ -118,16 +141,16 @@ function PricingEditor({ published, onPublished }: { published: PublishedPricing
           <header className={styles.panelHeader}>
             <div>
               <h2>Rates</h2>
-              <p>Fee = base fee + additional weight + service surcharge (the backend's CustomerPricingService formula).</p>
+              <p>Fee = base fee + km after the included km × rate (road distance from Google Maps) + additional weight + service surcharge.</p>
             </div>
           </header>
           <ul className={styles.rateRows}>
-            {RATE_FIELDS.map(({ key, label, hint }) => (
+            {RATE_FIELDS.map(({ key, label, hint, unit }) => (
               <li key={key}>
                 <label htmlFor={`rate-${key}`}><strong>{label}</strong><small>{hint}</small></label>
                 <span className={styles.money}>
-                  <span>LKR</span>
-                  <input id={`rate-${key}`} type="number" min="0" step="10" inputMode="decimal" value={draft[key]}
+                  <span>{unit}</span>
+                  <input id={`rate-${key}`} type="number" min="0" step={unit === 'km' || key === 'perKm' ? 1 : 10} inputMode="decimal" value={draft[key]}
                     data-changed={draft[key] !== saved[key] || undefined}
                     onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} />
                 </span>
@@ -142,16 +165,16 @@ function PricingEditor({ published, onPublished }: { published: PublishedPricing
         <FormDialog title={`Publish rate version ${published.version + 1}?`} subtitle="Check the new rates before they go live."
           submitLabel="Publish rates" onClose={() => setConfirming(false)} onSubmit={publish}>
           <ul className={styles.rateChanges}>
-            {changes.map(({ key, label }) => {
+            {changes.map(({ key, label, unit }) => {
               const before = published.rates[key];
               const after = Number(draft[key]);
               return (
                 <li key={key}>
                   <span>{label}</span>
                   <span className={styles.rateChange}>
-                    <s>{formatLkr(before)}</s>
+                    <s>{formatRate(unit, before)}</s>
                     <DispatcherIcon name="right" size={14} />
-                    <strong data-trend={after > before ? 'up' : 'down'}>{formatLkr(after)}</strong>
+                    <strong data-trend={after > before ? 'up' : 'down'}>{formatRate(unit, after)}</strong>
                   </span>
                 </li>
               );
@@ -178,7 +201,7 @@ export function PricingPage() {
           <PageHeader title="Pricing" subtitle="Loading the published rates…" />
           {!error && (
             <div className={styles.pricingGrid}>
-              <PanelSkeleton rows={5} />
+              <PanelSkeleton rows={8} />
               <PanelSkeleton rows={3} />
             </div>
           )}

@@ -22,5 +22,6 @@ kubectl -n swiftdrop create secret generic swiftdrop-secrets \
   --from-literal=MAIL_USERNAME="$(opt /swiftdrop/prod/mail/username)" \
   --from-literal=MAIL_PASSWORD="$(opt /swiftdrop/prod/mail/password)" \
   --from-literal=GEMINI_API_KEY="$(opt /swiftdrop/prod/ai/gemini-api-key)" \
+  --from-literal=GOOGLE_MAPS_API_KEY="$(opt /swiftdrop/prod/maps/google-api-key)" \
   --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 echo "swiftdrop-secrets updated from SSM"
