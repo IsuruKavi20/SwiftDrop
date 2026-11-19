@@ -535,4 +535,221 @@ test.describe('Merchant Module Full Feature Set', () => {
     expect((await saved).postDataJSON().subscribedEvents.split(',').sort())
       .toEqual(['COURIER_ASSIGNED', 'DELIVERY_CONFIRMED']);
   });
+
+  test('7. Create Order: auto-fills pickup details from saved business profile and allows manual editing', async ({ page }) => {
+    const mockProfile = {
+      id: 1,
+      complete: true,
+      ownerName: 'Dilhan Fernando',
+      businessName: 'Ceylon Tea Exports',
+      businessEmail: 'orders@ceylontea.lk',
+      contactNumber: '+94112345678',
+      addressLine1: '12 Flower Road',
+      addressLine2: 'Suite 4B',
+      city: 'Colombo',
+      province: 'Western',
+      postalCode: '00700',
+      country: 'Sri Lanka',
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    };
+
+    await page.route('**/api/merchants/me', async (route: Route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(mockProfile),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.goto('/merchant/create-order');
+    await expect(page.locator('#create-order-title')).toHaveText('Book a Delivery Shipment');
+
+    // Click "Use Business Address"
+    const autoFillBtn = page.locator('#use-business-address');
+    await expect(autoFillBtn).toBeVisible();
+    await autoFillBtn.click();
+
+    // Verify fields populated
+    await expect(page.locator('input[name="pickup.contactName"]')).toHaveValue('Ceylon Tea Exports');
+    await expect(page.locator('input[name="pickup.contactPhone"]')).toHaveValue('+94112345678');
+    await expect(page.locator('input[name="pickup.street"]')).toHaveValue('12 Flower Road, Suite 4B');
+    await expect(page.locator('input[name="pickup.city"]')).toHaveValue('Colombo');
+    await expect(page.locator('input[name="pickup.district"]')).toHaveValue('Colombo');
+    await expect(page.locator('input[name="pickup.postalCode"]')).toHaveValue('00700');
+
+    // Verify status notice
+    await expect(page.locator('text=Pickup details populated from business profile.')).toBeVisible();
+
+    // Test manual editing of populated fields
+    await page.fill('input[name="pickup.contactPhone"]', '+94119998888');
+    await expect(page.locator('input[name="pickup.contactPhone"]')).toHaveValue('+94119998888');
+    await page.fill('input[name="pickup.street"]', '14 Flower Road Warehouse');
+    await expect(page.locator('input[name="pickup.street"]')).toHaveValue('14 Flower Road Warehouse');
+  });
+
+  test('8. Create Order: handles incomplete business profile gracefully', async ({ page }) => {
+    const incompleteProfile = {
+      id: 2,
+      complete: false,
+      ownerName: 'Sunil Shantha',
+      businessName: 'Sunil Craft Spices',
+      businessEmail: 'sunil@craftspices.lk',
+      contactNumber: '+94771234567',
+      addressLine1: null,
+      addressLine2: null,
+      city: null,
+      province: null,
+      postalCode: null,
+      country: 'Sri Lanka',
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    };
+
+    await page.route('**/api/merchants/me', async (route: Route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(incompleteProfile),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.goto('/merchant/create-order');
+    await page.click('#use-business-address');
+
+    // Populated available contact fields
+    await expect(page.locator('input[name="pickup.contactName"]')).toHaveValue('Sunil Craft Spices');
+    await expect(page.locator('input[name="pickup.contactPhone"]')).toHaveValue('+94771234567');
+    await expect(page.locator('input[name="pickup.street"]')).toHaveValue('');
+
+    // Incomplete notice shown
+    await expect(page.locator('text=Business profile is incomplete. Populated available fields.')).toBeVisible();
+
+    // Merchant can manually enter the missing street address
+    await page.fill('input[name="pickup.street"]', '88 Spice Garden Lane');
+    await page.fill('input[name="pickup.city"]', 'Matara');
+    await page.fill('input[name="pickup.district"]', 'Matara');
+    await expect(page.locator('input[name="pickup.street"]')).toHaveValue('88 Spice Garden Lane');
+  });
+
+  test('9. Create Order: handles profile API failure gracefully', async ({ page }) => {
+    await page.route('**/api/merchants/me', async (route: Route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 500,
+          contentType: 'application/json',
+          body: JSON.stringify({ message: 'Internal Server Error' }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.goto('/merchant/create-order');
+    await expect(page.locator('#create-order-title')).toHaveText('Book a Delivery Shipment');
+
+    // Clicking button shows graceful error notice without page crash
+    await page.click('#use-business-address');
+    await expect(page.locator('text=Could not load business profile. Please enter pickup details manually.')).toBeVisible();
+
+    // Form remains fully functional for manual input
+    await page.fill('input[name="pickup.contactName"]', 'Manual Merchant');
+    await expect(page.locator('input[name="pickup.contactName"]')).toHaveValue('Manual Merchant');
+  });
+
+  test('10. Create Order: auto-fills pickup district accurately from city mappings (Negombo -> Gampaha)', async ({ page }) => {
+    const negomboProfile = {
+      id: 3,
+      complete: true,
+      ownerName: 'Fernando Brothers',
+      businessName: 'Negombo Lagoon Fish',
+      businessEmail: 'info@lagoonfish.lk',
+      contactNumber: '+94312223344',
+      addressLine1: '88 Sea Street',
+      addressLine2: null,
+      city: 'Negombo',
+      province: 'Western',
+      postalCode: '11500',
+      country: 'Sri Lanka',
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    };
+
+    await page.route('**/api/merchants/me', async (route: Route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(negomboProfile),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.goto('/merchant/create-order');
+    await page.click('#use-business-address');
+
+    // City is populated as Negombo, but district is properly resolved to Gampaha (never Negombo)
+    await expect(page.locator('input[name="pickup.city"]')).toHaveValue('Negombo');
+    await expect(page.locator('input[name="pickup.district"]')).toHaveValue('Gampaha');
+    await expect(page.locator('text=Pickup details populated from business profile.')).toBeVisible();
+  });
+
+  test('11. Create Order: leaves district empty and prompts manual selection when city cannot be determined confidently', async ({ page }) => {
+    const unknownCityProfile = {
+      id: 4,
+      complete: true,
+      ownerName: 'Kamal Silva',
+      businessName: 'Kamal Crafts',
+      businessEmail: 'kamal@crafts.lk',
+      contactNumber: '+94773334455',
+      addressLine1: '50 Green Ridge Way',
+      addressLine2: null,
+      city: 'MysticTown',
+      province: 'Western',
+      postalCode: '99999',
+      country: 'Sri Lanka',
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    };
+
+    await page.route('**/api/merchants/me', async (route: Route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(unknownCityProfile),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.goto('/merchant/create-order');
+    await page.click('#use-business-address');
+
+    // Populated available contact and address fields
+    await expect(page.locator('input[name="pickup.contactName"]')).toHaveValue('Kamal Crafts');
+    await expect(page.locator('input[name="pickup.street"]')).toHaveValue('50 Green Ridge Way');
+    await expect(page.locator('input[name="pickup.city"]')).toHaveValue('MysticTown');
+
+    // District cannot be determined confidently: MUST be empty (never arbitrary city name or province)
+    await expect(page.locator('input[name="pickup.district"]')).toHaveValue('');
+
+    // Status banner asks the merchant to select the district manually
+    await expect(page.locator('text=Could not determine pickup district. Please select it manually.')).toBeVisible();
+
+    // Merchant can manually select / fill their district
+    await page.fill('input[name="pickup.district"]', 'Colombo');
+    await expect(page.locator('input[name="pickup.district"]')).toHaveValue('Colombo');
+  });
 });

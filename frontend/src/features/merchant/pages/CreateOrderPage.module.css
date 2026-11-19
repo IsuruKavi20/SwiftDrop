@@ -131,6 +131,60 @@
 .previewTable tbody tr { border-top: 1px solid var(--color-border); }
 .previewTable th { background: var(--color-page); font-weight: 650; }
 
+.autoFillBar {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.25rem 0 1rem !important;
+  grid-column: 1 / -1;
+}
+
+.autoFillButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.1rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-input, 0.4rem);
+  background: var(--color-page, #f8f9fa);
+  color: var(--merchant-orange, #e06500);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.autoFillButton:hover:not(:disabled) {
+  background: var(--color-cream, #fdf6ec);
+  border-color: var(--merchant-orange, #e06500);
+}
+
+.autoFillButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.autoFillNoticeSuccess {
+  font-size: 0.825rem;
+  color: var(--color-success, #2e7d32);
+  font-weight: 500;
+}
+
+.autoFillNoticeWarning {
+  font-size: 0.825rem;
+  color: var(--color-warning, #b45309);
+  font-weight: 500;
+}
+
+.autoFillNoticeError {
+  font-size: 0.825rem;
+  color: var(--color-error, #b91c1c);
+  font-weight: 500;
+}
+
 .badge { display: inline-block; padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.75rem; font-weight: 700; }
 .badgeValid, .badgeSuccess { background: #e5f2e8; color: var(--color-success); }
 .badgeInvalid, .badgeError { background: #fae8e5; color: var(--color-error); }
