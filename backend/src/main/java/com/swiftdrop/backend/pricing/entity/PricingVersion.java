@@ -29,6 +29,15 @@ public class PricingVersion {
     @Column(nullable = false, unique = true, updatable = false)
     private int version;
 
+    @Column(name = "distance_base", nullable = false, precision = 12, scale = 2, updatable = false)
+    private BigDecimal distanceBase;
+
+    @Column(name = "included_km", nullable = false, precision = 8, scale = 2, updatable = false)
+    private BigDecimal includedKm;
+
+    @Column(name = "per_km", nullable = false, precision = 12, scale = 2, updatable = false)
+    private BigDecimal perKm;
+
     @Column(name = "same_district_base", nullable = false, precision = 12, scale = 2, updatable = false)
     private BigDecimal sameDistrictBase;
 
@@ -55,9 +64,13 @@ public class PricingVersion {
         // for JPA
     }
 
-    public PricingVersion(int version, BigDecimal sameDistrictBase, BigDecimal otherDistrictBase, BigDecimal additionalKg,
+    public PricingVersion(int version, BigDecimal distanceBase, BigDecimal includedKm, BigDecimal perKm,
+                          BigDecimal sameDistrictBase, BigDecimal otherDistrictBase, BigDecimal additionalKg,
                           BigDecimal expressSurcharge, BigDecimal sameDaySurcharge, Instant publishedAt, AppUser publishedBy) {
         this.version = version;
+        this.distanceBase = Objects.requireNonNull(distanceBase);
+        this.includedKm = Objects.requireNonNull(includedKm);
+        this.perKm = Objects.requireNonNull(perKm);
         this.sameDistrictBase = Objects.requireNonNull(sameDistrictBase);
         this.otherDistrictBase = Objects.requireNonNull(otherDistrictBase);
         this.additionalKg = Objects.requireNonNull(additionalKg);
@@ -68,7 +81,7 @@ public class PricingVersion {
     }
 
     public Tariff toTariff() {
-        return new Tariff(version, publishedAt, sameDistrictBase, otherDistrictBase, additionalKg, expressSurcharge,
+        return new Tariff(version, publishedAt, distanceBase, includedKm, perKm, sameDistrictBase, otherDistrictBase, additionalKg, expressSurcharge,
                 sameDaySurcharge);
     }
 

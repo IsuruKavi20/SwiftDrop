@@ -11,12 +11,13 @@ import java.time.Instant;
  */
 public record PublishedPricingResponse(int version, Instant publishedAt, String publishedBy, Rates rates) {
 
-    public record Rates(BigDecimal sameDistrictBase, BigDecimal otherDistrictBase, BigDecimal additionalKg,
+    public record Rates(BigDecimal distanceBase, BigDecimal includedKm, BigDecimal perKm,
+                        BigDecimal sameDistrictBase, BigDecimal otherDistrictBase, BigDecimal additionalKg,
                         BigDecimal expressSurcharge, BigDecimal sameDaySurcharge) { }
 
     public static PublishedPricingResponse of(Tariff tariff, String publishedBy) {
         return new PublishedPricingResponse(tariff.version(), tariff.publishedAt(), publishedBy,
-                new Rates(tariff.sameDistrictBase(), tariff.otherDistrictBase(), tariff.additionalKg(),
+                new Rates(tariff.distanceBase(), tariff.includedKm(), tariff.perKm(), tariff.sameDistrictBase(), tariff.otherDistrictBase(), tariff.additionalKg(),
                         tariff.expressSurcharge(), tariff.sameDaySurcharge()));
     }
 }

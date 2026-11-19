@@ -44,7 +44,10 @@ class AdminPricingApiTest {
     private final UUID adminId = UUID.randomUUID();
     private final UUID alice = UUID.randomUUID();
 
-    /** Colombo to Kandy, Express, 2.5 kg: other-district base + 1.5 kg extra + Express surcharge. */
+    /**
+     * Colombo to Kandy, Express, 2.5 kg. Tests have no Google Maps key, so the quote uses the district base:
+     * other-district base + 1.5 kg extra + Express surcharge (distance quotes: CustomerPricingServiceTest).
+     */
     private static final String BOOKING = """
             {
               "deliveryType": "EXPRESS",
@@ -56,7 +59,7 @@ class AdminPricingApiTest {
             }""";
 
     private static final String NEW_RATES = """
-            {"sameDistrictBase":400,"otherDistrictBase":700,"additionalKg":100,"expressSurcharge":400,"sameDaySurcharge":800}""";
+            {"distanceBase":300,"includedKm":3,"perKm":8,"sameDistrictBase":400,"otherDistrictBase":700,"additionalKg":100,"expressSurcharge":400,"sameDaySurcharge":800}""";
 
     @BeforeEach
     void setUp() {
@@ -78,6 +81,9 @@ class AdminPricingApiTest {
                 .andExpect(jsonPath("$.version").value(0))
                 .andExpect(jsonPath("$.publishedAt").doesNotExist())
                 .andExpect(jsonPath("$.publishedBy").doesNotExist())
+                .andExpect(jsonPath("$.rates.distanceBase").value(250.0))
+                .andExpect(jsonPath("$.rates.includedKm").value(5.0))
+                .andExpect(jsonPath("$.rates.perKm").value(6.0))
                 .andExpect(jsonPath("$.rates.sameDistrictBase").value(350.0))
                 .andExpect(jsonPath("$.rates.otherDistrictBase").value(650.0))
                 .andExpect(jsonPath("$.rates.additionalKg").value(120.0))
@@ -95,8 +101,9 @@ class AdminPricingApiTest {
                 .andExpect(jsonPath("$.version").value(1))
                 .andExpect(jsonPath("$.publishedBy").value("Amaya Admin"))
                 .andExpect(jsonPath("$.publishedAt").exists())
+                .andExpect(jsonPath("$.rates.perKm").value(8.0))
                 .andExpect(jsonPath("$.rates.otherDistrictBase").value(700.0));
-        // 700 + 1.5 kg × 100 + 400
+        // No Google key in tests, so the district base applies: 700 + 1.5 kg × 100 + 400
         quote().andExpect(jsonPath("$.totalFee").value(1250.0))
                 .andExpect(jsonPath("$.baseFee").value(700.0))
                 .andExpect(jsonPath("$.weightCharge").value(150.0))
@@ -136,8 +143,10 @@ class AdminPricingApiTest {
 
     @Test
     void refusesRatesThatAreMissingNegativeOrTooLarge() throws Exception {
-        publish("{\"sameDistrictBase\":400,\"otherDistrictBase\":-1,\"additionalKg\":100,\"expressSurcharge\":400}")
+        publish("{\"distanceBase\":300,\"includedKm\":-2,\"sameDistrictBase\":400,\"otherDistrictBase\":-1,\"additionalKg\":100,\"expressSurcharge\":400}")
                 .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.includedKm").value("Distance must be zero or more"))
+                .andExpect(jsonPath("$.errors.perKm").value("Enter the charge per km"))
                 .andExpect(jsonPath("$.errors.otherDistrictBase").value("Rates must be zero or more"))
                 .andExpect(jsonPath("$.errors.sameDaySurcharge").value("Enter the Same day surcharge"));
         publish(NEW_RATES.replace("\"additionalKg\":100", "\"additionalKg\":1000000"))

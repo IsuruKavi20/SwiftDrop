@@ -43,6 +43,13 @@ aws iam put-role-policy --role-name swiftdrop-ec2 --policy-name read-prod-secret
 $p = -join ((48..57)+(65..90)+(97..122) | Get-Random -Count 32 | % {[char]$_}); aws ssm put-parameter --name /swiftdrop/prod/rabbitmq/password --type SecureString --value $p; Remove-Variable p
 ```
 
+**2b. Google Maps key in SSM** (distance-based pricing; optional: without it, quotes use the district fees). Use a
+key restricted to the Routes API. `Read-Host -AsSecureString` keeps it off the screen and out of the shell history:
+```powershell
+$k = Read-Host -AsSecureString "Google Maps API key"; aws ssm put-parameter --name /swiftdrop/prod/maps/google-api-key --type SecureString --overwrite --value ([Net.NetworkCredential]::new('', $k).Password); Remove-Variable k
+```
+On a running server, then: `sudo bash sync-secrets.sh && sudo k3s kubectl -n swiftdrop rollout restart deploy/swiftdrop-backend`.
+
 **3. Install the server** (SSM session: `aws ssm start-session --target i-03c8bce686311da77`):
 ```bash
 sudo dnf install -y git tar

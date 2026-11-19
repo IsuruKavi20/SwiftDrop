@@ -332,3 +332,4 @@
 
 /* Our pages only: pill buttons and soft shadows (teammates' pages keep the shared defaults) */
 .app,.publicPage{--radius-button:999px;--shadow-button:0 4px 14px rgba(63,47,31,.12)}
+.routeCheck{display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:0;text-decoration:none}
