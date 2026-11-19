@@ -1,9 +1,11 @@
 package com.swiftdrop.backend.notification.service;
 
+import com.swiftdrop.backend.customer.entity.Delivery;
 import com.swiftdrop.backend.notification.entity.MerchantWebhookConfig;
 import com.swiftdrop.backend.notification.entity.WebhookDeliveryLog;
 import com.swiftdrop.backend.notification.repository.MerchantWebhookConfigRepository;
 import com.swiftdrop.backend.notification.repository.WebhookDeliveryLogRepository;
+import jakarta.persistence.EntityManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -30,15 +32,17 @@ public class WebhookDispatcherService {
 
     private final MerchantWebhookConfigRepository configRepository;
     private final WebhookDeliveryLogRepository deliveryLogRepository;
+    private final EntityManager entities;
 
     // Lazily initialized to avoid Java's PipeImpl loopback probe at bean-construction time,
     // which fails in sandboxed / no-network test environments.
     private volatile HttpClient httpClient;
 
     public WebhookDispatcherService(MerchantWebhookConfigRepository configRepository,
-                                    WebhookDeliveryLogRepository deliveryLogRepository) {
+                                    WebhookDeliveryLogRepository deliveryLogRepository, EntityManager entities) {
         this.configRepository = configRepository;
         this.deliveryLogRepository = deliveryLogRepository;
+        this.entities = entities;
     }
 
     private HttpClient getHttpClient() {
@@ -56,6 +60,18 @@ public class WebhookDispatcherService {
 
     @Transactional
     public void dispatchWebhook(Long merchantId, Long deliveryId, String eventType, String jsonPayload) {
+        dispatchWebhook(merchantId, deliveryId, eventType, jsonPayload, null);
+    }
+
+    @Transactional
+    public void dispatchWebhook(Long merchantId, Long deliveryId, String eventType, String jsonPayload, String eventId) {
+        Delivery delivery = null;
+        if (eventId != null) {
+            delivery = entities.find(Delivery.class, deliveryId);
+            if (delivery == null || !merchantId.equals(delivery.getMerchantId())) {
+                return;
+            }
+        }
         List<MerchantWebhookConfig> configs = configRepository.findByMerchant_IdAndActiveTrue(merchantId);
         if (configs.isEmpty()) {
             log.debug("No active webhook configs for merchant {}", merchantId);
@@ -64,7 +80,7 @@ public class WebhookDispatcherService {
 
         for (MerchantWebhookConfig config : configs) {
             if (isSubscribed(config.getSubscribedEvents(), eventType)) {
-                sendWithRetry(config, deliveryId, eventType, jsonPayload);
+                sendWithRetry(config, delivery, eventType, jsonPayload, eventId);
             }
         }
     }
@@ -81,41 +97,49 @@ public class WebhookDispatcherService {
         return false;
     }
 
-    private void sendWithRetry(MerchantWebhookConfig config, Long deliveryId, String eventType, String payload) {
-        WebhookDeliveryLog logEntry = new WebhookDeliveryLog(config, null, eventType, payload);
+    private void sendWithRetry(MerchantWebhookConfig config, Delivery delivery, String eventType, String payload,
+                               String eventId) {
+        WebhookDeliveryLog logEntry = new WebhookDeliveryLog(config, delivery, eventType, payload);
         deliveryLogRepository.save(logEntry);
 
         String signature = computeHmacSha256(payload, config.getSecretKey());
 
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             try {
-                HttpRequest request = HttpRequest.newBuilder()
+                SsrfValidator.validateStatic(config.getEndpointUrl());
+                var request = HttpRequest.newBuilder()
                         .uri(URI.create(config.getEndpointUrl()))
                         .header("Content-Type", "application/json")
                         .header("X-SwiftDrop-Signature", signature)
                         .header("X-SwiftDrop-Event", eventType)
                         .timeout(Duration.ofSeconds(10))
-                        .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
-                        .build();
+                        .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8));
+                if (eventId != null) {
+                    request.header("X-SwiftDrop-Event-Id", eventId);
+                }
 
-                HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+                HttpResponse<Void> response = getHttpClient().send(request.build(), HttpResponse.BodyHandlers.discarding());
                 int status = response.statusCode();
 
                 if (status >= 200 && status < 300) {
-                    log.info("Webhook delivered successfully to {} for event {}: status {}", config.getEndpointUrl(), eventType, status);
+                    log.info("Webhook configuration {} delivered event {}: status {}", config.getId(), eventType, status);
                     logEntry.markSuccess(status);
                     deliveryLogRepository.save(logEntry);
                     return;
                 } else {
                     boolean canRetry = attempt < MAX_ATTEMPTS;
-                    log.warn("Webhook attempt {} to {} returned non-2xx status: {}", attempt, config.getEndpointUrl(), status);
+                    log.warn("Webhook attempt {} for configuration {} returned HTTP {}", attempt, config.getId(), status);
                     logEntry.recordFailure(status, "Received HTTP status " + status, canRetry);
                     deliveryLogRepository.save(logEntry);
                 }
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Webhook delivery interrupted", interrupted);
             } catch (Exception ex) {
                 boolean canRetry = attempt < MAX_ATTEMPTS;
-                log.warn("Webhook attempt {} to {} failed: {}", attempt, config.getEndpointUrl(), ex.getMessage());
-                logEntry.recordFailure(null, ex.getMessage(), canRetry);
+                log.warn("Webhook attempt {} for configuration {} failed ({})", attempt, config.getId(),
+                        ex.getClass().getSimpleName());
+                logEntry.recordFailure(null, "Webhook request failed", canRetry);
                 deliveryLogRepository.save(logEntry);
             }
 
@@ -123,9 +147,9 @@ public class WebhookDispatcherService {
                 try {
                     // Backoff delay before retry
                     Thread.sleep(1000L * attempt);
-                } catch (InterruptedException ignored) {
+                } catch (InterruptedException interrupted) {
                     Thread.currentThread().interrupt();
-                    return;
+                    throw new IllegalStateException("Webhook retry interrupted", interrupted);
                 }
             }
         }

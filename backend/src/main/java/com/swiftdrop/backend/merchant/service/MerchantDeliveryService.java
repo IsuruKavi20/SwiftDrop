@@ -15,6 +15,7 @@ import com.swiftdrop.backend.merchant.dto.MerchantDeliveryDetailResponse;
 import com.swiftdrop.backend.merchant.dto.MerchantDeliverySummaryResponse;
 import com.swiftdrop.backend.merchant.dto.ParcelRequest;
 import com.swiftdrop.backend.merchant.entity.Merchant;
+import com.swiftdrop.backend.merchant.event.MerchantDeliveryConfirmed;
 import com.swiftdrop.backend.merchant.event.MerchantStatusChange;
 import com.swiftdrop.backend.merchant.repository.MerchantDeliveryRepository;
 import com.swiftdrop.backend.merchant.repository.MerchantDeliveryRepository.StatusCount;
@@ -109,7 +110,9 @@ public class MerchantDeliveryService {
                 null, clock.instant(), owner);
         delivery.addTrackingEvent(event);
         Delivery saved = deliveries.saveAndFlush(delivery);
-        publishLatestStatus(saved);
+        TrackingEvent persisted = saved.getTrackingEvents().getLast();
+        events.publishEvent(new MerchantDeliveryConfirmed(saved.getId(), persisted.getId(), merchant.getId(),
+                saved.getTrackingNumber(), persisted.getEventTime()));
         return MerchantDeliveryDetailResponse.from(saved);
     }
 

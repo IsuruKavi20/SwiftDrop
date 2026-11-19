@@ -8,6 +8,7 @@ import com.swiftdrop.backend.notification.config.RabbitMqConfig;
 import com.swiftdrop.backend.notification.entity.*;
 import com.swiftdrop.backend.notification.event.CourierAssignedEvent;
 import com.swiftdrop.backend.notification.event.DeliveryStatusChangedEvent;
+import com.swiftdrop.backend.notification.event.MerchantConfirmedWebhook;
 import com.swiftdrop.backend.notification.repository.NotificationLogRepository;
 import com.swiftdrop.backend.notification.repository.NotificationTemplateRepository;
 import org.slf4j.Logger;
@@ -104,7 +105,7 @@ public class NotificationEventListener {
         }
 
         // 3. Trigger Merchant Webhook if associated with a merchant
-        if (event.merchantId() != null) {
+        if (event.merchantId() != null && !MerchantConfirmedWebhook.STATUS.equals(event.status())) {
             try {
                 String payload = objectMapper.writeValueAsString(event);
                 webhookDispatcher.dispatchWebhook(event.merchantId(), event.deliveryId(), event.status(), payload);
@@ -112,6 +113,13 @@ public class NotificationEventListener {
                 log.error("Failed to serialize webhook payload for delivery {}", event.deliveryId(), e);
             }
         }
+    }
+
+    @RabbitListener(queues = RabbitMqConfig.QUEUE_MERCHANT_WEBHOOKS)
+    public void handleMerchantConfirmedWebhook(MerchantConfirmedWebhook event) {
+        var payload = event.payload();
+        webhookDispatcher.dispatchWebhook(event.merchantId(), payload.deliveryId(), payload.status(),
+                objectMapper.writeValueAsString(payload), payload.eventId());
     }
 
     @RabbitListener(queues = RabbitMqConfig.QUEUE_COURIER_ASSIGNMENTS)

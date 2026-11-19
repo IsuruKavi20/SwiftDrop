@@ -6,6 +6,7 @@ import com.swiftdrop.backend.merchant.repository.MerchantDeliveryRepository;
 import com.swiftdrop.backend.notification.config.RabbitMqConfig;
 import com.swiftdrop.backend.pricing.DistanceSource;
 import com.swiftdrop.backend.notification.event.DeliveryStatusChangedEvent;
+import com.swiftdrop.backend.notification.event.MerchantConfirmedWebhook;
 import com.swiftdrop.backend.merchant.security.MerchantMachineTokenContract;
 import jakarta.persistence.EntityManager;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -19,6 +20,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -27,6 +29,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.transaction.TestTransaction;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
@@ -41,7 +44,11 @@ import java.time.Duration;
 import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.after;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.mockingDetails;
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -392,10 +399,61 @@ class MerchantDeliveryApiTest {
         assertThat(mockingDetails(rabbitTemplate).getInvocations().stream()
                 .filter(invocation -> invocation.getMethod().getName().equals("convertAndSend"))
                 .map(invocation -> invocation.getArgument(1, String.class)))
-                .contains("delivery.status.confirmed");
+                .doesNotContain("delivery.status.confirmed", MerchantConfirmedWebhook.ROUTING_KEY);
         mockMvc.perform(post(confirm).with(owner)).andExpect(status().isConflict());
         assertThat(jdbc.queryForObject("SELECT count(*) FROM tracking_event WHERE delivery_id = ?", Integer.class, id))
                 .isEqualTo(2);
+        TestTransaction.flagForRollback();
+        TestTransaction.end();
+        verify(rabbitTemplate, after(250).never()).convertAndSend(eq(RabbitMqConfig.EXCHANGE_SWIFTDROP),
+                eq(MerchantConfirmedWebhook.ROUTING_KEY), any(MerchantConfirmedWebhook.class), any(CorrelationData.class));
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void committedConfirmationQueuesOneMerchantWebhook() throws Exception {
+        UUID ownerId = UUID.randomUUID();
+        var owner = merchant(ownerId, "Owner");
+        doAnswer(invocation -> {
+            CorrelationData correlation = invocation.getArgument(3);
+            correlation.getFuture().complete(new CorrelationData.Confirm(true, null));
+            return null;
+        }).when(rabbitTemplate).convertAndSend(eq(RabbitMqConfig.EXCHANGE_SWIFTDROP),
+                eq(MerchantConfirmedWebhook.ROUTING_KEY), any(MerchantConfirmedWebhook.class), any(CorrelationData.class));
+
+        try {
+            MvcResult created = mockMvc.perform(post("/api/merchants/me/deliveries").with(owner)
+                            .contentType(MediaType.APPLICATION_JSON).content(VALID_DELIVERY_JSON))
+                    .andExpect(status().isCreated()).andReturn();
+            JsonNode shipment = objectMapper.readTree(created.getResponse().getContentAsString());
+            long id = shipment.path("id").asLong();
+            String confirm = "/api/merchants/me/deliveries/" + id + "/confirm";
+
+            mockMvc.perform(post(confirm).with(owner)).andExpect(status().isOk());
+            mockMvc.perform(post(confirm).with(owner)).andExpect(status().isConflict());
+
+            var envelope = ArgumentCaptor.forClass(MerchantConfirmedWebhook.class);
+            verify(rabbitTemplate, timeout(5000)).convertAndSend(eq(RabbitMqConfig.EXCHANGE_SWIFTDROP),
+                    eq(MerchantConfirmedWebhook.ROUTING_KEY), envelope.capture(), any(CorrelationData.class));
+            verify(rabbitTemplate, timeout(5000)).convertAndSend(eq(RabbitMqConfig.EXCHANGE_SWIFTDROP),
+                    eq("delivery.status.confirmed"), any(DeliveryStatusChangedEvent.class));
+
+            Long trackingId = jdbc.queryForObject(
+                    "SELECT tracking_event_id FROM tracking_event WHERE delivery_id = ? AND status = 'CONFIRMED'",
+                    Long.class, id);
+            assertThat(envelope.getValue().merchantId()).isEqualTo(jdbc.queryForObject(
+                    "SELECT merchant_id FROM delivery WHERE delivery_id = ?", Long.class, id));
+            assertThat(envelope.getValue().payload().eventId()).isEqualTo("delivery-status-" + trackingId);
+            assertThat(envelope.getValue().payload().deliveryId()).isEqualTo(id);
+            assertThat(envelope.getValue().payload().trackingNumber()).isEqualTo(shipment.path("trackingNumber").asText());
+            assertThat(envelope.getValue().payload().status()).isEqualTo("CONFIRMED");
+        } finally {
+            new TransactionTemplate(transactions).executeWithoutResult(status -> {
+                jdbc.update("DELETE FROM delivery WHERE merchant_id = (SELECT merchant_id FROM merchant WHERE auth_user_id = ?)", ownerId);
+                jdbc.update("DELETE FROM merchant WHERE auth_user_id = ?", ownerId);
+                jdbc.update("DELETE FROM app_users WHERE id = ?", ownerId);
+            });
+        }
     }
 
     @Test
