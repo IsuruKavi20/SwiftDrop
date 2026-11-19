@@ -2,6 +2,7 @@ package com.swiftdrop.backend.merchant.controller;
 
 import com.swiftdrop.backend.identity.entity.AppUser;
 import com.swiftdrop.backend.identity.service.UserDirectory;
+import com.swiftdrop.backend.merchant.security.MerchantMachineBookingAccess;
 import com.swiftdrop.backend.merchant.dto.MerchantResponse;
 import com.swiftdrop.backend.merchant.dto.MerchantUpdateRequest;
 import com.swiftdrop.backend.merchant.service.MerchantService;
@@ -29,10 +30,13 @@ public class MerchantController {
 
     private final MerchantService merchantService;
     private final UserDirectory userDirectory;
+    private final MerchantMachineBookingAccess machineAccess;
 
-    public MerchantController(MerchantService merchantService, UserDirectory userDirectory) {
+    public MerchantController(MerchantService merchantService, UserDirectory userDirectory,
+                              MerchantMachineBookingAccess machineAccess) {
         this.merchantService = merchantService;
         this.userDirectory = userDirectory;
+        this.machineAccess = machineAccess;
     }
 
     /** First visit: an empty profile is created and returned with complete = false. */
@@ -48,7 +52,7 @@ public class MerchantController {
     }
 
     private AppUser owner(Jwt token) {
-        if (!isPerson(token)) {
+        if (machineAccess.isMachine(token) || !isPerson(token)) {
             throw new AccessDeniedException("The merchant profile is for people, not merchant software");
         }
         return userDirectory.caller(token);

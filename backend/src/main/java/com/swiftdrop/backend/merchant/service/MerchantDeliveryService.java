@@ -77,8 +77,12 @@ public class MerchantDeliveryService {
      * Books a new delivery belonging to the authenticated merchant.
      */
     public MerchantDeliveryDetailResponse createDelivery(AppUser owner, CreateMerchantDeliveryRequest request) {
-        Merchant merchant = merchantService.profileOf(owner);
+        Delivery saved = bookDelivery(merchantService.profileOf(owner), owner, request);
+        publishLatestStatus(saved);
+        return MerchantDeliveryDetailResponse.from(saved);
+    }
 
+    Delivery bookDelivery(Merchant merchant, AppUser recordedBy, CreateMerchantDeliveryRequest request) {
         Delivery delivery = new Delivery(merchant.getId(), uniqueTrackingNumber(), codes.newPublicTrackingToken(), request.deliveryType());
         delivery.setSpecialInstructions(blankToNull(request.specialInstructions()));
         delivery.setEstimatedFee(estimate(request).totalFee());
@@ -87,13 +91,11 @@ public class MerchantDeliveryService {
         delivery.setAddress(toDeliveryAddress(AddressType.DESTINATION, request.destination()));
         request.parcels().forEach(parcel -> delivery.addParcel(toParcel(parcel)));
 
-        TrackingEvent initialEvent = new TrackingEvent(DeliveryStatus.PENDING, "Delivery booked by merchant", null, clock.instant(), owner);
+        String description = recordedBy == null ? "Delivery booked via Merchant API" : "Delivery booked by merchant";
+        TrackingEvent initialEvent = new TrackingEvent(DeliveryStatus.PENDING, description, null, clock.instant(), recordedBy);
         delivery.addTrackingEvent(initialEvent);
 
-        Delivery saved = deliveries.saveAndFlush(delivery);
-
-        publishLatestStatus(saved);
-        return MerchantDeliveryDetailResponse.from(saved);
+        return deliveries.saveAndFlush(delivery);
     }
 
     public MerchantDeliveryDetailResponse confirmDelivery(AppUser owner, Long id) {
@@ -111,7 +113,7 @@ public class MerchantDeliveryService {
         return MerchantDeliveryDetailResponse.from(saved);
     }
 
-    private void publishLatestStatus(Delivery saved) {
+    void publishLatestStatus(Delivery saved) {
         try {
             // Merge may replace a newly added event with its persisted copy.
             TrackingEvent persisted = saved.getTrackingEvents().getLast();
