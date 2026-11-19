@@ -53,6 +53,7 @@ function fieldError(field: Field, rawValue: string): string | undefined {
 
 interface CsvRow {
   rowIndex: number;
+  idempotencyKey?: string;
   data: Record<string, string>;
   errors: string[];
   status: 'valid' | 'invalid' | 'pending' | 'success' | 'failed';
@@ -368,6 +369,7 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
 
         rows.push({
           rowIndex: i,
+          idempotencyKey: rowErrors.length === 0 ? crypto.randomUUID() : undefined,
           data,
           errors: rowErrors,
           status: rowErrors.length === 0 ? 'valid' : 'invalid',
@@ -392,7 +394,7 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
     }
 
     const rowsToProcess = csvRows.filter((r) =>
-      onlyFailed ? r.status === 'failed' : r.status === 'valid' || r.status === 'pending'
+      r.idempotencyKey && (onlyFailed ? r.status === 'failed' : r.status === 'valid')
     );
 
     if (rowsToProcess.length === 0) return;
@@ -438,7 +440,7 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
       };
 
       try {
-        const res = await createMerchantDelivery(payload);
+        const res = await createMerchantDelivery(payload, row.idempotencyKey);
         successCount++;
         setCsvRows((prev) =>
           prev.map((r) =>
@@ -704,7 +706,7 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
                 <div className={extra.importStatus} role="status">
                   <h4>Import Complete</h4>
                   <p>
-                    Successfully created: <strong>{importSummary.success}</strong> · Failed: <strong>{importSummary.failed}</strong>
+                    Successfully booked: <strong>{importSummary.success}</strong> · Failed: <strong>{importSummary.failed}</strong>
                   </p>
                   {importSummary.success > 0 && <p>Booked shipments are pending. Open Store Orders to confirm them individually.</p>}
                 </div>

@@ -184,9 +184,10 @@ export function getMerchantDelivery(id: number): Promise<MerchantDeliveryDetail>
 }
 
 /** Books a new delivery order for the merchant. */
-export function createMerchantDelivery(input: CreateMerchantDeliveryInput): Promise<MerchantDeliveryDetail> {
+export function createMerchantDelivery(input: CreateMerchantDeliveryInput, idempotencyKey?: string): Promise<MerchantDeliveryDetail> {
   return request<MerchantDeliveryDetail>('/api/merchants/me/deliveries', {
     method: 'POST',
+    headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
     body: JSON.stringify(input),
   });
 }

@@ -23,7 +23,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RequestHeader;
+import com.swiftdrop.backend.merchant.service.MerchantHumanBookingService;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -39,20 +41,24 @@ public class MerchantDeliveryController {
 
     private final MerchantDeliveryService deliveryService;
     private final UserDirectory userDirectory;
+    private final MerchantHumanBookingService humanBooking;
     private final MerchantMachineBookingAccess machineAccess;
 
     public MerchantDeliveryController(MerchantDeliveryService deliveryService, UserDirectory userDirectory,
-                                      MerchantMachineBookingAccess machineAccess) {
+                                      MerchantMachineBookingAccess machineAccess, MerchantHumanBookingService humanBooking) {
         this.deliveryService = deliveryService;
         this.userDirectory = userDirectory;
         this.machineAccess = machineAccess;
+        this.humanBooking = humanBooking;
     }
 
     @PostMapping("/deliveries")
-    @ResponseStatus(HttpStatus.CREATED)
-    public MerchantDeliveryDetailResponse createDelivery(@Valid @RequestBody CreateMerchantDeliveryRequest request,
-                                                         @AuthenticationPrincipal Jwt token) {
-        return deliveryService.createDelivery(owner(token), request);
+    public ResponseEntity<MerchantDeliveryDetailResponse> createDelivery(
+            @Valid @RequestBody CreateMerchantDeliveryRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String key,
+            @AuthenticationPrincipal Jwt token) {
+        var result = humanBooking.book(owner(token), key, request);
+        return ResponseEntity.status(result.replayed() ? HttpStatus.OK : HttpStatus.CREATED).body(result.delivery());
     }
 
     @PostMapping("/deliveries/estimate")

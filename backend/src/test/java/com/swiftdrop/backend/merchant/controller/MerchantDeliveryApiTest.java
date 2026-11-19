@@ -302,6 +302,72 @@ class MerchantDeliveryApiTest {
         }
     }
 
+    @Test
+    void humanBookingReplaysNormalizedRequestAndIsolatesMerchants() throws Exception {
+        UUID owner = UUID.randomUUID();
+        UUID other = UUID.randomUUID();
+        MvcResult created = humanBooking(owner, "row-1", VALID_DELIVERY_JSON);
+        assertThat(created.getResponse().getStatus()).isEqualTo(201);
+        JsonNode delivery = objectMapper.readTree(created.getResponse().getContentAsString());
+        long id = delivery.path("id").asLong();
+        assertThat(delivery.path("status").asText()).isEqualTo("PENDING");
+        assertThat(delivery.path("trackingNumber").asText()).isNotBlank();
+        assertThat(delivery.path("estimatedFee").asDouble()).isPositive();
+        assertThat(delivery.path("trackingEvents").size()).isEqualTo(1);
+
+        MvcResult replay = humanBooking(owner, "row-1",
+                VALID_DELIVERY_JSON.replace("Sunil Shantha", " Sunil Shantha ").replace("null", "\"\""));
+        assertThat(replay.getResponse().getStatus()).isEqualTo(200);
+        assertThat(objectMapper.readTree(replay.getResponse().getContentAsString())).isEqualTo(delivery);
+        assertThat(humanBooking(owner, "row-1", VALID_DELIVERY_JSON.replace("EXPRESS", "STANDARD"))
+                .getResponse().getStatus()).isEqualTo(409);
+        var otherBooking = humanBooking(other, "row-1", VALID_DELIVERY_JSON);
+        assertThat(otherBooking.getResponse().getStatus()).isEqualTo(201);
+        assertThat(objectMapper.readTree(otherBooking.getResponse().getContentAsString()).path("id").asLong())
+                .isNotEqualTo(id);
+        mockMvc.perform(post("/api/merchants/me/deliveries/" + id + "/confirm").with(merchant(owner, "Owner")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CONFIRMED"));
+        var confirmed = humanBooking(owner, "row-1", VALID_DELIVERY_JSON);
+        assertThat(confirmed.getResponse().getStatus()).isEqualTo(200);
+        assertThat(objectMapper.readTree(confirmed.getResponse().getContentAsString()).path("status").asText())
+                .isEqualTo("CONFIRMED");
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void concurrentHumanRetriesCreateOneDeliveryAndPublishOnce() throws Exception {
+        UUID owner = UUID.randomUUID();
+        try {
+            new TransactionTemplate(transactions).executeWithoutResult(status ->
+                    com.swiftdrop.backend.identity.entity.TestPeople.saved(entityManager, owner, "Owner", "MERCHANT"));
+            try (var workers = Executors.newFixedThreadPool(2)) {
+                var first = workers.submit(() -> humanBooking(owner, "same-row", VALID_DELIVERY_JSON));
+                var second = workers.submit(() -> humanBooking(owner, "same-row", VALID_DELIVERY_JSON));
+                var a = first.get(15, TimeUnit.SECONDS);
+                var b = second.get(15, TimeUnit.SECONDS);
+                assertThat(List.of(a.getResponse().getStatus(), b.getResponse().getStatus()))
+                        .containsExactlyInAnyOrder(201, 200);
+                assertThat(objectMapper.readTree(a.getResponse().getContentAsString()).path("id"))
+                        .isEqualTo(objectMapper.readTree(b.getResponse().getContentAsString()).path("id"));
+            }
+            mockMvc.perform(get("/api/merchants/me/deliveries").with(merchant(owner, "Owner")))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1));
+            verify(rabbitTemplate).convertAndSend(eq(RabbitMqConfig.EXCHANGE_SWIFTDROP),
+                    eq("delivery.status.pending"), any(DeliveryStatusChangedEvent.class));
+        } finally {
+            new TransactionTemplate(transactions).executeWithoutResult(status -> {
+                jdbc.update("DELETE FROM delivery WHERE merchant_id = (SELECT merchant_id FROM merchant WHERE auth_user_id = ?)", owner);
+                jdbc.update("DELETE FROM merchant WHERE auth_user_id = ?", owner);
+                jdbc.update("DELETE FROM app_users WHERE id = ?", owner);
+            });
+        }
+    }
+
+    private MvcResult humanBooking(UUID owner, String key, String request) throws Exception {
+        return mockMvc.perform(post("/api/merchants/me/deliveries").with(merchant(owner, "Owner"))
+                .header("Idempotency-Key", key).contentType(MediaType.APPLICATION_JSON).content(request)).andReturn();
+    }
+
     private static RequestPostProcessor merchant(UUID userId, String name) {
         return jwt().jwt(token -> token.subject(userId.toString()).claim("name", name)
                         .claim("roles", List.of("MERCHANT")))
