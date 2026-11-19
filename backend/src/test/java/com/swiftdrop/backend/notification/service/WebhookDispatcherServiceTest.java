@@ -8,6 +8,8 @@ import com.swiftdrop.backend.notification.repository.MerchantWebhookConfigReposi
 import com.swiftdrop.backend.notification.repository.WebhookDeliveryLogRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -22,8 +24,9 @@ import static org.mockito.Mockito.*;
 
 class WebhookDispatcherServiceTest {
 
-    @Test
-    void retriesOnlySubscribedMerchantEndpointWithTheSameSignedEventId() throws Exception {
+    @ParameterizedTest
+    @CsvSource({"CONFIRMED, DELIVERY_CONFIRMED", "CONFIRMED, CONFIRMED", "CONFIRMED, *", "COURIER_ASSIGNED, COURIER_ASSIGNED"})
+    void retriesOnlySubscribedMerchantEndpointWithTheSameSignedEventId(String eventType, String subscription) throws Exception {
         var configs = mock(MerchantWebhookConfigRepository.class);
         var logs = mock(WebhookDeliveryLogRepository.class);
         var client = mock(HttpClient.class);
@@ -35,7 +38,7 @@ class WebhookDispatcherServiceTest {
         dispatcher.dispatchWebhook(43L, 5L, "CONFIRMED", "{}", "delivery-status-7");
         verifyNoInteractions(configs, logs, client);
         ReflectionTestUtils.setField(dispatcher, "httpClient", client);
-        var subscribed = new MerchantWebhookConfig(null, "https://192.0.2.1/confirmed", "test-signing-key", "CONFIRMED");
+        var subscribed = new MerchantWebhookConfig(null, "https://192.0.2.1/confirmed", "test-signing-key", subscription);
         var unrelated = new MerchantWebhookConfig(null, "https://192.0.2.2/other", "test-signing-key", "DELIVERED");
         when(configs.findByMerchant_IdAndActiveTrue(42L)).thenReturn(List.of(subscribed, unrelated));
         var failure = mock(HttpResponse.class);
@@ -45,7 +48,7 @@ class WebhookDispatcherServiceTest {
         doReturn(failure, recovery).when(client).send(any(HttpRequest.class), any());
 
         String payload = "{\"eventId\":\"delivery-status-7\",\"status\":\"CONFIRMED\"}";
-        dispatcher.dispatchWebhook(42L, 5L, "CONFIRMED", payload, "delivery-status-7");
+        dispatcher.dispatchWebhook(42L, 5L, eventType, payload, "delivery-status-7");
 
         var requests = ArgumentCaptor.forClass(HttpRequest.class);
         verify(configs).findByMerchant_IdAndActiveTrue(42L);

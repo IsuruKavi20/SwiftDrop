@@ -12,6 +12,14 @@ import com.swiftdrop.backend.dispatcher.entity.CourierAvailability;
 import com.swiftdrop.backend.dispatcher.repository.CourierAssignmentRepository;
 import com.swiftdrop.backend.identity.entity.AppUser;
 import com.swiftdrop.backend.identity.entity.TestPeople;
+import com.swiftdrop.backend.dispatcher.event.MerchantCourierAssigned;
+import com.swiftdrop.backend.merchant.entity.Merchant;
+import com.swiftdrop.backend.notification.event.MerchantAssignmentWebhook;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.transaction.TestTransaction;
+import tools.jackson.databind.ObjectMapper;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,6 +61,12 @@ class DispatcherApiTest {
 
     @Autowired
     private CourierAssignmentRepository assignments;
+
+    @Autowired
+    private JdbcTemplate jdbc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @MockitoBean
     private RabbitTemplate rabbitTemplate;
@@ -161,6 +175,41 @@ class DispatcherApiTest {
                 .andExpect(jsonPath("$[0].name").value("Kasun Fernando"))
                 .andExpect(jsonPath("$[0].activeDeliveries").value(2))
                 .andExpect(jsonPath("$[0].currentTrackingNumbers", contains("SD-200003", "SD-200002")));
+    }
+
+    @Test
+    void merchantAssignmentsRegisterDistinctEventsAndRollbackSendsNeither() throws Exception {
+        var merchant = new Merchant(TestPeople.saved(em, "Store Owner", "MERCHANT"));
+        em.persist(merchant);
+        var delivery = new Delivery(merchant.getId(), "SD-200006", UUID.randomUUID().toString(), DeliveryType.STANDARD);
+        delivery.setStatus(DeliveryStatus.CONFIRMED);
+        em.persist(delivery);
+        em.flush();
+
+        assign(delivery, kasun, null).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CONFIRMED"));
+        assign(delivery, kasun, "again").andExpect(status().isConflict());
+        assign(delivery, ravi, "Vehicle breakdown").andExpect(status().isOk());
+        assign(waiting, kasun, null).andExpect(status().isOk());
+        assertThat(delivery.getTrackingEvents()).isEmpty();
+
+        var publications = jdbc.queryForList("SELECT serialized_event FROM event_publication WHERE event_type = ?",
+                String.class, MerchantCourierAssigned.class.getName());
+        var history = assignments.findByDeliveryIdOrderByAssignedAtDescIdDesc(delivery.getId(), Pageable.unpaged()).getContent();
+        assertThat(history).hasSize(2);
+        assertThat(publications).hasSize(2);
+        assertThat(publications.stream().map(json -> objectMapper.readTree(json).get("assignmentId").asLong()))
+                .containsExactlyInAnyOrder(history.get(0).getId(), history.get(1).getId());
+        assertThat(publications).allSatisfy(json -> {
+            var event = objectMapper.readTree(json);
+            assertThat(event.get("merchantId").asLong()).isEqualTo(merchant.getId());
+            assertThat(event.get("deliveryId").asLong()).isEqualTo(delivery.getId());
+        });
+        TestTransaction.flagForRollback();
+        TestTransaction.end();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM event_publication WHERE event_type = ?",
+                Integer.class, MerchantCourierAssigned.class.getName())).isZero();
+        verify(rabbitTemplate, after(250).never()).convertAndSend(anyString(),
+                eq(MerchantAssignmentWebhook.ROUTING_KEY), any(MerchantAssignmentWebhook.class), any(org.springframework.amqp.rabbit.connection.CorrelationData.class));
     }
 
     @Test

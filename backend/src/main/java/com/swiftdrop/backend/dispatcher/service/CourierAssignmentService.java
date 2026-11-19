@@ -8,6 +8,7 @@ import com.swiftdrop.backend.dispatcher.dto.DispatchDeliveryDetailsResponse;
 import com.swiftdrop.backend.dispatcher.entity.Courier;
 import com.swiftdrop.backend.dispatcher.entity.CourierAssignment;
 import com.swiftdrop.backend.dispatcher.entity.CourierAvailability;
+import com.swiftdrop.backend.dispatcher.event.MerchantCourierAssigned;
 import com.swiftdrop.backend.dispatcher.repository.CourierAssignmentRepository;
 import com.swiftdrop.backend.dispatcher.repository.CourierRepository;
 import com.swiftdrop.backend.dispatcher.repository.DispatcherDeliveryRepository;
@@ -15,6 +16,7 @@ import com.swiftdrop.backend.identity.entity.AppUser;
 import com.swiftdrop.backend.identity.service.UserDirectory;
 import com.swiftdrop.backend.shared.error.ConflictException;
 import com.swiftdrop.backend.shared.error.NotFoundException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,15 +51,17 @@ public class CourierAssignmentService {
     private final CourierAssignmentRepository assignments;
     private final UserDirectory userDirectory;
     private final DispatcherDeliveryService reads;
+    private final ApplicationEventPublisher events;
 
     CourierAssignmentService(DispatcherDeliveryRepository deliveries, CourierRepository couriers,
                              CourierAssignmentRepository assignments, UserDirectory userDirectory,
-                             DispatcherDeliveryService reads) {
+                             DispatcherDeliveryService reads, ApplicationEventPublisher events) {
         this.deliveries = deliveries;
         this.couriers = couriers;
         this.assignments = assignments;
         this.userDirectory = userDirectory;
         this.reads = reads;
+        this.events = events;
     }
 
     @Transactional
@@ -103,9 +107,13 @@ public class CourierAssignmentService {
             old.endAssignment(admin, now, reason);
             assignments.saveAndFlush(old);
         });
-        assignments.save(new CourierAssignment(delivery, courier, admin, now));
+        CourierAssignment assignment = assignments.save(new CourierAssignment(delivery, courier, admin, now));
         delivery.assignCourier(person);
         deliveries.flush();
+        if (delivery.getMerchantId() != null) {
+            events.publishEvent(new MerchantCourierAssigned(assignment.getId(), delivery.getMerchantId(),
+                    delivery.getId(), delivery.getTrackingNumber(), now));
+        }
         return reads.detailsOf(delivery);
     }
 

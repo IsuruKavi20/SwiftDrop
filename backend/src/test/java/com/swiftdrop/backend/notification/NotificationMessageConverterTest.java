@@ -3,6 +3,8 @@ package com.swiftdrop.backend.notification;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.swiftdrop.backend.notification.config.RabbitMqConfig;
 import com.swiftdrop.backend.notification.event.DeliveryStatusChangedEvent;
+import com.swiftdrop.backend.notification.event.MerchantAssignmentWebhook;
+import com.swiftdrop.backend.notification.event.MerchantConfirmedWebhook;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
@@ -78,6 +80,19 @@ class NotificationMessageConverterTest {
         );
         assertThat(webhookPayload).contains("\"merchantId\":42");
         assertThat(webhookPayload).contains("\"timestamp\":\"2026-11-19T08:30:00Z\"");
+    }
+
+    @Test
+    void merchantQueueCanDeserializeBothEventTypesWithoutAnInferredType() {
+        var timestamp = Instant.parse("2026-01-01T00:00:00Z");
+        var confirmation = new MerchantConfirmedWebhook(42L,
+                new MerchantConfirmedWebhook.Payload("delivery-status-1", 5L, "SD-123", "CONFIRMED", timestamp));
+        var assignment = new MerchantAssignmentWebhook(42L,
+                new MerchantAssignmentWebhook.Payload("courier-assignment-2", 5L, "SD-123", "COURIER_ASSIGNED", timestamp));
+        for (Object value : new Object[]{confirmation, assignment}) {
+            var message = messageConverter.toMessage(value, new MessageProperties());
+            assertThat(messageConverter.fromMessage(message)).isEqualTo(value);
+        }
     }
 
     @Test

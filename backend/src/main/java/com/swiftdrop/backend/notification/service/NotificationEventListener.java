@@ -115,13 +115,6 @@ public class NotificationEventListener {
         }
     }
 
-    @RabbitListener(queues = RabbitMqConfig.QUEUE_MERCHANT_WEBHOOKS)
-    public void handleMerchantConfirmedWebhook(MerchantConfirmedWebhook event) {
-        var payload = event.payload();
-        webhookDispatcher.dispatchWebhook(event.merchantId(), payload.deliveryId(), payload.status(),
-                objectMapper.writeValueAsString(payload), payload.eventId());
-    }
-
     @RabbitListener(queues = RabbitMqConfig.QUEUE_COURIER_ASSIGNMENTS)
     @Transactional
     public void handleCourierAssigned(CourierAssignedEvent event) {

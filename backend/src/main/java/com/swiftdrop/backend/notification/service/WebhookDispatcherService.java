@@ -3,6 +3,7 @@ package com.swiftdrop.backend.notification.service;
 import com.swiftdrop.backend.customer.entity.Delivery;
 import com.swiftdrop.backend.notification.entity.MerchantWebhookConfig;
 import com.swiftdrop.backend.notification.entity.WebhookDeliveryLog;
+import com.swiftdrop.backend.notification.event.MerchantConfirmedWebhook;
 import com.swiftdrop.backend.notification.repository.MerchantWebhookConfigRepository;
 import com.swiftdrop.backend.notification.repository.WebhookDeliveryLogRepository;
 import jakarta.persistence.EntityManager;
@@ -90,7 +91,9 @@ public class WebhookDispatcherService {
             return true;
         }
         for (String ev : subscribedEvents.split(",")) {
-            if (ev.trim().equalsIgnoreCase(eventType.trim())) {
+            String key = ev.trim();
+            if (key.equalsIgnoreCase(eventType)
+                    || (MerchantConfirmedWebhook.STATUS.equalsIgnoreCase(eventType) && "DELIVERY_CONFIRMED".equalsIgnoreCase(key))) {
                 return true;
             }
         }

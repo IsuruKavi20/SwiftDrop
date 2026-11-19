@@ -497,5 +497,16 @@ test.describe('Merchant Module Full Feature Set', () => {
     await page.click('button:has-text("Logs")');
     await expect(page.locator('text=Recent Delivery Logs')).toBeVisible();
     await expect(page.getByText('DELIVERY_STATUS_CHANGED', { exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: '+ Register Webhook', exact: true }).click();
+    const form = page.locator('form').filter({ has: page.getByRole('checkbox', { name: 'Delivery Confirmed', exact: true }) });
+    await form.getByPlaceholder('https://api.yourdomain.com/webhooks/swiftdrop').fill('https://example.com/swiftdrop');
+    await form.getByRole('checkbox', { name: 'Delivery Confirmed', exact: true }).check();
+    await form.getByRole('checkbox', { name: 'Courier Assigned', exact: true }).check();
+    const saved = page.waitForRequest((request) =>
+      request.method() === 'POST' && request.url().endsWith('/api/merchants/me/webhooks'));
+    await form.getByRole('button', { name: 'Register Webhook', exact: true }).click();
+    expect((await saved).postDataJSON().subscribedEvents.split(',').sort())
+      .toEqual(['COURIER_ASSIGNED', 'DELIVERY_CONFIRMED']);
   });
 });
