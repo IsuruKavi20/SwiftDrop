@@ -12,7 +12,9 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.support.TransactionTemplate;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
@@ -93,6 +95,9 @@ class MerchantDeliveryApiTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private PlatformTransactionManager transactions;
 
     @Autowired
     private EntityManager entityManager;
@@ -261,23 +266,35 @@ class MerchantDeliveryApiTest {
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void concurrentRetriesCommitOnlyOneShipment() throws Exception {
         UUID owner = UUID.randomUUID();
-        createProfile(owner);
+        try {
+            createProfile(owner);
 
-        try (var workers = Executors.newFixedThreadPool(2)) {
-            java.util.concurrent.Callable<MvcResult> submit = () -> mockMvc.perform(post(MACHINE_BOOKING)
-                    .with(machine(owner, "test-concurrent", true)).header("Idempotency-Key", "same-sale")
-                    .contentType(MediaType.APPLICATION_JSON).content(VALID_DELIVERY_JSON)).andReturn();
-            var first = workers.submit(submit);
-            var second = workers.submit(submit);
-            MvcResult a = first.get(15, TimeUnit.SECONDS);
-            MvcResult b = second.get(15, TimeUnit.SECONDS);
-            assertThat(List.of(a.getResponse().getStatus(), b.getResponse().getStatus())).containsExactlyInAnyOrder(201, 200);
-            assertThat(objectMapper.readTree(a.getResponse().getContentAsString()).path("id").asLong())
-                    .isEqualTo(objectMapper.readTree(b.getResponse().getContentAsString()).path("id").asLong());
+            try (var workers = Executors.newFixedThreadPool(2)) {
+                java.util.concurrent.Callable<MvcResult> submit = () -> mockMvc.perform(post(MACHINE_BOOKING)
+                        .with(machine(owner, "test-concurrent", true)).header("Idempotency-Key", "same-sale")
+                        .contentType(MediaType.APPLICATION_JSON).content(VALID_DELIVERY_JSON)).andReturn();
+                var first = workers.submit(submit);
+                var second = workers.submit(submit);
+                MvcResult a = first.get(15, TimeUnit.SECONDS);
+                MvcResult b = second.get(15, TimeUnit.SECONDS);
+                assertThat(List.of(a.getResponse().getStatus(), b.getResponse().getStatus())).containsExactlyInAnyOrder(201, 200);
+                assertThat(objectMapper.readTree(a.getResponse().getContentAsString()).path("id").asLong())
+                        .isEqualTo(objectMapper.readTree(b.getResponse().getContentAsString()).path("id").asLong());
+            }
+            mockMvc.perform(get("/api/merchants/me/deliveries").with(merchant(owner, "Owner")))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1));
+        } finally {
+            // Worker requests commit independently of Spring's test rollback. Remove only this owner’s fixtures.
+            new TransactionTemplate(transactions).executeWithoutResult(status -> {
+                String business = "(SELECT merchant_id FROM merchant WHERE auth_user_id = ?)";
+                jdbc.update("DELETE FROM merchant_api_booking WHERE merchant_id = " + business, owner);
+                jdbc.update("DELETE FROM delivery WHERE merchant_id = " + business, owner);
+                jdbc.update("DELETE FROM merchant WHERE auth_user_id = ?", owner);
+                jdbc.update("DELETE FROM app_users WHERE id = ?", owner);
+            });
         }
-        mockMvc.perform(get("/api/merchants/me/deliveries").with(merchant(owner, "Owner")))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1));
     }
+
     private static RequestPostProcessor merchant(UUID userId, String name) {
         return jwt().jwt(token -> token.subject(userId.toString()).claim("name", name)
                         .claim("roles", List.of("MERCHANT")))
