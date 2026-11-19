@@ -12,17 +12,10 @@ import {
   type MerchantDeliveryEstimate,
 } from '../api/merchantOrdersApi';
 import { getMerchantProfile, MerchantApiError, type MerchantProfile } from '../api/merchantApi';
+import { SRI_LANKA_DISTRICTS, resolveDistrict } from '../utils/districtUtils';
 import styles from './MerchantOrders.module.css';
 import shared from './MerchantPages.module.css';
 import extra from './CreateOrderPage.module.css';
-
-const SRI_LANKA_DISTRICTS = [
-  'Colombo', 'Gampaha', 'Kalutara', 'Kandy', 'Matale', 'Nuwara Eliya',
-  'Galle', 'Matara', 'Hambantota', 'Jaffna', 'Kilinochchi', 'Mannar',
-  'Vavuniya', 'Mullaitivu', 'Batticaloa', 'Ampara', 'Trincomalee',
-  'Kurunegala', 'Puttalam', 'Anuradhapura', 'Polonnaruwa', 'Badulla',
-  'Monaragala', 'Ratnapura', 'Kegalle',
-];
 
 const PREVIEW_PROFILE: MerchantProfile = {
   id: 1,
@@ -40,19 +33,6 @@ const PREVIEW_PROFILE: MerchantProfile = {
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
 };
-
-function resolveDistrict(city?: string | null, province?: string | null): string {
-  if (!city && !province) return '';
-  const c = city?.trim().toLowerCase() ?? '';
-  const p = province?.trim().toLowerCase() ?? '';
-  const exactCity = SRI_LANKA_DISTRICTS.find((d) => d.toLowerCase() === c);
-  if (exactCity) return exactCity;
-  const subCity = SRI_LANKA_DISTRICTS.find((d) => c.includes(d.toLowerCase()));
-  if (subCity) return subCity;
-  const exactProv = SRI_LANKA_DISTRICTS.find((d) => d.toLowerCase() === p);
-  if (exactProv) return exactProv;
-  return city?.trim() ?? '';
-}
 
 const addressFields = [
   { name: 'street', label: 'Street address', max: 255 },
@@ -260,7 +240,7 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
       'pickup.contactPhone': contactPhone || previous['pickup.contactPhone'] || '',
       'pickup.street': street || previous['pickup.street'] || '',
       'pickup.city': city || previous['pickup.city'] || '',
-      'pickup.district': district || previous['pickup.district'] || '',
+      'pickup.district': district || '',
       'pickup.postalCode': postalCode || previous['pickup.postalCode'] || '',
     }));
 
@@ -277,10 +257,17 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
       !district;
 
     if (isIncomplete) {
-      setAutoFillNotice({
-        type: 'warning',
-        message: 'Business profile is incomplete. Populated available fields.',
-      });
+      if (!district && city) {
+        setAutoFillNotice({
+          type: 'warning',
+          message: 'Could not determine pickup district. Please select it manually.',
+        });
+      } else {
+        setAutoFillNotice({
+          type: 'warning',
+          message: 'Business profile is incomplete. Populated available fields.',
+        });
+      }
     } else {
       setAutoFillNotice({
         type: 'success',
@@ -398,6 +385,7 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
   function renderField(field: Field) {
     const error = checked ? errors[field.name] : undefined;
     const id = `order-${field.name}`;
+    const isDistrict = field.name.endsWith('.district');
     return (
       <label key={field.name} htmlFor={id}>
         <span>
@@ -411,6 +399,7 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
           inputMode={field.digits ? 'decimal' : undefined}
           required={!field.optional}
           maxLength={field.max}
+          list={isDistrict ? 'sri-lanka-district-options' : undefined}
           value={values[field.name] ?? ''}
           onChange={(event) => change(field.name, event.target.value)}
           aria-invalid={error ? true : undefined}
@@ -711,6 +700,11 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
 
           {!createdOrder && (
             <form className={styles.orderForm} noValidate onSubmit={handleSubmit}>
+              <datalist id="sri-lanka-district-options">
+                {SRI_LANKA_DISTRICTS.map((district) => (
+                  <option key={district} value={district} />
+                ))}
+              </datalist>
               <fieldset className={extra.formCard}>
                 <legend>Delivery service</legend>
                 <div className={shared.formGrid}>
