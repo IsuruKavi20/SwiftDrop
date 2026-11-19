@@ -210,12 +210,25 @@ test.describe('Merchant Module Full Feature Set', () => {
   });
 
   test('2. Bulk CSV Import: switches tab, uploads CSV and completes batch booking', async ({ page }) => {
+    const bookings = new Map<string, number>();
+    const submitted: string[] = [];
     await page.route('**/api/merchants/me/deliveries*', async (route: Route) => {
       if (route.request().method() === 'POST') {
+        const key = route.request().headers()['idempotency-key'];
+        submitted.push(key);
+        const original = bookings.get(key);
+        if (original === undefined) {
+          bookings.set(key, bookings.size + 1);
+          if (bookings.size === 1) {
+            await route.abort('connectionreset');
+            return;
+          }
+        }
+        const id = original ?? bookings.get(key);
         await route.fulfill({
-          status: 201,
+          status: original === undefined ? 201 : 200,
           contentType: 'application/json',
-          body: JSON.stringify({ ...MOCK_ORDER_DETAIL, status: 'PENDING', estimatedFee: 520 }),
+          body: JSON.stringify({ ...MOCK_ORDER_DETAIL, id, trackingNumber: `SD-TEA00${id}`, status: 'PENDING', estimatedFee: 520 }),
         });
       } else {
         await route.continue();
@@ -231,24 +244,37 @@ test.describe('Merchant Module Full Feature Set', () => {
     const csvContent = [
       'deliveryType,pickupContactName,pickupPhone,pickupStreet,pickupCity,pickupDistrict,pickupPostalCode,destContactName,destPhone,destStreet,destCity,destDistrict,destPostalCode,parcelDescription,weightKg,lengthCm,widthCm,heightCm,declaredValue,specialInstructions',
       'EXPRESS,Central Hub,+94112345678,12 Flower Rd,Colombo,Colombo,00700,Kamal Perera,+94812233445,45 Peradeniya Rd,Kandy,Kandy,20000,Ceylon Black Tea Tin,0.75,20,15,10,3500.00,Fragile',
-    ].join('\n');
+    ];
+    csvContent.push(csvContent[1], csvContent[1].replace('0.75,20', '0,20'));
 
     await page.setInputFiles('input[type="file"]', {
       name: 'bulk-orders.csv',
       mimeType: 'text/csv',
-      buffer: Buffer.from(csvContent),
+      buffer: Buffer.from(csvContent.join('\n')),
     });
 
     await expect(page.locator('text=Import Preview')).toBeVisible();
-    await expect(page.getByText('1 valid', { exact: true })).toBeVisible();
-    await expect(page.locator('button:has-text("Start Import (1 valid)")')).toBeEnabled();
+    await expect(page.getByText('2 valid', { exact: true })).toBeVisible();
+    await expect(page.getByText('1 invalid', { exact: true })).toBeVisible();
+    await expect(page.locator('button:has-text("Start Import (2 valid)")')).toBeEnabled();
 
     await page.click('button:has-text("Start Import")');
 
     await expect(page.locator('text=Import Complete')).toBeVisible();
-    await expect(page.locator('text=Successfully created: 1')).toBeVisible();
+    await expect(page.locator('text=Successfully booked: 1')).toBeVisible();
+    await expect(page.locator('strong:has-text("SD-TEA002")')).toBeVisible();
+    await expect(page.getByText('Failed: 1')).toBeVisible();
+    expect(submitted).toHaveLength(2);
+    expect(submitted[0]).toBeTruthy();
+    expect(submitted[1]).toBeTruthy();
+    expect(submitted[0]).not.toBe(submitted[1]);
+
+    await page.getByRole('button', { name: 'Retry Failed Rows (1)' }).click();
     await expect(page.locator('strong:has-text("SD-TEA001")')).toBeVisible();
-    await expect(page.getByText(/Estimated fee.*520/)).toBeVisible();
+    await expect(page.getByRole('button', { name: /Retry Failed Rows/ })).toHaveCount(0);
+    expect(submitted).toEqual([submitted[0], submitted[1], submitted[0]]);
+    expect(bookings.size).toBe(2);
+    await expect(page.getByText(/Estimated fee.*520/)).toHaveCount(2);
     await expect(page.getByText(/confirm them individually/)).toBeVisible();
   });
 
