@@ -4,6 +4,7 @@ import com.swiftdrop.backend.shared.dto.PageResponse;
 import com.swiftdrop.backend.customer.entity.DeliveryStatus;
 import com.swiftdrop.backend.identity.entity.AppUser;
 import com.swiftdrop.backend.identity.service.UserDirectory;
+import com.swiftdrop.backend.merchant.security.MerchantMachineBookingAccess;
 import com.swiftdrop.backend.merchant.dto.CreateMerchantDeliveryRequest;
 import com.swiftdrop.backend.merchant.dto.MerchantDashboardResponse;
 import com.swiftdrop.backend.merchant.dto.MerchantDeliveryDetailResponse;
@@ -38,10 +39,13 @@ public class MerchantDeliveryController {
 
     private final MerchantDeliveryService deliveryService;
     private final UserDirectory userDirectory;
+    private final MerchantMachineBookingAccess machineAccess;
 
-    public MerchantDeliveryController(MerchantDeliveryService deliveryService, UserDirectory userDirectory) {
+    public MerchantDeliveryController(MerchantDeliveryService deliveryService, UserDirectory userDirectory,
+                                      MerchantMachineBookingAccess machineAccess) {
         this.deliveryService = deliveryService;
         this.userDirectory = userDirectory;
+        this.machineAccess = machineAccess;
     }
 
     @PostMapping("/deliveries")
@@ -85,7 +89,7 @@ public class MerchantDeliveryController {
     }
 
     private AppUser owner(Jwt token) {
-        if (!isPerson(token)) {
+        if (machineAccess.isMachine(token) || !isPerson(token)) {
             throw new AccessDeniedException("The merchant endpoints require a valid user account");
         }
         return userDirectory.caller(token);
