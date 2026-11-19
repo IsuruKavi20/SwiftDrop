@@ -1,11 +1,15 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react';
+import { MerchantIcon } from '../components/MerchantIcon';
 import { MerchantLink } from '../components/MerchantLink';
 import { merchantPath } from '../merchantRoutes';
 import {
   createMerchantDelivery,
+  estimateMerchantDelivery,
+  formatMerchantFee,
   type CreateMerchantDeliveryInput,
   type DeliveryType,
   type MerchantDeliveryDetail,
+  type MerchantDeliveryEstimate,
 } from '../api/merchantOrdersApi';
 import { MerchantApiError } from '../api/merchantApi';
 import styles from './MerchantOrders.module.css';
@@ -53,6 +57,7 @@ interface CsvRow {
   errors: string[];
   status: 'valid' | 'invalid' | 'pending' | 'success' | 'failed';
   trackingNumber?: string;
+  estimatedFee?: number | null;
   errorMessage?: string;
 }
 
@@ -112,17 +117,22 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [createdOrder, setCreatedOrder] = useState<MerchantDeliveryDetail | null>(null);
   const [copied, setCopied] = useState(false);
+  const [pricing, setPricing] = useState(false);
+  const [quote, setQuote] = useState<{ input: string; fee: MerchantDeliveryEstimate }>();
+  const [quoteError, setQuoteError] = useState<string | null>(null);
 
   // Bulk CSV state
   const [csvRows, setCsvRows] = useState<CsvRow[]>([]);
+  const [csvFileName, setCsvFileName] = useState('');
+  const [csvError, setCsvError] = useState<string | null>(null);
+  const [isReadingCsv, setIsReadingCsv] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [importSummary, setImportSummary] = useState<{ success: number; failed: number } | null>(null);
 
   const instructions = { name: 'specialInstructions', label: 'Special instructions', max: 500, optional: true };
   const groups = [
-    { label: 'Recipient information', prefix: 'destination', fields: contactFields },
-    { label: 'Delivery address', prefix: 'destination', fields: addressFields },
+    { label: 'Recipient and delivery address', prefix: 'destination', fields: [...contactFields, ...addressFields] },
     { label: 'Pickup information and address', prefix: 'pickup', fields: [...contactFields, ...addressFields] },
     ...parcelIds.map((id, index) => ({
       label: `Parcel ${index + 1}`,
@@ -140,25 +150,11 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
     setValues((previous) => ({ ...previous, [name]: value }));
     setChecked(false);
     setSubmitError(null);
+    setQuoteError(null);
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setChecked(true);
-    setSubmitError(null);
-
-    if (firstError) {
-      const field = event.currentTarget.elements.namedItem(firstError);
-      if (field instanceof HTMLElement) field.focus();
-      return;
-    }
-
-    if (preview) {
-      setSubmitError('Order submission is simulated in development preview mode.');
-      return;
-    }
-
-    const payload: CreateMerchantDeliveryInput = {
+  function bookingInput(): CreateMerchantDeliveryInput {
+    return {
       deliveryType: values.deliveryType as DeliveryType,
       pickup: {
         contactName: values['pickup.contactName']?.trim() ?? '',
@@ -186,11 +182,46 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
       })),
       specialInstructions: values.specialInstructions?.trim() || null,
     };
+  }
 
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (pricing || isSubmitting) return;
+    setChecked(true);
+    setSubmitError(null);
+    setQuoteError(null);
+
+    if (firstError) {
+      const field = event.currentTarget.elements.namedItem(firstError);
+      if (field instanceof HTMLElement) field.focus();
+      return;
+    }
+
+    const estimateOnly = (event.nativeEvent as SubmitEvent).submitter?.getAttribute('value') === 'estimate';
+    if (preview) {
+      if (estimateOnly) setQuoteError('Sign in as a Merchant to request an estimate.');
+      else setSubmitError('Order submission is simulated in development preview mode.');
+      return;
+    }
+
+    const payload = bookingInput();
+    if (estimateOnly) {
+      setPricing(true);
+      setQuote(undefined);
+      try {
+        setQuote({ input: JSON.stringify(payload), fee: await estimateMerchantDelivery(payload) });
+      } catch (error) {
+        setQuoteError(error instanceof Error ? error.message : 'Could not estimate the delivery fee. Try again.');
+      } finally {
+        setPricing(false);
+      }
+      return;
+    }
     try {
       setIsSubmitting(true);
       const result = await createMerchantDelivery(payload);
       setCreatedOrder(result);
+      setQuote(undefined);
       setValues({ deliveryType: '' });
       setParcelIds([1]);
       setChecked(false);
@@ -284,16 +315,22 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
 
   function handleFileUpload(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || isImporting || isReadingCsv) return;
 
+    e.target.value = '';
+    setCsvFileName(file.name);
+    setCsvError(null);
+    setCsvRows([]);
+    setImportSummary(null);
+    setIsReadingCsv(true);
     const reader = new FileReader();
     reader.onload = (event) => {
-      const text = event.target?.result as string;
-      if (!text) return;
+      const text = String(event.target?.result ?? '').replace(/^\uFEFF/, '');
+      setIsReadingCsv(false);
 
       const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
       if (lines.length < 2) {
-        alert('The uploaded CSV is empty or missing data rows.');
+        setCsvError('This CSV has no shipment rows. Add at least one shipment below the header and choose the file again.');
         return;
       }
 
@@ -340,12 +377,17 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
       setCsvRows(rows);
       setImportSummary(null);
     };
+    reader.onerror = reader.onabort = () => {
+      setIsReadingCsv(false);
+      setCsvError('Could not read this CSV. Choose the file again.');
+    };
     reader.readAsText(file);
   }
 
   async function runBulkImport(onlyFailed = false) {
+    if (isImporting || isReadingCsv) return;
     if (preview) {
-      alert('Bulk import execution is simulated in development preview mode.');
+      setCsvError('Sign in as a Merchant to book the shipments in this file.');
       return;
     }
 
@@ -355,6 +397,7 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
 
     if (rowsToProcess.length === 0) return;
 
+    setImportSummary(null);
     setIsImporting(true);
     setImportProgress({ current: 0, total: rowsToProcess.length });
     let successCount = 0;
@@ -362,7 +405,6 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
 
     for (let i = 0; i < rowsToProcess.length; i++) {
       const row = rowsToProcess[i];
-      setImportProgress({ current: i + 1, total: rowsToProcess.length });
 
       const payload: CreateMerchantDeliveryInput = {
         deliveryType: row.data.deliveryType.toUpperCase() as DeliveryType,
@@ -401,7 +443,7 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
         setCsvRows((prev) =>
           prev.map((r) =>
             r.rowIndex === row.rowIndex
-              ? { ...r, status: 'success', trackingNumber: res.trackingNumber, errorMessage: undefined }
+              ? { ...r, status: 'success', trackingNumber: res.trackingNumber, estimatedFee: res.estimatedFee, errorMessage: undefined }
               : r
           )
         );
@@ -414,19 +456,35 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
           )
         );
       }
+      setImportProgress({ current: i + 1, total: rowsToProcess.length });
     }
 
     setIsImporting(false);
     setImportSummary({ success: successCount, failed: failedCount });
   }
 
+  const validCount = csvRows.filter(({ status }) => status === 'valid').length;
+  const invalidCount = csvRows.filter(({ status }) => status === 'invalid').length;
+  const failedCount = csvRows.filter(({ status }) => status === 'failed').length;
+  const currentQuote = quote?.input === JSON.stringify(bookingInput()) ? quote?.fee : undefined;
+
   return (
-    <section className={shared.panel} aria-labelledby="create-order-title">
-      <div className={extra.tabs} role="tablist" aria-label="Order creation methods">
+    <section className={extra.page} aria-labelledby="create-order-title">
+      <div className={extra.tabs} role="tablist" aria-label="Order creation methods" onKeyDown={(event) => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const target = event.key === 'Home' ? 'single' : event.key === 'End' ? 'bulk'
+          : activeTab === 'single' ? 'bulk' : 'single';
+        setActiveTab(target);
+        event.currentTarget.querySelectorAll('button')[target === 'single' ? 0 : 1]?.focus();
+      }}>
         <button
           type="button"
           role="tab"
+          id="single-shipment-tab"
+          aria-controls="single-shipment"
           aria-selected={activeTab === 'single'}
+          tabIndex={activeTab === 'single' ? 0 : -1}
           className={`${extra.tabButton} ${activeTab === 'single' ? extra.tabButtonActive : ''}`}
           onClick={() => setActiveTab('single')}
         >
@@ -435,7 +493,10 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
         <button
           type="button"
           role="tab"
+          id="bulk-import-tab"
+          aria-controls="bulk-import"
           aria-selected={activeTab === 'bulk'}
+          tabIndex={activeTab === 'bulk' ? 0 : -1}
           className={`${extra.tabButton} ${activeTab === 'bulk' ? extra.tabButtonActive : ''}`}
           onClick={() => setActiveTab('bulk')}
         >
@@ -444,19 +505,21 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
       </div>
 
       {activeTab === 'single' ? (
-        <>
+        <div role="tabpanel" id="single-shipment" aria-labelledby="single-shipment-tab">
           <h2 id="create-order-title">Book a Delivery Shipment</h2>
           <p id="submission-note">
-            Create a single courier booking for your customer order. Pickups and dropoffs will be handled by SwiftDrop dispatch.
+            Choose a service, then enter the pickup, delivery and parcel details for this booking.
           </p>
 
           {createdOrder && (
             <div className={extra.successCard} role="status">
               <div className={extra.successHeader}>
-                <span style={{ fontSize: '1.5rem' }}>✓</span>
+                <MerchantIcon name="check" size={24} />
                 <h3 className={extra.successTitle}>Shipment Booked Successfully!</h3>
               </div>
               <p>Your order has been registered in the SwiftDrop courier network.</p>
+              <p>Review and confirm the order from its details page to make it available for dispatch.</p>
+              {createdOrder.estimatedFee != null && <p>Estimated delivery fee <strong>{formatMerchantFee(createdOrder.estimatedFee)}</strong></p>}
               <div className={extra.trackingBox}>
                 <span>Tracking Number:</span>
                 <span className={extra.trackingNumber}>{createdOrder.trackingNumber}</span>
@@ -470,7 +533,7 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
                 </MerchantLink>
                 <button
                   type="button"
-                  className={shared.button}
+                  className={styles.primaryButton}
                   onClick={() => {
                     setCreatedOrder(null);
                     setValues({ deliveryType: '' });
@@ -488,7 +551,7 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
 
           {!createdOrder && (
             <form className={styles.orderForm} noValidate onSubmit={handleSubmit}>
-              <fieldset className={shared.fieldset}>
+              <fieldset className={extra.formCard}>
                 <legend>Delivery service</legend>
                 <div className={shared.formGrid}>
                   <label>
@@ -518,7 +581,7 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
               </fieldset>
 
               {groups.map((group) => (
-                <fieldset key={group.prefix === 'destination' ? group.label : group.prefix} className={shared.fieldset}>
+                <fieldset key={group.prefix} className={extra.formCard}>
                   <legend>{group.label}</legend>
                   <div className={shared.formGrid}>
                     {group.fields.map((field) => renderField({ ...field, name: `${group.prefix}.${field.name}` }))}
@@ -552,7 +615,7 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
                 Add parcel (maximum 20)
               </button>
 
-              <fieldset className={shared.fieldset}>
+              <fieldset className={extra.formCard}>
                 <legend>Delivery notes</legend>
                 <div className={shared.formGrid}>{renderField(instructions)}</div>
               </fieldset>
@@ -563,9 +626,19 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
                 </p>
               )}
 
+              {currentQuote && <div className={extra.importStatus} role="status">
+                <strong>Estimated delivery fee {formatMerchantFee(currentQuote.totalFee, currentQuote.currency)}</strong>
+                <p>Base {formatMerchantFee(currentQuote.baseFee)} · Distance {formatMerchantFee(currentQuote.distanceCharge)} · Weight {formatMerchantFee(currentQuote.weightCharge)} · Service {formatMerchantFee(currentQuote.serviceCharge)}</p>
+                <p>{currentQuote.explanation}</p>
+                <p>The server recalculates this fee when you book the shipment.</p>
+              </div>}
+              {quoteError && <p className={shared.error} role="alert">{quoteError}</p>}
               <div className={styles.actions}>
-                <button type="submit" className={shared.button} disabled={isSubmitting}>
+                <button type="submit" className={styles.primaryButton} disabled={isSubmitting || pricing}>
                   {isSubmitting ? 'Booking shipment…' : 'Submit order'}
+                </button>
+                <button type="submit" value="estimate" className={shared.button} disabled={isSubmitting || pricing}>
+                  {pricing ? 'Estimating fee…' : 'Get fee estimate'}
                 </button>
                 <MerchantLink className={shared.button} href={merchantPath('orders', preview)}>
                   Back to Store Orders
@@ -579,86 +652,86 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
               )}
             </form>
           )}
-        </>
+        </div>
       ) : (
-        <div className={extra.csvSection}>
-          <h2>Bulk Shipment CSV Import</h2>
-          <p>
-            Upload a spreadsheet with multiple delivery orders to book them in batch. Download the template below to ensure correct column formatting.
-          </p>
-
-          <div className={extra.csvActions}>
-            <button type="button" className={shared.button} onClick={downloadCsvTemplate}>
-              📥 Download CSV Template
-            </button>
-            <label className={`${shared.button} ${extra.fileInputLabel}`}>
-              📁 Choose CSV File
-              <input type="file" accept=".csv" className={extra.hiddenInput} onChange={handleFileUpload} />
-            </label>
+        <div className={extra.csvSection} role="tabpanel" id="bulk-import" aria-labelledby="bulk-import-tab">
+          <div>
+            <h2 id="create-order-title">Bulk Shipment CSV Import</h2>
+            <p>Book several shipments from one CSV file. Review your rows before submitting them.</p>
           </div>
 
+          <div className={extra.csvSetup}>
+            <div className={extra.csvCard}>
+              <h3>Prepare your CSV</h3>
+              <p>Keep the template headers and enter one shipment per row. Replace the sample row with your own shipment details.</p>
+              <button type="button" className={shared.button} onClick={downloadCsvTemplate}>
+                Download CSV Template
+              </button>
+            </div>
+            <div className={extra.csvCard}>
+              <h3>Select your file</h3>
+              <div className={extra.filePicker}>
+                <input id="shipment-csv" type="file" accept=".csv" className={extra.fileInput}
+                  disabled={isReadingCsv || isImporting} onChange={handleFileUpload} aria-describedby="csv-file-name" />
+                <label htmlFor="shipment-csv" className={shared.button}>{csvFileName ? 'Choose another CSV' : 'Choose CSV File'}</label>
+                <p id="csv-file-name" className={extra.fileName} role="status">
+                  {csvFileName ? (isReadingCsv ? `Reading ${csvFileName}…` : csvFileName) : 'No CSV selected'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {csvError && <p className={shared.error} role="alert">{csvError}</p>}
+
           {csvRows.length > 0 && (
-            <div>
+            <div className={extra.csvCard}>
               <h3>Import Preview</h3>
               <p>
                 Parsed <strong>{csvRows.length}</strong> rows:{' '}
-                <span style={{ color: '#2e7d32', fontWeight: 600 }}>
-                  {csvRows.filter((r) => r.status === 'valid' || r.status === 'success').length} valid
-                </span>
-                {', '}
-                <span style={{ color: '#d32f2f', fontWeight: 600 }}>
-                  {csvRows.filter((r) => r.status === 'invalid' || r.status === 'failed').length} invalid
-                </span>
+                <strong>{validCount} valid</strong>{', '}
+                <strong>{invalidCount} invalid</strong>
               </p>
+              {invalidCount > 0 && <p>Only rows marked Valid will be submitted. To import corrected rows later, upload a CSV containing only those rows.</p>}
 
               {isImporting && (
-                <div>
-                  <p>
-                    Importing row {importProgress.current} of {importProgress.total}…
-                  </p>
-                  <div className={extra.progressBarContainer}>
-                    <div
-                      className={extra.progressBarFill}
-                      style={{
-                        width: `${importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0}%`,
-                      }}
-                    />
-                  </div>
+                <div className={extra.importStatus}>
+                  <p role="status">Processed {importProgress.current} of {importProgress.total} shipments</p>
+                  <progress aria-label="Shipment import progress" value={importProgress.current} max={importProgress.total} />
                 </div>
               )}
 
               {importSummary && (
-                <div className={shared.state}>
+                <div className={extra.importStatus} role="status">
                   <h4>Import Complete</h4>
                   <p>
-                    Successfully created: <strong>{importSummary.success}</strong> | Failed:{' '}
-                    <strong>{importSummary.failed}</strong>
+                    Successfully created: <strong>{importSummary.success}</strong> · Failed: <strong>{importSummary.failed}</strong>
                   </p>
+                  {importSummary.success > 0 && <p>Booked shipments are pending. Open Store Orders to confirm them individually.</p>}
                 </div>
               )}
 
-              <div className={styles.actions} style={{ margin: '1rem 0' }}>
+              <div className={styles.actions}>
                 <button
                   type="button"
-                  className={shared.button}
-                  disabled={isImporting || csvRows.filter((r) => r.status === 'valid').length === 0}
+                  className={styles.primaryButton}
+                  disabled={isImporting || validCount === 0}
                   onClick={() => void runBulkImport(false)}
                 >
-                  {isImporting ? 'Processing…' : `Start Import (${csvRows.filter((r) => r.status === 'valid').length} valid)`}
+                  {isImporting ? 'Processing…' : `Start Import (${validCount} valid)`}
                 </button>
-                {csvRows.some((r) => r.status === 'failed') && (
+                {failedCount > 0 && (
                   <button
                     type="button"
                     className={shared.button}
                     disabled={isImporting}
                     onClick={() => void runBulkImport(true)}
                   >
-                    Retry Failed Rows ({csvRows.filter((r) => r.status === 'failed').length})
+                    Retry Failed Rows ({failedCount})
                   </button>
                 )}
               </div>
 
-              <div className={extra.previewTableWrapper}>
+              <div className={extra.previewTableWrapper} role="region" aria-label="CSV row results" tabIndex={0}>
                 <table className={extra.previewTable}>
                   <thead>
                     <tr>
@@ -685,7 +758,7 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
                           {r.status === 'valid' && <span className={`${extra.badge} ${extra.badgeValid}`}>Valid</span>}
                           {r.status === 'invalid' && (
                             <span className={`${extra.badge} ${extra.badgeInvalid}`}>
-                              {r.errors.join('; ')}
+                              Invalid
                             </span>
                           )}
                           {r.status === 'success' && (
@@ -697,9 +770,14 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
                         </td>
                         <td>
                           {r.trackingNumber ? (
-                            <strong style={{ fontFamily: 'monospace' }}>{r.trackingNumber}</strong>
+                            <>
+                              <strong className={extra.trackingNumber}>{r.trackingNumber}</strong>
+                              {r.estimatedFee != null && <div>Estimated fee {formatMerchantFee(r.estimatedFee)}</div>}
+                            </>
+                          ) : r.errors.length ? (
+                            <ul className={extra.rowErrors}>{r.errors.map((error) => <li key={error}>{error}</li>)}</ul>
                           ) : r.errorMessage ? (
-                            <span style={{ color: '#d32f2f' }}>{r.errorMessage}</span>
+                            <span className={extra.rowErrors}>{r.errorMessage}</span>
                           ) : (
                             '—'
                           )}

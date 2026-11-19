@@ -2,6 +2,7 @@ package com.swiftdrop.backend.customer.service;
 
 import com.swiftdrop.backend.customer.dto.*;
 import com.swiftdrop.backend.customer.entity.DeliveryType;
+import com.swiftdrop.backend.pricing.DeliveryPricing;
 import com.swiftdrop.backend.pricing.DistanceSource;
 import com.swiftdrop.backend.pricing.DistanceSource.RouteDistance;
 import com.swiftdrop.backend.pricing.Tariff;
@@ -18,7 +19,11 @@ class CustomerPricingServiceTest {
     /** Google can't give a distance (no key, unreachable…): the district bases apply. */
     private static final DistanceSource NO_DISTANCE = (from, to) -> Optional.empty();
 
-    private final CustomerPricingService pricing = new CustomerPricingService(Tariff::defaults, NO_DISTANCE);
+    private final CustomerPricingService pricing = pricing(NO_DISTANCE);
+
+    private static CustomerPricingService pricing(DistanceSource distances) {
+        return new CustomerPricingService(new DeliveryPricing(Tariff::defaults, distances));
+    }
 
     private static DistanceSource road(String km) {
         return (from, to) -> Optional.of(new RouteDistance(new BigDecimal(km), Duration.ofHours(3)));
@@ -33,7 +38,7 @@ class CustomerPricingServiceTest {
     }
 
     @Test void distanceDecidesTheFee() {
-        var estimate = new CustomerPricingService(Tariff::defaults, road("115.4"))
+        var estimate = pricing(road("115.4"))
                 .estimate(booking("Colombo","Kandy",DeliveryType.EXPRESS));
         assertEquals(0,new BigDecimal("115.4").compareTo(estimate.distanceKm()));
         assertEquals("Main Road, Colombo, Colombo District, 00100, Sri Lanka", estimate.routeFrom());
@@ -49,21 +54,21 @@ class CustomerPricingServiceTest {
     }
 
     @Test void shortTripsPayOnlyTheBaseFee() {
-        var estimate = new CustomerPricingService(Tariff::defaults, road("3.2"))
+        var estimate = pricing(road("3.2"))
                 .estimate(booking("Colombo","Colombo",DeliveryType.STANDARD));
         assertEquals(0,BigDecimal.ZERO.compareTo(estimate.distanceCharge()));
         assertEquals(0,new BigDecimal("430.00").compareTo(estimate.totalFee())); // 250 + 1.5 kg × 120
     }
 
     @Test void longerRoutesCostMore() {
-        var near = new CustomerPricingService(Tariff::defaults, road("40")).estimate(booking("Colombo","Gampaha",DeliveryType.STANDARD));
-        var far = new CustomerPricingService(Tariff::defaults, road("390")).estimate(booking("Colombo","Jaffna",DeliveryType.STANDARD));
+        var near = pricing(road("40")).estimate(booking("Colombo","Gampaha",DeliveryType.STANDARD));
+        var far = pricing(road("390")).estimate(booking("Colombo","Jaffna",DeliveryType.STANDARD));
         assertTrue(far.totalFee().compareTo(near.totalFee()) > 0);
     }
 
     @Test void asksGoogleWithFullSriLankanAddresses() {
         List<String> asked = new ArrayList<>();
-        new CustomerPricingService(Tariff::defaults, (from, to) -> { asked.add(from); asked.add(to); return Optional.empty(); })
+        pricing((from, to) -> { asked.add(from); asked.add(to); return Optional.empty(); })
                 .estimate(booking("Colombo","Kandy",DeliveryType.STANDARD));
         assertEquals(List.of("Main Road, Colombo, Colombo District, 00100, Sri Lanka",
                 "Lake Road, Kandy, Kandy District, 20000, Sri Lanka"), asked);

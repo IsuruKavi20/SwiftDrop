@@ -4,6 +4,7 @@ import com.swiftdrop.backend.customer.entity.DeliveryStatus;
 import com.swiftdrop.backend.customer.repository.CustomerDeliveryRepository;
 import com.swiftdrop.backend.merchant.repository.MerchantDeliveryRepository;
 import com.swiftdrop.backend.notification.config.RabbitMqConfig;
+import com.swiftdrop.backend.pricing.DistanceSource;
 import com.swiftdrop.backend.notification.event.DeliveryStatusChangedEvent;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
@@ -25,9 +26,13 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.Optional;
+import java.time.Duration;
+import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mockingDetails;
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -95,6 +100,9 @@ class MerchantDeliveryApiTest {
     @MockitoBean
     private RabbitTemplate rabbitTemplate;
 
+    @MockitoBean
+    private DistanceSource distanceSource;
+
     private static RequestPostProcessor merchant(UUID userId, String name) {
         return jwt().jwt(token -> token.subject(userId.toString()).claim("name", name)
                         .claim("roles", List.of("MERCHANT")))
@@ -105,6 +113,97 @@ class MerchantDeliveryApiTest {
         return jwt().jwt(token -> token.subject(userId.toString()).claim("name", "Customer User")
                         .claim("roles", List.of("CUSTOMER")))
                 .authorities(new SimpleGrantedAuthority("parcel:create"), new SimpleGrantedAuthority("parcel:read-own"));
+    }
+
+    @Test
+    void publishedTariffPricesQuotesAndBookingsForEveryService() throws Exception {
+        var admin = jwt().jwt(token -> token.subject(UUID.randomUUID().toString()))
+                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        var owner = merchant(UUID.randomUUID(), "Merchant");
+        mockMvc.perform(post("/api/admin/pricing").with(admin).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"distanceBase":200,"includedKm":5,"perKm":10,"sameDistrictBase":100,"otherDistrictBase":300,"additionalKg":80,
+                                 "expressSurcharge":120,"sameDaySurcharge":200}
+                                """))
+                .andExpect(status().isCreated());
+
+        String weighted = VALID_DELIVERY_JSON.replace("0.65", "2.25");
+        String from = "12 Flower Road, Colombo, Colombo District, 00700, Sri Lanka";
+        String to = "45 Peradeniya Road, Kandy, Kandy District, 20000, Sri Lanka";
+        org.mockito.Mockito.when(distanceSource.drivingDistance(from, to)).thenReturn(Optional.empty());
+        mockMvc.perform(post("/api/merchants/me/deliveries/estimate").with(owner)
+                        .contentType(MediaType.APPLICATION_JSON).content(weighted))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.distanceKm").isEmpty())
+                .andExpect(jsonPath("$.totalFee").value(520));
+
+        org.mockito.Mockito.when(distanceSource.drivingDistance(from, to))
+                .thenReturn(Optional.of(new DistanceSource.RouteDistance(new BigDecimal("10.44"), Duration.ofMinutes(25))));
+        for (var service : java.util.Map.of("STANDARD", 354, "EXPRESS", 474, "SAME_DAY", 554).entrySet()) {
+            String payload = weighted.replace("EXPRESS", service.getKey());
+            mockMvc.perform(post("/api/merchants/me/deliveries/estimate").with(owner)
+                            .contentType(MediaType.APPLICATION_JSON).content(payload))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.distanceKm").value(10.4))
+                    .andExpect(jsonPath("$.routeFrom").value(from))
+                    .andExpect(jsonPath("$.routeTo").value(to))
+                    .andExpect(jsonPath("$.distanceCharge").value(54))
+                    .andExpect(jsonPath("$.totalFee").value(service.getValue()));
+            mockMvc.perform(post("/api/customers/me/deliveries/estimate").with(customer(UUID.randomUUID()))
+                            .contentType(MediaType.APPLICATION_JSON).content(payload))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.totalFee").value(service.getValue()));
+            // The single-shipment and CSV clients use this same booking endpoint.
+            MvcResult result = mockMvc.perform(post("/api/merchants/me/deliveries").with(owner)
+                            .contentType(MediaType.APPLICATION_JSON).content(payload))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.estimatedFee").value(service.getValue()))
+                    .andExpect(jsonPath("$.status").value("PENDING"))
+                    .andReturn();
+            long id = objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asLong();
+            assertThat(jdbc.queryForObject("SELECT estimated_fee FROM delivery WHERE delivery_id = ?", BigDecimal.class, id))
+                    .isEqualByComparingTo(BigDecimal.valueOf(service.getValue()));
+        }
+
+        mockMvc.perform(post("/api/merchants/me/deliveries/estimate").with(customer(UUID.randomUUID()))
+                        .contentType(MediaType.APPLICATION_JSON).content(weighted))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void ownerConfirmsOnceAndOrderEntersDispatchQueueAndPublicHistory() throws Exception {
+        var owner = merchant(UUID.randomUUID(), "Owner");
+        MvcResult result = mockMvc.perform(post("/api/merchants/me/deliveries").with(owner)
+                        .contentType(MediaType.APPLICATION_JSON).content(VALID_DELIVERY_JSON))
+                .andExpect(status().isCreated()).andReturn();
+        JsonNode created = objectMapper.readTree(result.getResponse().getContentAsString());
+        long id = created.get("id").asLong();
+        String confirm = "/api/merchants/me/deliveries/" + id + "/confirm";
+        mockMvc.perform(post(confirm)).andExpect(status().isUnauthorized());
+        mockMvc.perform(post(confirm).with(customer(UUID.randomUUID()))).andExpect(status().isForbidden());
+        mockMvc.perform(post(confirm).with(merchant(UUID.randomUUID(), "Other"))).andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/merchants/me/deliveries/0/confirm").with(owner)).andExpect(status().isNotFound());
+        mockMvc.perform(post(confirm).with(owner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.estimatedFee").value(created.get("estimatedFee").asDouble()))
+                .andExpect(jsonPath("$.trackingEvents[1].status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.trackingEvents[1].description").value("Booking confirmed by merchant"));
+        mockMvc.perform(get("/api/dispatcher/deliveries/unassigned").with(jwt().jwt(token ->
+                        token.subject(UUID.randomUUID().toString())).authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.id == %d)]", id).isNotEmpty());
+        mockMvc.perform(get("/api/public/tracking/" + created.get("trackingNumber").asText()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.events[1].status").value("CONFIRMED"));
+        assertThat(mockingDetails(rabbitTemplate).getInvocations().stream()
+                .filter(invocation -> invocation.getMethod().getName().equals("convertAndSend"))
+                .map(invocation -> invocation.getArgument(1, String.class)))
+                .contains("delivery.status.confirmed");
+        mockMvc.perform(post(confirm).with(owner)).andExpect(status().isConflict());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM tracking_event WHERE delivery_id = ?", Integer.class, id))
+                .isEqualTo(2);
     }
 
     @Test

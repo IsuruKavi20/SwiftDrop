@@ -19,10 +19,7 @@ export function MerchantHeader({ claims, name, title, preview, onSignOut }: Merc
 
   return (
     <header className={styles.header}>
-      <div>
-        <h1>{title}</h1>
-        {name && <p>Signed in as {name}</p>}
-      </div>
+      <h1>{title}</h1>
       <div className={styles.toolbar}>
         <MerchantLink className={styles.create} href={merchantPath('create-order', preview)}>
           <MerchantIcon name="plus" size={18} /> Create Order
@@ -30,7 +27,7 @@ export function MerchantHeader({ claims, name, title, preview, onSignOut }: Merc
         {!preview && <details className={styles.account}>
           <summary>
             <span className={styles.avatar} aria-hidden="true">{initials}</span>
-            <span><strong>{name || 'Merchant'}</strong><small>Merchant account</small></span>
+            <span className={styles.accountIdentity}><strong>{name || 'Merchant'}</strong><small>Merchant account</small></span>
             <MerchantIcon name="down" size={15} />
           </summary>
           <div className={styles.accountMenu}>

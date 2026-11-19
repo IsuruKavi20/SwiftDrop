@@ -1,14 +1,19 @@
 import { useEffect, useState } from 'react';
 import {
   getMerchantDelivery,
+  formatMerchantFee,
   type DeliveryStatus,
   type MerchantDeliveryDetail,
 } from '../api/merchantOrdersApi';
 import styles from './MerchantDashboard.module.css';
+import { MerchantIcon } from './MerchantIcon';
+import { ShipmentTimeline } from './ShipmentTimeline';
+import { ConfirmMerchantOrder } from './ConfirmMerchantOrder';
 
 interface OrderDetailsModalProps {
   deliveryId: number | null;
   onClose: () => void;
+  onConfirmed?: () => void;
 }
 
 const STATUS_LABELS: Record<DeliveryStatus, string> = {
@@ -45,7 +50,7 @@ function formatDate(iso: string | null | undefined): string {
   }
 }
 
-export function OrderDetailsModal({ deliveryId, onClose }: OrderDetailsModalProps) {
+export function OrderDetailsModal({ deliveryId, onClose, onConfirmed }: OrderDetailsModalProps) {
   const [prevDeliveryId, setPrevDeliveryId] = useState<number | null>(deliveryId);
   const [loading, setLoading] = useState<boolean>(true);
   const [detail, setDetail] = useState<MerchantDeliveryDetail | null>(null);
@@ -154,13 +159,13 @@ export function OrderDetailsModal({ deliveryId, onClose }: OrderDetailsModalProp
 
         <div className={styles.modalBody}>
           {loading && (
-            <div className={styles.emptyState}>
+            <div className={styles.emptyState} role="status">
               <p>Loading delivery information…</p>
             </div>
           )}
 
           {error && (
-            <div className={styles.emptyState}>
+            <div className={styles.emptyState} role="alert">
               <p style={{ color: 'var(--color-error)' }}>{error}</p>
               <button
                 type="button"
@@ -180,7 +185,7 @@ export function OrderDetailsModal({ deliveryId, onClose }: OrderDetailsModalProp
                 <h4 className={styles.modalSectionTitle}>Addresses</h4>
                 <div className={styles.addressGrid}>
                   <div className={styles.addressCard}>
-                    <div className={styles.addressCardTitle}>Pickup Location</div>
+                    <div className={styles.addressCardTitle}><MerchantIcon name="pin" size={16} /> Pickup Location</div>
                     <strong>{detail.pickup.contactName}</strong> ({detail.pickup.contactPhone})
                     <div>{detail.pickup.street}</div>
                     <div>
@@ -190,7 +195,7 @@ export function OrderDetailsModal({ deliveryId, onClose }: OrderDetailsModalProp
                   </div>
 
                   <div className={styles.addressCard}>
-                    <div className={styles.addressCardTitle}>Destination / Recipient</div>
+                    <div className={styles.addressCardTitle}><MerchantIcon name="truck" size={16} /> Destination / Recipient</div>
                     <strong>{detail.destination.contactName}</strong> ({detail.destination.contactPhone})
                     <div>{detail.destination.street}</div>
                     <div>
@@ -259,31 +264,21 @@ export function OrderDetailsModal({ deliveryId, onClose }: OrderDetailsModalProp
                 </div>
               </div>
 
+              <div className={styles.modalSection}>
+                <h4 className={styles.modalSectionTitle}>Estimated delivery fee</h4>
+                <strong>{detail.estimatedFee == null ? 'Not recorded' : formatMerchantFee(detail.estimatedFee)}</strong>
+                <div>
+                  <ConfirmMerchantOrder order={detail} onConfirmed={(updated) => {
+                    setDetail(updated);
+                    onConfirmed?.();
+                  }} />
+                </div>
+              </div>
+
               {/* Tracking Timeline */}
               <div className={styles.modalSection}>
                 <h4 className={styles.modalSectionTitle}>Tracking Timeline</h4>
-                {detail.trackingEvents.length === 0 ? (
-                  <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>
-                    No tracking events recorded yet.
-                  </p>
-                ) : (
-                  <div className={styles.timeline}>
-                    {detail.trackingEvents.map((event, idx) => (
-                      <div key={event.id ?? idx} className={styles.timelineItem}>
-                        <div className={styles.timelineDot} />
-                        <div className={styles.timelineStatus}>
-                          {STATUS_LABELS[event.status] ?? event.status}
-                        </div>
-                        <div className={styles.timelineDesc}>{event.description}</div>
-                        <div className={styles.timelineMeta}>
-                          {formatDate(event.eventTime)}
-                          {event.locationName ? ` • ${event.locationName}` : ''}
-                          {event.recordedByName ? ` • Recorded by ${event.recordedByName}` : ''}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <ShipmentTimeline events={detail.trackingEvents} />
               </div>
             </>
           )}

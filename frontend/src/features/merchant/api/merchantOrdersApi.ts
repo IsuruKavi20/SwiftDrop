@@ -54,6 +54,7 @@ export interface MerchantDeliverySummary {
 }
 
 export interface MerchantDeliveryDetail {
+  estimatedFee?: number | null;
   id: number;
   trackingNumber: string;
   publicTrackingToken: string;
@@ -67,6 +68,23 @@ export interface MerchantDeliveryDetail {
   destination: DeliveryAddress;
   parcels: Parcel[];
   trackingEvents: TrackingEvent[];
+}
+
+export interface MerchantDeliveryEstimate {
+  distanceKm: number | null;
+  routeFrom: string;
+  routeTo: string;
+  distanceCharge: number;
+  currency: string;
+  baseFee: number;
+  weightCharge: number;
+  serviceCharge: number;
+  totalFee: number;
+  explanation: string;
+}
+
+export function formatMerchantFee(amount: number, currency = 'LKR'): string {
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount);
 }
 
 export interface MerchantDashboardData {
@@ -171,4 +189,15 @@ export function createMerchantDelivery(input: CreateMerchantDeliveryInput): Prom
     method: 'POST',
     body: JSON.stringify(input),
   });
+}
+
+export function estimateMerchantDelivery(input: CreateMerchantDeliveryInput): Promise<MerchantDeliveryEstimate> {
+  return request<MerchantDeliveryEstimate>('/api/merchants/me/deliveries/estimate', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function confirmMerchantDelivery(id: number): Promise<MerchantDeliveryDetail> {
+  return request<MerchantDeliveryDetail>(`/api/merchants/me/deliveries/${id}/confirm`, { method: 'POST' });
 }

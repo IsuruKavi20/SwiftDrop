@@ -378,21 +378,21 @@
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.18);
   width: 100%;
   max-width: 680px;
-  max-height: 90vh;
+  max-height: calc(100dvh - 2rem);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
 }
 
 .modalHeader {
-  padding: 20px 24px;
+  padding: clamp(0.8rem, 3vw, 1.25rem) clamp(0.85rem, 4vw, 1.5rem);
   border-bottom: 1px solid var(--color-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
   position: sticky;
   top: 0;
-  background: var(--color-surface);
+  background: var(--color-page);
   z-index: 2;
 }
 
@@ -420,7 +420,7 @@
 }
 
 .modalBody {
-  padding: 24px;
+  padding: clamp(0.85rem, 4vw, 1.5rem);
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -443,7 +443,7 @@
 
 .addressGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
   gap: 16px;
 }
 
@@ -457,11 +457,18 @@
 }
 
 .addressCardTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   font-weight: 700;
   font-size: 12px;
   color: var(--color-text-muted);
   text-transform: uppercase;
   margin-bottom: 6px;
+}
+
+@media (max-width: 36rem) {
+  .modalOverlay { padding: 0.65rem; }
 }
 
 .parcelList {
