@@ -4,6 +4,15 @@ import com.swiftdrop.backend.customer.entity.Delivery;
 import com.swiftdrop.backend.customer.entity.TrackingEvent;
 import com.swiftdrop.backend.merchant.event.MerchantStatusChange;
 import jakarta.persistence.EntityManager;
+import com.swiftdrop.backend.dispatcher.event.MerchantCourierAssigned;
+import com.swiftdrop.backend.notification.config.RabbitMqConfig;
+import com.swiftdrop.backend.notification.event.MerchantAssignmentWebhook;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import java.time.Instant;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.times;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -25,7 +34,28 @@ class MerchantStatusListenerTest {
 
     @Mock EntityManager entities;
     @Mock NotificationPublisherService publisher;
+    @Mock RabbitTemplate rabbit;
     @InjectMocks MerchantStatusListener listener;
+
+    @Test
+    void repeatedPublicationOfOneAssignmentKeepsItsEventIdentity() throws Exception {
+        Instant assignedAt = Instant.parse("2026-01-01T00:00:00Z");
+        var event = new MerchantCourierAssigned(7L, 42L, 5L, "SD-123", assignedAt);
+        var message = new MerchantAssignmentWebhook(42L, new MerchantAssignmentWebhook.Payload(
+                "courier-assignment-7", 5L, "SD-123", "COURIER_ASSIGNED", assignedAt));
+        doAnswer(invocation -> {
+            CorrelationData correlation = invocation.getArgument(3);
+            correlation.getFuture().complete(new CorrelationData.Confirm(true, null));
+            return null;
+        }).when(rabbit).convertAndSend(eq(RabbitMqConfig.EXCHANGE_SWIFTDROP),
+                eq(MerchantAssignmentWebhook.ROUTING_KEY), eq(message), any(CorrelationData.class));
+
+        listener.publishAssignmentWebhook(event);
+        listener.publishAssignmentWebhook(event);
+
+        verify(rabbit, times(2)).convertAndSend(eq(RabbitMqConfig.EXCHANGE_SWIFTDROP),
+                eq(MerchantAssignmentWebhook.ROUTING_KEY), eq(message), any(CorrelationData.class));
+    }
 
     @Test
     void publishesTheExactSavedTrackingEvent() {
