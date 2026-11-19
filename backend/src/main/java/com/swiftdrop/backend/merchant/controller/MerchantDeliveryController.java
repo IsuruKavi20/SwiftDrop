@@ -9,6 +9,7 @@ import com.swiftdrop.backend.merchant.dto.MerchantDashboardResponse;
 import com.swiftdrop.backend.merchant.dto.MerchantDeliveryDetailResponse;
 import com.swiftdrop.backend.merchant.dto.MerchantDeliverySummaryResponse;
 import com.swiftdrop.backend.merchant.service.MerchantDeliveryService;
+import com.swiftdrop.backend.pricing.DeliveryPricing;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
@@ -48,6 +49,19 @@ public class MerchantDeliveryController {
     public MerchantDeliveryDetailResponse createDelivery(@Valid @RequestBody CreateMerchantDeliveryRequest request,
                                                          @AuthenticationPrincipal Jwt token) {
         return deliveryService.createDelivery(owner(token), request);
+    }
+
+    @PostMapping("/deliveries/estimate")
+    public DeliveryPricing.Quote estimate(@Valid @RequestBody CreateMerchantDeliveryRequest request,
+                                          @AuthenticationPrincipal Jwt token) {
+        owner(token);
+        return deliveryService.estimate(request);
+    }
+
+    @PostMapping("/deliveries/{id}/confirm")
+    public MerchantDeliveryDetailResponse confirmDelivery(@PathVariable Long id,
+                                                           @AuthenticationPrincipal Jwt token) {
+        return deliveryService.confirmDelivery(owner(token), id);
     }
 
     @GetMapping("/deliveries")

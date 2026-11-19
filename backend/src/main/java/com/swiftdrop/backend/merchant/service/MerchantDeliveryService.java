@@ -19,6 +19,8 @@ import com.swiftdrop.backend.merchant.event.MerchantStatusChange;
 import com.swiftdrop.backend.merchant.repository.MerchantDeliveryRepository;
 import com.swiftdrop.backend.merchant.repository.MerchantDeliveryRepository.StatusCount;
 import com.swiftdrop.backend.shared.dto.PageResponse;
+import com.swiftdrop.backend.pricing.DeliveryPricing;
+import com.swiftdrop.backend.shared.error.ConflictException;
 import com.swiftdrop.backend.shared.error.NotFoundException;
 import com.swiftdrop.backend.shared.util.TrackingCodeGenerator;
 import org.slf4j.Logger;
@@ -50,17 +52,25 @@ public class MerchantDeliveryService {
     private final TrackingCodeGenerator codes;
     private final ApplicationEventPublisher events;
     private final Clock clock;
+    private final DeliveryPricing pricing;
 
     public MerchantDeliveryService(MerchantService merchantService,
                                    MerchantDeliveryRepository deliveries,
                                    TrackingCodeGenerator codes,
                                    ApplicationEventPublisher events,
-                                   Clock clock) {
+                                   Clock clock,
+                                   DeliveryPricing pricing) {
         this.merchantService = merchantService;
         this.deliveries = deliveries;
         this.codes = codes;
         this.events = events;
         this.clock = clock;
+        this.pricing = pricing;
+    }
+
+    public DeliveryPricing.Quote estimate(CreateMerchantDeliveryRequest request) {
+        return pricing.estimate(request.pickup().district(), request.destination().district(),
+                request.deliveryType().name(), request.parcels().stream().map(ParcelRequest::weightKg).toList());
     }
 
     /**
@@ -71,6 +81,7 @@ public class MerchantDeliveryService {
 
         Delivery delivery = new Delivery(merchant.getId(), uniqueTrackingNumber(), codes.newPublicTrackingToken(), request.deliveryType());
         delivery.setSpecialInstructions(blankToNull(request.specialInstructions()));
+        delivery.setEstimatedFee(estimate(request).totalFee());
         delivery.setEstimatedDeliveryDate(estimatedDeliveryDate(request.deliveryType()));
         delivery.setAddress(toDeliveryAddress(AddressType.PICKUP, request.pickup()));
         delivery.setAddress(toDeliveryAddress(AddressType.DESTINATION, request.destination()));
@@ -81,13 +92,34 @@ public class MerchantDeliveryService {
 
         Delivery saved = deliveries.saveAndFlush(delivery);
 
+        publishLatestStatus(saved);
+        return MerchantDeliveryDetailResponse.from(saved);
+    }
+
+    public MerchantDeliveryDetailResponse confirmDelivery(AppUser owner, Long id) {
+        Merchant merchant = merchantService.profileOf(owner);
+        Delivery delivery = deliveries.lockMerchantDelivery(id, merchant.getId())
+                .orElseThrow(() -> new NotFoundException("Delivery not found"));
+        if (delivery.getStatus() != DeliveryStatus.PENDING) {
+            throw new ConflictException("Only a pending booking can be confirmed; this one is " + delivery.getStatus());
+        }
+        TrackingEvent event = new TrackingEvent(DeliveryStatus.CONFIRMED, "Booking confirmed by merchant",
+                null, clock.instant(), owner);
+        delivery.addTrackingEvent(event);
+        Delivery saved = deliveries.saveAndFlush(delivery);
+        publishLatestStatus(saved);
+        return MerchantDeliveryDetailResponse.from(saved);
+    }
+
+    private void publishLatestStatus(Delivery saved) {
         try {
-            events.publishEvent(new MerchantStatusChange(saved.getId(), initialEvent.getId()));
+            // Merge may replace a newly added event with its persisted copy.
+            TrackingEvent persisted = saved.getTrackingEvents().getLast();
+            events.publishEvent(new MerchantStatusChange(saved.getId(), persisted.getId()));
         } catch (Exception ex) {
             log.warn("Failed to publish notification event for merchant delivery {}: {}", saved.getTrackingNumber(), ex.getMessage());
         }
 
-        return MerchantDeliveryDetailResponse.from(saved);
     }
 
     /**

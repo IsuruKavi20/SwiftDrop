@@ -121,14 +121,29 @@ test.describe('Merchant Module Full Feature Set', () => {
     await injectMerchantSession(page);
   });
 
-  test('1. Create Order: valid shipment submission succeeds and shows confirmation', async ({ page }) => {
+  test('1. Create Order: quotes a shipment, books it pending, and confirms it once', async ({ page }) => {
+    let confirmations = 0;
+    let finishConfirmation: () => void = () => {};
+    const holdConfirmation = new Promise<void>((resolve) => { finishConfirmation = resolve; });
+    const pending = { ...MOCK_ORDER_DETAIL, status: 'PENDING', estimatedFee: 520, trackingEvents: [] };
+    await page.route('**/api/merchants/me/deliveries/estimate', (route) => route.fulfill({
+      json: { currency: 'LKR', baseFee: 300, weightCharge: 100, serviceCharge: 120, totalFee: 520 },
+    }));
+    await page.route('**/api/merchants/me/deliveries/101', (route) => route.fulfill({ json: pending }));
+    await page.route('**/api/merchants/me/deliveries/101/confirm', async (route) => {
+      confirmations += 1;
+      await holdConfirmation;
+      await route.fulfill({ json: { ...pending, status: 'CONFIRMED', trackingEvents: [{
+        status: 'CONFIRMED', description: 'Booking confirmed by merchant', eventTime: '2026-11-18T10:31:00Z',
+      }] } });
+    });
     // Mock delivery creation
     await page.route('**/api/merchants/me/deliveries*', async (route: Route) => {
       if (route.request().method() === 'POST') {
         await route.fulfill({
           status: 201,
           contentType: 'application/json',
-          body: JSON.stringify(MOCK_ORDER_DETAIL),
+          body: JSON.stringify(pending),
         });
       } else {
         await route.continue();
@@ -163,13 +178,34 @@ test.describe('Merchant Module Full Feature Set', () => {
     await page.fill('input[name="parcel-1.widthCm"]', '15');
     await page.fill('input[name="parcel-1.heightCm"]', '10');
 
-    // Submit
+    await page.getByRole('button', { name: 'Get fee estimate' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Estimated delivery fee' })).toContainText('520');
+    await page.fill('input[name="parcel-1.weightKg"]', '2.25');
+    await expect(page.getByRole('status').filter({ hasText: 'Estimated delivery fee' })).toHaveCount(0);
+
+    // Booking leaves the shipment pending until the Merchant confirms it.
     await page.click('button:has-text("Submit order")');
 
     // Confirmation card
     await expect(page.locator('text=Shipment Booked Successfully!')).toBeVisible();
     await expect(page.locator('text=SD-TEA001')).toBeVisible();
     await expect(page.locator('text=View Order Details')).toBeVisible();
+    await expect.poll(() => confirmations).toBe(0);
+    await page.getByRole('link', { name: 'View Order Details' }).click();
+    await page.getByRole('button', { name: 'Confirm Order', exact: true }).click();
+    const confirmation = page.getByRole('dialog', { name: /Confirm shipment/ });
+    await expect(confirmation).toContainText('Kamal Perera');
+    await expect(confirmation).toContainText('520');
+    await confirmation.getByRole('button', { name: 'Back' }).click();
+    await expect(confirmation).not.toBeVisible();
+    expect(confirmations).toBe(0);
+    await page.getByRole('button', { name: 'Confirm Order', exact: true }).click();
+    await confirmation.getByRole('button', { name: 'Confirm Order', exact: true }).click();
+    await expect(confirmation.getByRole('button', { name: /^Confirming/ })).toBeDisabled();
+    finishConfirmation();
+    await expect(page.getByText('Booking confirmed by merchant')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Confirm Order', exact: true })).toHaveCount(0);
+    expect(confirmations).toBe(1);
   });
 
   test('2. Bulk CSV Import: switches tab, uploads CSV and completes batch booking', async ({ page }) => {
@@ -178,7 +214,7 @@ test.describe('Merchant Module Full Feature Set', () => {
         await route.fulfill({
           status: 201,
           contentType: 'application/json',
-          body: JSON.stringify(MOCK_ORDER_DETAIL),
+          body: JSON.stringify({ ...MOCK_ORDER_DETAIL, status: 'PENDING', estimatedFee: 520 }),
         });
       } else {
         await route.continue();
@@ -211,11 +247,14 @@ test.describe('Merchant Module Full Feature Set', () => {
     await expect(page.locator('text=Import Complete')).toBeVisible();
     await expect(page.locator('text=Successfully created: 1')).toBeVisible();
     await expect(page.locator('strong:has-text("SD-TEA001")')).toBeVisible();
+    await expect(page.getByText(/Estimated fee.*520/)).toBeVisible();
+    await expect(page.getByText(/confirm them individually/)).toBeVisible();
   });
 
   test('3. Store Orders: lists orders with status filters and pagination', async ({ page }) => {
     let requestedPage = 0;
     let requestedStatus: string | null = null;
+    await page.route('**/api/merchants/me/deliveries/101', (route) => route.fulfill({ json: MOCK_ORDER_DETAIL }));
 
     await page.route('**/api/merchants/me/deliveries*', async (route: Route) => {
       const url = new URL(route.request().url());
@@ -273,6 +312,10 @@ test.describe('Merchant Module Full Feature Set', () => {
     // Pagination controls
     await expect(page.locator('text=Page 1 of 2')).toBeVisible();
     await page.click('button:has-text("Next →")');
+    await expect(page.locator('text=Page 2 of 2')).toBeVisible();
+    await page.getByRole('link', { name: 'View Details' }).click();
+    await page.getByRole('link', { name: 'Back to Store Orders' }).click();
+    await expect(page.getByRole('button', { name: 'In Transit', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('text=Page 2 of 2')).toBeVisible();
   });
 

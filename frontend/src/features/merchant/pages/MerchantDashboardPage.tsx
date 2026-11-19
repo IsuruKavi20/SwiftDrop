@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { navigate, routes } from '../../../app/router';
 import { logOut } from '../../auth/api/authApi';
 import { Alert } from '../../auth/components/FormControls';
@@ -126,19 +126,26 @@ function RealMerchantDashboard({ claims: propClaims }: { claims?: AccessClaims }
   });
   const [deliveries, setDeliveries] = useState<PageResponse<MerchantDeliverySummary> | null>(null);
   const [loadingOrders, setLoadingOrders] = useState<boolean>(false);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [totalsError, setTotalsError] = useState<string | null>(null);
+  const ordersRequest = useRef(0);
   const [statusFilter, setStatusFilter] = useState<DeliveryStatus | 'ALL'>('ALL');
   const [currentPage, setCurrentPage] = useState<number>(0);
   const [selectedDeliveryId, setSelectedDeliveryId] = useState<number | null>(null);
 
   const fetchOrders = useCallback(async (filter: DeliveryStatus | 'ALL', page: number) => {
+    const request = ++ordersRequest.current;
     setLoadingOrders(true);
+    setOrdersError(null);
     try {
       const result = await getMerchantDeliveries(filter, page, 10);
-      setDeliveries(result);
-    } catch {
-      // keep existing list or let user retry
+      if (request === ordersRequest.current) setDeliveries(result);
+    } catch (error) {
+      if (request === ordersRequest.current) {
+        setOrdersError(error instanceof Error ? error.message : 'Could not load store deliveries.');
+      }
     } finally {
-      setLoadingOrders(false);
+      if (request === ordersRequest.current) setLoadingOrders(false);
     }
   }, []);
 
@@ -195,6 +202,16 @@ function RealMerchantDashboard({ claims: propClaims }: { claims?: AccessClaims }
     loadDashboard();
   }
 
+  async function refreshTotals() {
+    setTotalsError(null);
+    try {
+      const dashboard = await getMerchantDashboard();
+      setPageState((previous) => previous.kind === 'ready' ? { ...previous, dashboard } : previous);
+    } catch {
+      setTotalsError('Could not refresh dashboard totals. Your order confirmation has been saved.');
+    }
+  }
+
   async function onLogOut() {
     await logOut();
     navigate(routes.login);
@@ -202,18 +219,19 @@ function RealMerchantDashboard({ claims: propClaims }: { claims?: AccessClaims }
 
   if (pageState.kind === 'loading') {
     return (
-      <div style={{ textAlign: 'center', padding: '64px 20px', color: 'var(--color-text-muted)' }}>
-        <p>Loading merchant dashboard…</p>
+      <div className={extra.listState} role="status">
+        <span className={extra.spinner} aria-hidden="true" />
+        <strong>Loading merchant dashboard…</strong>
       </div>
     );
   }
 
   if (pageState.kind === 'accessDenied') {
     return (
-      <div className={shared.state} style={{ padding: '2rem 1rem' }}>
-        <h2 style={{ color: 'var(--color-error)' }}>Access Denied</h2>
+      <div className={extra.listState}>
+        <h2>Access Denied</h2>
         <Alert kind="error">{pageState.message}</Alert>
-        <div style={{ marginTop: '16px', display: 'flex', gap: '12px' }}>
+        <div className={ordersStyles.actions}>
           <button
             type="button"
             className={shared.button}
@@ -235,10 +253,10 @@ function RealMerchantDashboard({ claims: propClaims }: { claims?: AccessClaims }
 
   if (pageState.kind === 'error') {
     return (
-      <div className={shared.state} style={{ padding: '2rem 1rem' }}>
-        <h2 style={{ color: 'var(--color-error)' }}>Error Loading Dashboard</h2>
+      <div className={extra.listState}>
+        <h2>Error Loading Dashboard</h2>
         <Alert kind="error">{pageState.message}</Alert>
-        <div style={{ marginTop: '16px', display: 'flex', gap: '12px' }}>
+        <div className={ordersStyles.actions}>
           <button
             type="button"
             className={shared.button}
@@ -260,6 +278,12 @@ function RealMerchantDashboard({ claims: propClaims }: { claims?: AccessClaims }
 
   const { dashboard } = pageState;
   const tradingName = dashboard.businessName || 'Merchant Portal';
+  const statusCounts = Object.entries(STATUS_LABELS).map(([status, label]) => ({
+    status,
+    label,
+    count: dashboard.countsByStatus?.[status as DeliveryStatus] ?? 0,
+  }));
+  const largestStatusCount = Math.max(1, ...statusCounts.map(({ count }) => count));
 
   const metricCards: { label: string; icon: MerchantIconName; tone: string; count: number }[] = [
     { label: 'Total Orders', icon: 'box', tone: 'orange', count: dashboard.totalOrders ?? 0 },
@@ -274,9 +298,7 @@ function RealMerchantDashboard({ claims: propClaims }: { claims?: AccessClaims }
       {!dashboard.profileComplete && (
         <div className={previewStyles.profileWarningBanner} role="alert">
           <div className={previewStyles.bannerContent}>
-            <span style={{ fontSize: '24px' }} aria-hidden="true">
-              ⚠️
-            </span>
+            <span className={previewStyles.metricIcon} data-tone="amber"><MerchantIcon name="box" /></span>
             <div>
               <span className={previewStyles.bannerTitle}>Complete your merchant business profile</span>
               <p className={previewStyles.bannerText}>
@@ -300,10 +322,8 @@ function RealMerchantDashboard({ claims: propClaims }: { claims?: AccessClaims }
         <div>
           <span className={previewStyles.eyebrow}>SwiftDrop Merchant</span>
           <h2 id="merchant-welcome">• {tradingName}</h2>
-          <p style={{ margin: '0.4rem 0 0.8rem', color: 'var(--merchant-secondary)' }}>
-            Your store deliveries, tracking, and fulfillment overview.
-          </p>
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
+          <p>Review your shipments and track how they’re moving through delivery.</p>
+          <div className={previewStyles.welcomeActions}>
             <button
               type="button"
               className={shared.button}
@@ -337,18 +357,36 @@ function RealMerchantDashboard({ claims: propClaims }: { claims?: AccessClaims }
           </li>
         ))}
       </ul>
+      {totalsError && <div className={ordersStyles.actions}>
+        <Alert kind="error">{totalsError}</Alert>
+        <button type="button" className={shared.button} onClick={() => void refreshTotals()}>Refresh totals</button>
+      </div>}
 
       {/* Orders Table Section */}
-      <section className={ordersStyles.orders} aria-labelledby="orders-title">
+      <section className={previewStyles.panel} aria-labelledby="delivery-statistics">
+        <h2 id="delivery-statistics">Delivery statistics</h2>
+        {statusCounts.some(({ count }) => count > 0) ? (
+          <ul className={previewStyles.distribution}>
+            {statusCounts.map(({ status, label, count }) => (
+              <li key={status}>
+                <span className={previewStyles.distributionLabel}>{label}<strong>{count.toLocaleString()}</strong></span>
+                <span className={previewStyles.distributionTrack} aria-hidden="true">
+                  <span style={{ width: `${count / largestStatusCount * 100}%` }} />
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : <p>Delivery statistics will appear after you book shipments.</p>}
+      </section>
+
+      <section className={previewStyles.panel} aria-labelledby="orders-title">
         <div className={ordersStyles.heading}>
           <div>
-            <h2 id="orders-title">Merchant Store Deliveries</h2>
-            <p style={{ margin: '0.25rem 0 0', color: 'var(--merchant-secondary)', fontSize: '0.875rem' }}>
-              Monitor, filter, and view details for all deliveries created by your store.
-            </p>
+            <h2 id="orders-title">Recent orders</h2>
+            <p>Filter store shipments by status or open an order for its tracking history.</p>
           </div>
-          <MerchantLink className={shared.button} href={merchantPath('create-order', false)}>
-            + Create Order
+          <MerchantLink className={ordersStyles.primaryButton} href={merchantPath('create-order', false)}>
+            <MerchantIcon name="plus" size={17} /> Create Order
           </MerchantLink>
         </div>
 
@@ -358,7 +396,8 @@ function RealMerchantDashboard({ claims: propClaims }: { claims?: AccessClaims }
             <button
               key={opt.value}
               type="button"
-              className={`${extra.filterBtn} ${statusFilter === opt.value ? extra.filterBtnActive : ''}`}
+              className={extra.filterBtn}
+              aria-pressed={statusFilter === opt.value}
               onClick={() => handleFilterChange(opt.value)}
             >
               {opt.label}
@@ -368,17 +407,22 @@ function RealMerchantDashboard({ claims: propClaims }: { claims?: AccessClaims }
 
         {/* Table / Empty State / Loading */}
         {loadingOrders ? (
-          <div className={shared.state} style={{ textAlign: 'center', padding: '40px' }}>
-            <p>Loading deliveries…</p>
+          <div className={extra.listState} role="status">
+            <span className={extra.spinner} aria-hidden="true" />
+            <strong>Loading deliveries…</strong>
+          </div>
+        ) : ordersError ? (
+          <div className={extra.listState}>
+            <div role="alert"><h3>Couldn’t load orders</h3><p>{ordersError}</p></div>
+            <button type="button" className={extra.pageBtn} onClick={() => void fetchOrders(statusFilter, currentPage)}>Retry orders</button>
           </div>
         ) : !deliveries || deliveries.content.length === 0 ? (
-          <div className={ordersStyles.empty} style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+          <div className={extra.listState}>
+            <span className={extra.stateIcon}><MerchantIcon name="box" size={24} /></span>
             {statusFilter === 'ALL' ? (
               <>
-                <p style={{ fontWeight: 700, fontSize: '1.1rem', margin: '0 0 0.5rem', color: 'var(--merchant-text)' }}>
-                  No orders yet
-                </p>
-                <p style={{ margin: '0 0 1rem', color: 'var(--merchant-secondary)' }}>
+                <h3>No orders yet</h3>
+                <p>
                   No orders have been placed for your store yet. Create your first delivery shipment to get started.
                 </p>
                 <MerchantLink className={shared.button} href={merchantPath('create-order', false)}>
@@ -387,10 +431,8 @@ function RealMerchantDashboard({ claims: propClaims }: { claims?: AccessClaims }
               </>
             ) : (
               <>
-                <p style={{ fontWeight: 700, fontSize: '1.1rem', margin: '0 0 0.5rem', color: 'var(--merchant-text)' }}>
-                  No matching orders
-                </p>
-                <p style={{ margin: '0 0 1rem', color: 'var(--merchant-secondary)' }}>
+                <h3>No matching orders</h3>
+                <p>
                   No deliveries found with status "{STATUS_LABELS[statusFilter]}".
                 </p>
                 <button type="button" className={shared.button} onClick={() => handleFilterChange('ALL')}>
@@ -401,8 +443,8 @@ function RealMerchantDashboard({ claims: propClaims }: { claims?: AccessClaims }
           </div>
         ) : (
           <>
-            <div className={ordersStyles.tableRegion} role="region" aria-label="Store orders table" tabIndex={0}>
-              <table className={ordersStyles.table} aria-labelledby="orders-title">
+            <div className={extra.tableRegion} role="region" aria-label="Store orders table" tabIndex={0}>
+              <table className={extra.historyTable} aria-labelledby="orders-title">
                 <thead>
                   <tr>
                     <th scope="col">Tracking Number</th>
@@ -419,10 +461,9 @@ function RealMerchantDashboard({ claims: propClaims }: { claims?: AccessClaims }
                     <tr
                       key={delivery.id}
                       className={styles.tableRow}
-                      style={{ cursor: 'pointer' }}
                       onClick={() => setSelectedDeliveryId(delivery.id)}
                     >
-                      <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>{delivery.trackingNumber}</td>
+                      <td className={extra.trackingNumber}>{delivery.trackingNumber}</td>
                       <td>{delivery.receiverName || '—'}</td>
                       <td>{delivery.destinationCity || '—'}</td>
                       <td>{delivery.deliveryType}</td>
@@ -435,14 +476,14 @@ function RealMerchantDashboard({ claims: propClaims }: { claims?: AccessClaims }
                       <td>
                         <button
                           type="button"
-                          className={shared.button}
-                          style={{ minHeight: '2rem', padding: '0.25rem 0.6rem', fontSize: '0.8rem' }}
+                          className={extra.detailsLink}
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedDeliveryId(delivery.id);
                           }}
                         >
                           View Details
+                          <MerchantIcon name="right" size={15} />
                         </button>
                       </td>
                     </tr>
@@ -485,6 +526,10 @@ function RealMerchantDashboard({ claims: propClaims }: { claims?: AccessClaims }
           key={selectedDeliveryId}
           deliveryId={selectedDeliveryId}
           onClose={() => setSelectedDeliveryId(null)}
+          onConfirmed={() => {
+            void fetchOrders(statusFilter, currentPage);
+            void refreshTotals();
+          }}
         />
       )}
     </div>
