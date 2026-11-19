@@ -100,7 +100,7 @@ let nextZoneId = 6;
 let pricing: PublishedPricing = {
   version: 1,
   publishedAt: hoursAgo(24 * 30),
-  rates: { sameDistrictBase: 350, otherDistrictBase: 650, additionalKg: 120, expressSurcharge: 350, sameDaySurcharge: 650 },
+  rates: { distanceBase: 250, includedKm: 5, perKm: 6, sameDistrictBase: 350, otherDistrictBase: 650, additionalKg: 120, expressSurcharge: 350, sameDaySurcharge: 650 },
 };
 
 /* ---------- Users and roles (auth service) ---------- */
@@ -284,13 +284,18 @@ export function publishPricing(rates: PricingRates): Promise<PublishedPricing> {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-/** The same formula as CustomerPricingService.estimate: district base + weight above 1 kg + service surcharge. */
+/**
+ * The same formula as CustomerPricingService.estimate: base fee + per-km charge after the included km (or the district
+ * base when the distance is unknown) + weight above 1 kg + service surcharge.
+ */
 export function quote(rates: PricingRates, request: QuoteRequest): Quote {
   const local = request.pickupDistrict.trim().toLowerCase() === request.destinationDistrict.trim().toLowerCase();
-  const baseFee = local ? rates.sameDistrictBase : rates.otherDistrictBase;
+  const km = request.distanceKm === undefined ? undefined : Math.round(request.distanceKm * 10) / 10;
+  const baseFee = km === undefined ? (local ? rates.sameDistrictBase : rates.otherDistrictBase) : rates.distanceBase;
+  const distanceCharge = km === undefined ? 0 : round2(Math.max(0, km - rates.includedKm) * rates.perKm);
   const weightCharge = round2(Math.max(0, request.totalWeightKg - 1) * rates.additionalKg);
   const serviceCharge = { STANDARD: 0, EXPRESS: rates.expressSurcharge, SAME_DAY: rates.sameDaySurcharge }[request.deliveryType];
-  return { baseFee, weightCharge, serviceCharge, totalFee: round2(baseFee + weightCharge + serviceCharge) };
+  return { baseFee, distanceCharge, weightCharge, serviceCharge, totalFee: round2(baseFee + distanceCharge + weightCharge + serviceCharge) };
 }
 
 /* ---------- Reports (from the deliveries) ---------- */

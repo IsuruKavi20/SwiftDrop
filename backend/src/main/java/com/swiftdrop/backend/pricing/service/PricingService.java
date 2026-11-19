@@ -34,6 +34,9 @@ public class PricingService implements TariffSource {
     private final Tariff settings;
 
     PricingService(PricingVersionRepository versions, UserDirectory userDirectory, Clock clock,
+                   @Value("${swiftdrop.customer.pricing.distance-base:250.00}") BigDecimal distanceBase,
+                   @Value("${swiftdrop.customer.pricing.included-km:5.00}") BigDecimal includedKm,
+                   @Value("${swiftdrop.customer.pricing.per-km:6.00}") BigDecimal perKm,
                    @Value("${swiftdrop.customer.pricing.same-district-base:350.00}") BigDecimal sameDistrictBase,
                    @Value("${swiftdrop.customer.pricing.other-district-base:650.00}") BigDecimal otherDistrictBase,
                    @Value("${swiftdrop.customer.pricing.additional-kg:120.00}") BigDecimal additionalKg,
@@ -42,7 +45,8 @@ public class PricingService implements TariffSource {
         this.versions = versions;
         this.userDirectory = userDirectory;
         this.clock = clock;
-        this.settings = new Tariff(0, null, money(sameDistrictBase), money(otherDistrictBase), money(additionalKg),
+        this.settings = new Tariff(0, null, money(distanceBase), money(includedKm), money(perKm),
+                money(sameDistrictBase), money(otherDistrictBase), money(additionalKg),
                 money(expressSurcharge), money(sameDaySurcharge));
     }
 
@@ -69,6 +73,7 @@ public class PricingService implements TariffSource {
         AppUser admin = userDirectory.caller(token);
         int next = versions.findTopByOrderByVersionDesc().map(PricingVersion::getVersion).orElse(0) + 1;
         PricingVersion version = versions.saveAndFlush(new PricingVersion(next,
+                money(request.distanceBase()), money(request.includedKm()), money(request.perKm()),
                 money(request.sameDistrictBase()), money(request.otherDistrictBase()), money(request.additionalKg()),
                 money(request.expressSurcharge()), money(request.sameDaySurcharge()),
                 Instant.now(clock).truncatedTo(ChronoUnit.MICROS), admin));
