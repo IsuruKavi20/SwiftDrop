@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent, type FormEvent } from 'react';
+import { useState, useEffect, type ChangeEvent, type FormEvent } from 'react';
 import { MerchantIcon } from '../components/MerchantIcon';
 import { MerchantLink } from '../components/MerchantLink';
 import { merchantPath } from '../merchantRoutes';
@@ -11,10 +11,48 @@ import {
   type MerchantDeliveryDetail,
   type MerchantDeliveryEstimate,
 } from '../api/merchantOrdersApi';
-import { MerchantApiError } from '../api/merchantApi';
+import { getMerchantProfile, MerchantApiError, type MerchantProfile } from '../api/merchantApi';
 import styles from './MerchantOrders.module.css';
 import shared from './MerchantPages.module.css';
 import extra from './CreateOrderPage.module.css';
+
+const SRI_LANKA_DISTRICTS = [
+  'Colombo', 'Gampaha', 'Kalutara', 'Kandy', 'Matale', 'Nuwara Eliya',
+  'Galle', 'Matara', 'Hambantota', 'Jaffna', 'Kilinochchi', 'Mannar',
+  'Vavuniya', 'Mullaitivu', 'Batticaloa', 'Ampara', 'Trincomalee',
+  'Kurunegala', 'Puttalam', 'Anuradhapura', 'Polonnaruwa', 'Badulla',
+  'Monaragala', 'Ratnapura', 'Kegalle',
+];
+
+const PREVIEW_PROFILE: MerchantProfile = {
+  id: 1,
+  complete: true,
+  ownerName: 'Dilhan Fernando',
+  businessName: 'Ceylon Tea Exports',
+  businessEmail: 'orders@ceylontea.lk',
+  contactNumber: '+94112345678',
+  addressLine1: '12 Flower Road',
+  addressLine2: null,
+  city: 'Colombo',
+  province: 'Western',
+  postalCode: '00700',
+  country: 'Sri Lanka',
+  createdAt: '2026-01-01T00:00:00Z',
+  updatedAt: '2026-01-01T00:00:00Z',
+};
+
+function resolveDistrict(city?: string | null, province?: string | null): string {
+  if (!city && !province) return '';
+  const c = city?.trim().toLowerCase() ?? '';
+  const p = province?.trim().toLowerCase() ?? '';
+  const exactCity = SRI_LANKA_DISTRICTS.find((d) => d.toLowerCase() === c);
+  if (exactCity) return exactCity;
+  const subCity = SRI_LANKA_DISTRICTS.find((d) => c.includes(d.toLowerCase()));
+  if (subCity) return subCity;
+  const exactProv = SRI_LANKA_DISTRICTS.find((d) => d.toLowerCase() === p);
+  if (exactProv) return exactProv;
+  return city?.trim() ?? '';
+}
 
 const addressFields = [
   { name: 'street', label: 'Street address', max: 255 },
@@ -130,6 +168,126 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [importSummary, setImportSummary] = useState<{ success: number; failed: number } | null>(null);
+
+  // Business Profile auto-fill state
+  const [businessProfile, setBusinessProfile] = useState<MerchantProfile | null>(preview ? PREVIEW_PROFILE : null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [, setProfileError] = useState<string | null>(null);
+  const [autoFillNotice, setAutoFillNotice] = useState<{
+    type: 'success' | 'warning' | 'error';
+    message: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (preview) return;
+
+    let active = true;
+    getMerchantProfile()
+      .then((profile) => {
+        if (active) {
+          setBusinessProfile(profile);
+          setProfileError(null);
+        }
+      })
+      .catch((err: unknown) => {
+        if (active) {
+          setProfileError(err instanceof Error ? err.message : 'Could not load business profile.');
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [preview]);
+
+  async function handleUseBusinessAddress() {
+    let profile = businessProfile;
+    if (!profile && !preview) {
+      setProfileLoading(true);
+      try {
+        profile = await getMerchantProfile();
+        setBusinessProfile(profile);
+        setProfileError(null);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Could not load business profile.';
+        setProfileError(msg);
+        setAutoFillNotice({
+          type: 'error',
+          message: 'Could not load business profile. Please enter pickup details manually.',
+        });
+        setProfileLoading(false);
+        return;
+      }
+      setProfileLoading(false);
+    }
+
+    if (!profile) {
+      setAutoFillNotice({
+        type: 'error',
+        message: 'Could not load business profile. Please enter pickup details manually.',
+      });
+      return;
+    }
+
+    const hasAnyField = Boolean(
+      profile.businessName?.trim() ||
+      profile.ownerName?.trim() ||
+      profile.contactNumber?.trim() ||
+      profile.addressLine1?.trim() ||
+      profile.city?.trim()
+    );
+
+    if (!hasAnyField) {
+      setAutoFillNotice({
+        type: 'warning',
+        message: 'Your business profile has no saved contact or address details.',
+      });
+      return;
+    }
+
+    const street = [profile.addressLine1?.trim(), profile.addressLine2?.trim()]
+      .filter(Boolean)
+      .join(', ');
+    const city = profile.city?.trim() ?? '';
+    const district = resolveDistrict(city, profile.province);
+    const contactName = profile.businessName?.trim() || profile.ownerName?.trim() || '';
+    const contactPhone = profile.contactNumber?.trim() || '';
+    const postalCode = profile.postalCode?.trim() || '';
+
+    setValues((previous) => ({
+      ...previous,
+      'pickup.contactName': contactName || previous['pickup.contactName'] || '',
+      'pickup.contactPhone': contactPhone || previous['pickup.contactPhone'] || '',
+      'pickup.street': street || previous['pickup.street'] || '',
+      'pickup.city': city || previous['pickup.city'] || '',
+      'pickup.district': district || previous['pickup.district'] || '',
+      'pickup.postalCode': postalCode || previous['pickup.postalCode'] || '',
+    }));
+
+    setChecked(false);
+    setSubmitError(null);
+    setQuoteError(null);
+
+    const isIncomplete =
+      !profile.complete ||
+      !contactName ||
+      !contactPhone ||
+      !street ||
+      !city ||
+      !district;
+
+    if (isIncomplete) {
+      setAutoFillNotice({
+        type: 'warning',
+        message: 'Business profile is incomplete. Populated available fields.',
+      });
+    } else {
+      setAutoFillNotice({
+        type: 'success',
+        message: 'Pickup details populated from business profile.',
+      });
+    }
+  }
 
   const instructions = { name: 'specialInstructions', label: 'Special instructions', max: 500, optional: true };
   const groups = [
@@ -585,6 +743,35 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
               {groups.map((group) => (
                 <fieldset key={group.prefix} className={extra.formCard}>
                   <legend>{group.label}</legend>
+                  {group.prefix === 'pickup' && (
+                    <div className={extra.autoFillBar}>
+                      <button
+                        type="button"
+                        id="use-business-address"
+                        className={extra.autoFillButton}
+                        onClick={() => void handleUseBusinessAddress()}
+                        disabled={isSubmitting || profileLoading}
+                        title="Auto-fill pickup contact and address from your Business Profile"
+                      >
+                        <MerchantIcon name="pin" size={16} />
+                        Use Business Address
+                      </button>
+                      {autoFillNotice && (
+                        <span
+                          className={
+                            autoFillNotice.type === 'error'
+                              ? extra.autoFillNoticeError
+                              : autoFillNotice.type === 'warning'
+                              ? extra.autoFillNoticeWarning
+                              : extra.autoFillNoticeSuccess
+                          }
+                          role="status"
+                        >
+                          {autoFillNotice.message}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <div className={shared.formGrid}>
                     {group.fields.map((field) => renderField({ ...field, name: `${group.prefix}.${field.name}` }))}
                   </div>
