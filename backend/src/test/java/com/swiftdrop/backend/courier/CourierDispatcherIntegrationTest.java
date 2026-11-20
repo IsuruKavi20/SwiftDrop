@@ -3,8 +3,16 @@ package com.swiftdrop.backend.courier;
 import com.swiftdrop.backend.courier.dto.CourierDashboardResponse;
 import com.swiftdrop.backend.courier.dto.CourierDeliverySummaryResponse;
 import com.swiftdrop.backend.courier.dto.CourierStatusUpdateRequest;
+import com.swiftdrop.backend.courier.dto.DeliveryConfirmationRequest;
+import com.swiftdrop.backend.courier.dto.DeliveryFailureRequest;
 import com.swiftdrop.backend.courier.entity.CourierProfile;
+import com.swiftdrop.backend.courier.entity.DeliveryFailure;
+import com.swiftdrop.backend.courier.entity.DeliveryFailureReason;
+import com.swiftdrop.backend.courier.entity.DeliveryProof;
 import com.swiftdrop.backend.courier.exception.UnauthorizedDeliveryAccessException;
+import com.swiftdrop.backend.courier.repository.CourierDeliveryRepository;
+import com.swiftdrop.backend.courier.repository.DeliveryFailureRepository;
+import com.swiftdrop.backend.courier.repository.DeliveryProofRepository;
 import com.swiftdrop.backend.courier.service.CourierService;
 import com.swiftdrop.backend.customer.entity.AddressType;
 import com.swiftdrop.backend.customer.entity.Customer;
@@ -78,6 +86,15 @@ class CourierDispatcherIntegrationTest {
 
     @Autowired
     private CourierService courierService;
+
+    @Autowired
+    private CourierDeliveryRepository deliveryRepository;
+
+    @Autowired
+    private DeliveryProofRepository proofRepository;
+
+    @Autowired
+    private DeliveryFailureRepository failureRepository;
 
     @MockitoBean
     private RabbitTemplate rabbitTemplate;
@@ -311,5 +328,95 @@ class CourierDispatcherIntegrationTest {
 
         CourierDashboardResponse dashB = courierService.getDashboardStats(courierBId);
         assertThat(dashB.inProgress()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("Persistence: Delivery proof and failure records persist correctly across transaction boundaries")
+    void testProofAndFailurePersistenceAcrossTransactions() {
+        Jwt adminJwt = createAdminJwt();
+        Customer customer = em.createQuery("SELECT c FROM Customer c", Customer.class).setMaxResults(1).getSingleResult();
+
+        // 1. Setup Delivery for Proof of Delivery testing
+        Delivery deliveryProofTest = new Delivery(customer, "SD-PROOF-TEST-01", "tok-proof-01", DeliveryType.EXPRESS);
+        deliveryProofTest.setStatus(DeliveryStatus.CONFIRMED);
+        deliveryProofTest.setAddress(new DeliveryAddress(AddressType.DESTINATION, "Recipient Proof", "0771230001",
+                "100 Galle Rd", "Colombo", "Colombo", "00300"));
+        em.persist(deliveryProofTest);
+        em.flush();
+
+        // Assign to Courier A via Dispatcher service
+        assignmentService.assign(deliveryProofTest.getId(), new AssignCourierRequest(dispCourierA.getId(), null), adminJwt);
+        em.flush();
+        em.clear();
+
+        // Courier A advances status: CONFIRMED -> PICKED_UP -> IN_TRANSIT -> OUT_FOR_DELIVERY
+        courierService.updateDeliveryStatus(courierAId, "SD-PROOF-TEST-01",
+                new CourierStatusUpdateRequest(DeliveryStatus.PICKED_UP, "Picked up from hub", "Hub 1"));
+        courierService.updateDeliveryStatus(courierAId, "SD-PROOF-TEST-01",
+                new CourierStatusUpdateRequest(DeliveryStatus.IN_TRANSIT, "On vehicle", "Colombo Central"));
+        courierService.updateDeliveryStatus(courierAId, "SD-PROOF-TEST-01",
+                new CourierStatusUpdateRequest(DeliveryStatus.OUT_FOR_DELIVERY, "Approaching delivery location", "Destination St"));
+        em.flush();
+        em.clear();
+
+        // Courier A confirms delivery with proof
+        courierService.confirmDelivery(courierAId, "SD-PROOF-TEST-01", new DeliveryConfirmationRequest(
+                "Jane Doe", "SIGNATURE", "Handed directly to recipient at front gate",
+                "https://swiftdrop-media.s3.amazonaws.com/proofs/sig-001.png", "Customer Doorstep"
+        ));
+        em.flush();
+        em.clear(); // Clear persistence context to test real database reload
+
+        // Assert database persistence of Delivery and DeliveryProof
+        Delivery reloadedDelivered = deliveryRepository.findByTrackingNumber("SD-PROOF-TEST-01").orElseThrow();
+        assertThat(reloadedDelivered.getStatus()).isEqualTo(DeliveryStatus.DELIVERED);
+        assertThat(reloadedDelivered.getCourier().getId()).isEqualTo(courierAId);
+
+        DeliveryProof savedProof = proofRepository.findByDeliveryId(reloadedDelivered.getId()).orElseThrow();
+        assertThat(savedProof.getRecipientSignName()).isEqualTo("Jane Doe");
+        assertThat(savedProof.getProofType()).isEqualTo("SIGNATURE");
+        assertThat(savedProof.getDeliveryNotes()).isEqualTo("Handed directly to recipient at front gate");
+        assertThat(savedProof.getCourier().getId()).isEqualTo(courierAId);
+
+        // 2. Setup separate Delivery for Failure recording testing
+        Delivery deliveryFailTest = new Delivery(customer, "SD-FAIL-TEST-01", "tok-fail-01", DeliveryType.STANDARD);
+        deliveryFailTest.setStatus(DeliveryStatus.CONFIRMED);
+        deliveryFailTest.setAddress(new DeliveryAddress(AddressType.DESTINATION, "Recipient Fail", "0771230002",
+                "200 Kandy Rd", "Kadawatha", "Gampaha", "11850"));
+        em.persist(deliveryFailTest);
+        em.flush();
+
+        // Assign to Courier B via Dispatcher service
+        assignmentService.assign(deliveryFailTest.getId(), new AssignCourierRequest(dispCourierB.getId(), null), adminJwt);
+        em.flush();
+        em.clear();
+
+        // Courier B advances status: CONFIRMED -> PICKED_UP -> IN_TRANSIT -> OUT_FOR_DELIVERY
+        courierService.updateDeliveryStatus(courierBId, "SD-FAIL-TEST-01",
+                new CourierStatusUpdateRequest(DeliveryStatus.PICKED_UP, "Package scanned", "North Hub"));
+        courierService.updateDeliveryStatus(courierBId, "SD-FAIL-TEST-01",
+                new CourierStatusUpdateRequest(DeliveryStatus.IN_TRANSIT, "En route", "Kadawatha"));
+        courierService.updateDeliveryStatus(courierBId, "SD-FAIL-TEST-01",
+                new CourierStatusUpdateRequest(DeliveryStatus.OUT_FOR_DELIVERY, "Attempting dropoff", "Kadawatha Rd"));
+        em.flush();
+        em.clear();
+
+        // Courier B reports delivery failure
+        courierService.reportDeliveryFailure(courierBId, "SD-FAIL-TEST-01", new DeliveryFailureRequest(
+                DeliveryFailureReason.RECIPIENT_UNAVAILABLE, "No answer at door or phone after 3 attempts", "Customer Gate"
+        ));
+        em.flush();
+        em.clear(); // Clear persistence context to test real database reload
+
+        // Assert database persistence of Delivery and DeliveryFailure
+        Delivery reloadedFailed = deliveryRepository.findByTrackingNumber("SD-FAIL-TEST-01").orElseThrow();
+        assertThat(reloadedFailed.getStatus()).isEqualTo(DeliveryStatus.FAILED);
+        assertThat(reloadedFailed.getCourier().getId()).isEqualTo(courierBId);
+
+        List<DeliveryFailure> failures = failureRepository.findByDeliveryIdOrderByReportedAtDesc(reloadedFailed.getId());
+        assertThat(failures).hasSize(1);
+        assertThat(failures.get(0).getFailureReason()).isEqualTo(DeliveryFailureReason.RECIPIENT_UNAVAILABLE);
+        assertThat(failures.get(0).getFailureRemarks()).isEqualTo("No answer at door or phone after 3 attempts");
+        assertThat(failures.get(0).getCourier().getId()).isEqualTo(courierBId);
     }
 }
