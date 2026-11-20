@@ -21,7 +21,7 @@ import com.swiftdrop.backend.shared.dto.PageResponse;
 import com.swiftdrop.backend.customer.entity.Delivery;
 import com.swiftdrop.backend.customer.entity.DeliveryStatus;
 import com.swiftdrop.backend.customer.entity.TrackingEvent;
-import com.swiftdrop.backend.customer.exception.NotFoundException;
+import com.swiftdrop.backend.shared.error.NotFoundException;
 import com.swiftdrop.backend.identity.entity.AppUser;
 import com.swiftdrop.backend.identity.service.UserDirectory;
 import org.springframework.data.domain.Page;

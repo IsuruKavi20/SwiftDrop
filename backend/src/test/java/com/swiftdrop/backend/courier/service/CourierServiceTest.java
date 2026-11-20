@@ -17,7 +17,7 @@ import com.swiftdrop.backend.customer.entity.Customer;
 import com.swiftdrop.backend.customer.entity.Delivery;
 import com.swiftdrop.backend.customer.entity.DeliveryStatus;
 import com.swiftdrop.backend.customer.entity.DeliveryType;
-import com.swiftdrop.backend.customer.exception.NotFoundException;
+import com.swiftdrop.backend.shared.error.NotFoundException;
 import com.swiftdrop.backend.identity.entity.AppUser;
 import com.swiftdrop.backend.identity.entity.TestPeople;
 import jakarta.persistence.EntityManager;

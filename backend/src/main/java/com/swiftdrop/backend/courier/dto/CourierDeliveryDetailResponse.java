@@ -2,7 +2,6 @@ package com.swiftdrop.backend.courier.dto;
 
 import com.swiftdrop.backend.courier.entity.DeliveryFailure;
 import com.swiftdrop.backend.courier.entity.DeliveryProof;
-import com.swiftdrop.backend.customer.dto.ParcelResponse;
 import com.swiftdrop.backend.customer.entity.Delivery;
 import com.swiftdrop.backend.customer.entity.DeliveryAddress;
 import com.swiftdrop.backend.customer.entity.DeliveryStatus;
@@ -32,7 +31,7 @@ public record CourierDeliveryDetailResponse(
         String pickupPostalCode,
         Instant assignedAt,
         Instant deliveredAt,
-        List<ParcelResponse> parcels,
+        List<CourierParcelResponse> parcels,
         List<CourierTrackingEventResponse> statusHistory,
         CourierDeliveryProofResponse proof,
         CourierDeliveryFailureResponse latestFailure,
@@ -45,8 +44,8 @@ public record CourierDeliveryDetailResponse(
         DeliveryAddress dest = delivery.getDestinationAddress().orElse(null);
         DeliveryAddress pickup = delivery.getPickupAddress().orElse(null);
 
-        List<ParcelResponse> parcelResponses = delivery.getParcels().stream()
-                .map(ParcelResponse::from)
+        List<CourierParcelResponse> parcelResponses = delivery.getParcels().stream()
+                .map(CourierParcelResponse::from)
                 .toList();
 
         List<CourierTrackingEventResponse> history = delivery.getTrackingEvents().stream()

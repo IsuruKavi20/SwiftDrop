@@ -2,7 +2,7 @@ package com.swiftdrop.backend.courier.controller;
 
 import com.swiftdrop.backend.courier.exception.InvalidStatusTransitionException;
 import com.swiftdrop.backend.courier.exception.UnauthorizedDeliveryAccessException;
-import com.swiftdrop.backend.customer.exception.NotFoundException;
+import com.swiftdrop.backend.shared.error.NotFoundException;
 import com.swiftdrop.backend.identity.exception.UnknownUserException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
