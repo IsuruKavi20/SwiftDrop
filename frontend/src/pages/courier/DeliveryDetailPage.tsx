@@ -13,6 +13,7 @@ import {
   CheckIcon,
   TruckIcon,
   ShieldCheckIcon,
+  NavigationIcon,
 } from '../../components/common/Icons';
 import { courierService } from '../../services/courier/courierService';
 import type { DeliveryDetails, ParcelStatus } from '../../types/courier';
@@ -423,14 +424,28 @@ export const DeliveryDetailPage: React.FC = () => {
             <div className="detail-info-block">
               <div className="spec-label-row">
                 <span className="spec-label">Delivery Address</span>
-                <button
-                  type="button"
-                  className="spec-copy-link"
-                  onClick={handleCopyAddress}
-                  title="Copy destination address"
-                >
-                  {copiedAddress ? 'Address Copied!' : 'Copy Address'}
-                </button>
+                <div className="spec-address-actions">
+                  <button
+                    type="button"
+                    className="spec-copy-link"
+                    onClick={handleCopyAddress}
+                    title="Copy destination address"
+                  >
+                    {copiedAddress ? 'Address Copied!' : 'Copy Address'}
+                  </button>
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                      `${delivery.deliveryAddress}, ${delivery.city} ${delivery.postalCode}`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="spec-nav-link"
+                    title="Navigate via Google Maps"
+                  >
+                    <NavigationIcon size={13} />
+                    <span>Navigate</span>
+                  </a>
+                </div>
               </div>
               <div className="spec-address-box">
                 <LocationPinIcon size={16} color="var(--primary-active)" className="address-box-pin" />

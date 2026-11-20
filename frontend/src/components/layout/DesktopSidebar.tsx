@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { logOut } from '../../features/auth/api/authApi';
+import { courierService } from '../../services/courier/courierService';
+import type { CourierProfile } from '../../types/courier';
 import {
   LogoParcelIcon,
   TruckIcon,
@@ -14,6 +16,21 @@ import {
 } from '../common/Icons';
 
 export const DesktopSidebar: React.FC = () => {
+  const [profile, setProfile] = useState<CourierProfile | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    courierService.getCourierProfile()
+      .then((p) => {
+        if (isMounted) setProfile(p);
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const handleLogout = async () => {
     try {
       await logOut();
@@ -22,6 +39,16 @@ export const DesktopSidebar: React.FC = () => {
     }
     window.location.href = '/';
   };
+
+  const displayName = profile?.fullName || 'Sachin Maleesha';
+  const displayZone = profile?.assignedZone || 'Kurunegala North';
+  const initials = displayName
+    .split(' ')
+    .filter(Boolean)
+    .map((n) => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || 'SM';
 
   return (
     <aside className="sidebar" aria-label="Main Navigation">
@@ -37,7 +64,7 @@ export const DesktopSidebar: React.FC = () => {
       </div>
 
       {/* Courier Portal Status Badge */}
-      <div className="portal-pill">
+      <div className="portal-pill" title="Connected to Dispatch Telemetry">
         <div className="portal-pill-left">
           <TruckIcon size={16} color="var(--primary-active)" />
           <span>Courier Portal</span>
@@ -97,10 +124,10 @@ export const DesktopSidebar: React.FC = () => {
       </nav>
 
       <div className="sidebar-footer">
-        <div className="sidebar-courier-card">
-          <div className="courier-avatar-mini">SM</div>
+        <div className="sidebar-courier-card" title={`Service Territory: ${displayZone}`}>
+          <div className="courier-avatar-mini">{initials}</div>
           <div className="courier-card-details">
-            <span className="courier-card-name">Sachin M.</span>
+            <span className="courier-card-name">{displayName}</span>
             <span className="courier-card-badge">
               <ShieldCheckIcon size={12} color="#10B981" />
               Verified Driver
