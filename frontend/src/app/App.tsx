@@ -6,6 +6,7 @@ import { CustomerPortal, PublicTrackingPage } from '../features/customer/pages/C
 import { MerchantApplyPage } from '../features/merchant/pages/MerchantApplyPage';
 import { MerchantProfilePage } from '../features/merchant/pages/MerchantProfilePage';
 import { VerifyEmailPage } from '../features/auth/pages/VerifyEmailPage';
+import { CourierApp } from '../pages/courier/CourierApp';
 import { ProtectedMerchantRoute } from '../features/merchant/components/ProtectedMerchantRoute';
 import { MerchantPortal } from '../features/merchant/MerchantPortal';
 import { matchMerchantRoute } from '../features/merchant/merchantRoutes';
@@ -21,6 +22,7 @@ export default function App() {
   // Every page, plus the AI assistant floating on top (PR #39). Notifications and the dashboard open inside the
   // customer portal (no separate old pages).
   const renderContent = () => {
+    if (path.startsWith('/courier')) return <CourierApp />;
     if (path === routes.publicTrack || path.startsWith('/track/')) return <PublicTrackingPage />;
     if (path.startsWith('/customer/')) return <CustomerPortal />;
     if (path === routes.merchantProfile) return <MerchantProfilePage />;
