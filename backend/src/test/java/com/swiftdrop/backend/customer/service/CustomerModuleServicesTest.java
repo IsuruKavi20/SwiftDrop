@@ -1,8 +1,8 @@
 package com.swiftdrop.backend.customer.service;
 
 import jakarta.persistence.EntityManager;
-import com.swiftdrop.backend.identity.AppUser;
-import com.swiftdrop.backend.identity.TestPeople;
+import com.swiftdrop.backend.identity.entity.AppUser;
+import com.swiftdrop.backend.identity.entity.TestPeople;
 import com.swiftdrop.backend.customer.dto.CreateDeliveryRequest;
 import com.swiftdrop.backend.customer.dto.CustomerAddressRequest;
 import com.swiftdrop.backend.customer.dto.CustomerAddressResponse;
@@ -10,7 +10,7 @@ import com.swiftdrop.backend.customer.dto.DashboardResponse;
 import com.swiftdrop.backend.customer.dto.DeliveryAddressRequest;
 import com.swiftdrop.backend.customer.dto.DeliveryDetailsResponse;
 import com.swiftdrop.backend.customer.dto.DeliverySummaryResponse;
-import com.swiftdrop.backend.customer.dto.PageResponse;
+import com.swiftdrop.backend.shared.dto.PageResponse;
 import com.swiftdrop.backend.customer.dto.ParcelRequest;
 import com.swiftdrop.backend.customer.dto.RegisterCustomerRequest;
 import com.swiftdrop.backend.customer.dto.TrackingEventResponse;
@@ -75,9 +75,9 @@ class CustomerModuleServicesTest {
     @BeforeEach
     void registerTwoCustomers() {
         customerService.register(TestPeople.saved(em, alice, "Alice Fernando", "CUSTOMER"),
-                new RegisterCustomerRequest(" Alice ", "Fernando", " alice@example.com ", " 0771111111 "));
+                new RegisterCustomerRequest(" 0771111111 ", null, new CustomerAddressRequest("Home", "2 Lake Rd", "Colombo", "Colombo", null, null)));
         customerService.register(TestPeople.saved(em, bob, "Bob Silva", "CUSTOMER"),
-                new RegisterCustomerRequest("Bob", "Silva", "bob@example.com", "0772222222"));
+                new RegisterCustomerRequest("0772222222", null, new CustomerAddressRequest("Home", "2 Lake Rd", "Colombo", "Colombo", null, null)));
     }
 
     private static CreateDeliveryRequest booking(DeliveryType type, String receiver, String city) {
@@ -92,13 +92,12 @@ class CustomerModuleServicesTest {
     // ---- Registration and profile ----
 
     @Test
-    void registrationStoresTheDetailsAndRejectsDuplicates() {
-        assertThat(customerService.getProfile(alice).firstName()).isEqualTo("Alice");
-        assertThat(customerService.getProfile(alice).email()).isEqualTo("alice@example.com");
+    void registrationTakesTheNameFromTheLoginAccountAndRejectsDuplicates() {
+        assertThat(customerService.getProfile(alice).name()).isEqualTo("Alice Fernando");
         assertThat(customerService.getProfile(alice).phoneNumber()).isEqualTo("0771111111");
 
         AppUser aliceAgain = em.find(AppUser.class, alice);
-        assertThatThrownBy(() -> customerService.register(aliceAgain, new RegisterCustomerRequest("Alice", "Fernando", "alice@example.com", "0771111111")))
+        assertThatThrownBy(() -> customerService.register(aliceAgain, new RegisterCustomerRequest("0771111111", null, new CustomerAddressRequest("Home", "2 Lake Rd", "Colombo", "Colombo", null, null))))
                 .isInstanceOf(ConflictException.class).hasMessageContaining("already registered");
     }
 
@@ -115,40 +114,35 @@ class CustomerModuleServicesTest {
     void updatesTheProfile() {
         customerService.updateProfile(alice, new UpdateCustomerProfileRequest("0773333333"));
         assertThat(customerService.getProfile(alice).phoneNumber()).isEqualTo("0773333333");
-        assertThat(customerService.getProfile(alice).firstName()).isEqualTo("Alice");
-
-        // Fills in names for a profile registered before they were stored; blank fields keep what is stored
-        customerService.updateProfile(alice, new UpdateCustomerProfileRequest("Alicia", "", null, "0773333333"));
-        assertThat(customerService.getProfile(alice).firstName()).isEqualTo("Alicia");
-        assertThat(customerService.getProfile(alice).lastName()).isEqualTo("Fernando");
     }
 
     // ---- Saved addresses ----
 
     @Test
-    void theFirstAddressIsDefaultAndANewDefaultReplacesIt() {
-        CustomerAddressResponse home = customerService.addAddress(alice,
-                new CustomerAddressRequest("Home", "2 Lake Rd", "Colombo", "Colombo", null, false));
-        assertThat(home.defaultAddress()).isTrue();
+    void theRegistrationAddressIsDefaultAndANewDefaultReplacesIt() {
+        CustomerAddressResponse office = customerService.addAddress(alice,
+                new CustomerAddressRequest("Office", "1 Main St", "Colombo", "Colombo", null, false));
+        assertThat(office.defaultAddress()).isFalse();   // "Home" from registration is already the default
 
-        customerService.addAddress(alice, new CustomerAddressRequest("Office", "1 Main St", "Colombo", "Colombo", null, true));
+        customerService.addAddress(alice, new CustomerAddressRequest("Work", "9 Bay Rd", "Colombo", "Colombo", null, true));
 
         assertThat(customerService.listAddresses(alice))
                 .extracting(CustomerAddressResponse::label, CustomerAddressResponse::defaultAddress)
-                .containsExactly(org.assertj.core.groups.Tuple.tuple("Office", true), org.assertj.core.groups.Tuple.tuple("Home", false));
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("Work", true),
+                        org.assertj.core.groups.Tuple.tuple("Home", false), org.assertj.core.groups.Tuple.tuple("Office", false));
     }
 
     @Test
     void aCustomerCannotTouchAnotherCustomersAddress() {
         Long alicesHome = customerService.addAddress(alice,
-                new CustomerAddressRequest("Home", "2 Lake Rd", "Colombo", "Colombo", null, false)).id();
+                new CustomerAddressRequest("Office", "1 Main St", "Colombo", "Colombo", null, false)).id();
         CustomerAddressRequest change = new CustomerAddressRequest("Mine", "x", "x", "x", null, false);
 
         assertThatThrownBy(() -> customerService.updateAddress(bob, alicesHome, change)).isInstanceOf(NotFoundException.class);
         assertThatThrownBy(() -> customerService.deleteAddress(bob, alicesHome)).isInstanceOf(NotFoundException.class);
 
         customerService.deleteAddress(alice, alicesHome);
-        assertThat(customerService.listAddresses(alice)).isEmpty();
+        assertThat(customerService.listAddresses(alice)).extracting(CustomerAddressResponse::label).containsExactly("Home");
     }
 
     // ---- Booking and confirmation ----

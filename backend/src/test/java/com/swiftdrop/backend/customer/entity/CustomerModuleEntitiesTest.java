@@ -1,6 +1,6 @@
 package com.swiftdrop.backend.customer.entity;
 
-import com.swiftdrop.backend.identity.TestPeople;
+import com.swiftdrop.backend.identity.entity.TestPeople;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceException;
 import org.junit.jupiter.api.Test;
@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Hibernate creates the tables from the entities at startup;
+ * The Flyway migration creates the tables (Hibernate validates the entities against them at startup);
  * these tests save and read back a whole booking through the entities.
  */
 @SpringBootTest

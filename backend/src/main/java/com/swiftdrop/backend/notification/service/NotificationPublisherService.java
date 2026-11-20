@@ -1,0 +1,264 @@
+package com.swiftdrop.backend.notification.service;
+
+import com.swiftdrop.backend.customer.entity.Customer;
+import com.swiftdrop.backend.customer.entity.Delivery;
+import com.swiftdrop.backend.customer.entity.DeliveryStatus;
+import com.swiftdrop.backend.customer.entity.TrackingEvent;
+import com.swiftdrop.backend.dispatcher.entity.Courier;
+import com.swiftdrop.backend.dispatcher.entity.CourierAssignment;
+import com.swiftdrop.backend.identity.service.UserDirectory;
+import com.swiftdrop.backend.merchant.entity.Merchant;
+import com.swiftdrop.backend.notification.config.RabbitMqConfig;
+import com.swiftdrop.backend.notification.event.CourierAssignedEvent;
+import com.swiftdrop.backend.notification.event.DeliveryStatusChangedEvent;
+import jakarta.persistence.EntityManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
+
+@Service
+public class NotificationPublisherService {
+
+    private static final Logger log = LoggerFactory.getLogger(NotificationPublisherService.class);
+
+    private final RabbitTemplate rabbitTemplate;
+    private final UserDirectory userDirectory;
+    private final EntityManager entityManager;
+
+    @Value("${swiftdrop.mail.fallback-recipient:${swiftdrop.mail.from:}}")
+    private String fallbackRecipient;
+
+    @Autowired
+    public NotificationPublisherService(RabbitTemplate rabbitTemplate,
+                                        @Autowired(required = false) UserDirectory userDirectory,
+                                        @Autowired(required = false) EntityManager entityManager) {
+        this.rabbitTemplate = rabbitTemplate;
+        this.userDirectory = userDirectory;
+        this.entityManager = entityManager;
+    }
+
+    public NotificationPublisherService(RabbitTemplate rabbitTemplate,
+                                        UserDirectory userDirectory) {
+        this(rabbitTemplate, userDirectory, null);
+    }
+
+    public NotificationPublisherService(RabbitTemplate rabbitTemplate) {
+        this(rabbitTemplate, null, null);
+    }
+
+    /**
+     * Publishes a delivery status changed event to RabbitMQ topic exchange.
+     */
+    public void publishDeliveryStatusChanged(Delivery delivery, TrackingEvent event) {
+        publishDeliveryStatusChanged(delivery, event, null);
+    }
+
+    /**
+     * Publishes a delivery status changed event with explicit customer email.
+     */
+    public void publishDeliveryStatusChanged(Delivery delivery, TrackingEvent event, String customerEmail) {
+        Customer customer = delivery.getCustomer();
+        Long merchantId = delivery.getMerchantId();
+        Merchant merchant = null;
+        if (merchantId != null && entityManager != null) {
+            try {
+                merchant = entityManager.find(Merchant.class, merchantId);
+            } catch (Exception ex) {
+                log.debug("Could not resolve merchant entity: {}", ex.getMessage());
+            }
+        }
+
+        String customerName = "Customer";
+        String customerPhone = null;
+
+        if (customer != null) {
+            if (customer.getFullName() != null && !customer.getFullName().isBlank()) {
+                customerName = customer.getFullName();
+            } else if (customer.getUser() != null) {
+                customerName = customer.getUser().getName().orElse("Customer");
+            }
+
+            if (customerEmail == null || customerEmail.isBlank()) {
+                if (customer.getEmail() != null && !customer.getEmail().isBlank()) {
+                    customerEmail = customer.getEmail();
+                } else if (customer.getUser() != null && userDirectory != null) {
+                    try {
+                        customerEmail = userDirectory.email(customer.getUser().getId()).orElse(null);
+                    } catch (Exception ex) {
+                        log.debug("Could not resolve user email from directory: {}", ex.getMessage());
+                    }
+                }
+            }
+            customerPhone = customer.getPhoneNumber();
+        } else if (merchant != null) {
+            customerName = merchant.getBusinessName() != null ? merchant.getBusinessName() : "Merchant";
+            customerEmail = merchant.getBusinessEmail();
+            customerPhone = merchant.getContactNumber();
+        } else if (merchantId != null) {
+            customerName = "Merchant";
+        }
+
+        if ((customerEmail == null || customerEmail.isBlank()) && fallbackRecipient != null && !fallbackRecipient.isBlank()) {
+            customerEmail = fallbackRecipient;
+            log.info("No customer email found for delivery {}; falling back to notification recipient {}", delivery.getId(), customerEmail);
+        }
+
+        String destPhone = null;
+        String destName = null;
+        if (delivery.getDestinationAddress().isPresent()) {
+            destPhone = delivery.getDestinationAddress().get().getContactPhone();
+            destName = delivery.getDestinationAddress().get().getContactName();
+            if (customerPhone == null || customerPhone.isBlank()) {
+                customerPhone = destPhone;
+            }
+        }
+
+        String courierName = delivery.getCourier() != null
+                ? delivery.getCourier().getName().orElse("Courier")
+                : null;
+
+        String routingKey = "delivery.status." + delivery.getStatus().name().toLowerCase();
+
+        Map<String, Object> metadata = new HashMap<>();
+        if (destPhone != null) metadata.put("destinationPhone", destPhone);
+        if (destName != null) metadata.put("destinationName", destName);
+
+        DeliveryStatusChangedEvent payload = new DeliveryStatusChangedEvent(
+                delivery.getId(),
+                delivery.getTrackingNumber(),
+                delivery.getPublicTrackingToken(),
+                delivery.getStatus().name(),
+                event != null ? event.getDescription() : null,
+                event != null ? event.getLocationName() : null,
+                customerName,
+                customerEmail,
+                customerPhone,
+                courierName,
+                null,
+                merchantId != null ? merchantId : (merchant != null ? merchant.getId() : null),
+                event != null ? event.getEventTime() : Instant.now(),
+                metadata
+        );
+
+        try {
+            log.info("Publishing DeliveryStatusChangedEvent to {} [routingKey={}, email={}, phone={}]",
+                    RabbitMqConfig.EXCHANGE_SWIFTDROP, routingKey, customerEmail, customerPhone);
+            rabbitTemplate.convertAndSend(RabbitMqConfig.EXCHANGE_SWIFTDROP, routingKey, payload);
+        } catch (Exception ex) {
+            log.warn("Could not publish DeliveryStatusChangedEvent to RabbitMQ (is broker running?): {}", ex.getMessage());
+        }
+    }
+
+    /**
+     * Convenience helper to publish status change event given a delivery and status strings.
+     */
+    public void publishDeliveryStatusChanged(Delivery delivery, String status, String description, String locationName) {
+        if (delivery == null) {
+            return;
+        }
+        TrackingEvent event = new TrackingEvent(
+                DeliveryStatus.valueOf(status),
+                description,
+                locationName,
+                Instant.now(),
+                null
+        );
+        publishDeliveryStatusChanged(delivery, event);
+    }
+
+    /**
+     * Publishes a synthetic test status changed event to RabbitMQ for verification and testing.
+     */
+    public void publishTestStatusChanged(String trackingNumber, String status, String customerEmail) {
+        String trk = (trackingNumber != null && !trackingNumber.isBlank()) ? trackingNumber : "SD-DEMO-TEST";
+        String st = (status != null && !status.isBlank()) ? status.toUpperCase() : "CONFIRMED";
+        String recipient = (customerEmail != null && !customerEmail.isBlank()) ? customerEmail : fallbackRecipient;
+        String routingKey = "delivery.status." + st.toLowerCase();
+
+        DeliveryStatusChangedEvent payload = new DeliveryStatusChangedEvent(
+                999L,
+                trk,
+                "token-" + trk,
+                st,
+                "Status updated to " + st + " (Verification Test)",
+                "Colombo Distribution Center",
+                "SwiftDrop Test Customer",
+                recipient,
+                "+94771234567",
+                "SwiftDrop Express Courier",
+                null,
+                null,
+                Instant.now(),
+                Map.of()
+        );
+
+        try {
+            log.info("Publishing test DeliveryStatusChangedEvent to {} [routingKey={}, email={}]",
+                    RabbitMqConfig.EXCHANGE_SWIFTDROP, routingKey, recipient);
+            rabbitTemplate.convertAndSend(RabbitMqConfig.EXCHANGE_SWIFTDROP, routingKey, payload);
+        } catch (Exception ex) {
+            log.warn("Could not publish test event to RabbitMQ: {}", ex.getMessage());
+        }
+    }
+
+    /**
+     * Publishes courier assigned event from CourierAssignment entity.
+     */
+    public void publishCourierAssigned(CourierAssignment assignment) {
+        if (assignment == null) {
+            return;
+        }
+        Delivery d = assignment.getDelivery();
+        Courier c = assignment.getCourier();
+        String dest = (d != null && d.getDestinationAddress().isPresent())
+                ? d.getDestinationAddress().get().getCity() + ", " + d.getDestinationAddress().get().getStreet()
+                : "Destination";
+        String courierName = (c != null && c.getUser() != null)
+                ? c.getUser().getName().orElse("Courier")
+                : "Courier";
+        String courierPhone = c != null ? c.getPhoneNumber() : null;
+        Long courierId = c != null ? c.getId() : null;
+
+        publishCourierAssigned(
+                d != null ? d.getId() : null,
+                d != null ? d.getTrackingNumber() : null,
+                courierId,
+                courierName,
+                courierPhone,
+                dest
+        );
+    }
+
+    /**
+     * Publishes courier assigned event.
+     */
+    public void publishCourierAssigned(Long deliveryId, String trackingNumber, Long courierId,
+                                       String courierName, String courierPhone, String destinationAddress) {
+        CourierAssignedEvent event = new CourierAssignedEvent(
+                deliveryId,
+                trackingNumber,
+                courierId,
+                courierName,
+                courierPhone,
+                null,
+                null,
+                null,
+                destinationAddress,
+                Instant.now()
+        );
+
+        try {
+            log.info("Publishing CourierAssignedEvent to exchange {}", RabbitMqConfig.EXCHANGE_SWIFTDROP);
+            rabbitTemplate.convertAndSend(RabbitMqConfig.EXCHANGE_SWIFTDROP, RabbitMqConfig.ROUTING_KEY_ASSIGNMENT, event);
+        } catch (Exception ex) {
+            log.warn("Could not publish CourierAssignedEvent to RabbitMQ (is broker running?): {}", ex.getMessage());
+        }
+    }
+}

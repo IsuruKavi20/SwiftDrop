@@ -105,3 +105,8 @@ Inside `frontend/`:
 npm run build
 ```
 Production assets will be generated in `frontend/dist/`.
+
+
+### Customer Module
+
+See [`docs/CUSTOMER-MODULE.md`](docs/CUSTOMER-MODULE.md) for API endpoints, UI routes, and integration/verification notes.

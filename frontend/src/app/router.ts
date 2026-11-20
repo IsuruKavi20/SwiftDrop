@@ -11,12 +11,27 @@ export const routes = {
   verifyEmail: '/verify-email',
   account: '/account',
   customerDashboard: '/customer/dashboard',
+  customerNotifications: '/customer/notifications',
+  merchantDashboard: '/merchant/dashboard',
+  merchantProfile: '/merchant/profile',
+  merchantPreview: '/merchant/preview',
+  customerBook: '/customer/deliveries/new',
+  customerDeliveries: '/customer/deliveries',
+  customerTrack: '/customer/track',
+  customerAccount: '/customer/profile',
+  customerSupport: '/customer/support',
+  publicTrack: '/track',
+  merchantApply: '/merchant/apply',
   courier: '/courier',
   courierDashboard: '/courier/dashboard',
 } as const;
 
-export function navigate(path: string): void {
-  window.history.pushState(null, '', path);
+export function navigate(path: string, { replace = false } = {}): void {
+  if (replace) {
+    window.history.replaceState(null, '', path);
+  } else {
+    window.history.pushState(null, '', path);
+  }
   window.dispatchEvent(new PopStateEvent('popstate'));
 }
 

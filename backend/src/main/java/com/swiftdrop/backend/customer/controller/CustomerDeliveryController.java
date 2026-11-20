@@ -3,7 +3,7 @@ package com.swiftdrop.backend.customer.controller;
 import com.swiftdrop.backend.customer.dto.DashboardResponse;
 import com.swiftdrop.backend.customer.dto.DeliveryDetailsResponse;
 import com.swiftdrop.backend.customer.dto.DeliverySummaryResponse;
-import com.swiftdrop.backend.customer.dto.PageResponse;
+import com.swiftdrop.backend.shared.dto.PageResponse;
 import com.swiftdrop.backend.customer.dto.TrackingResponse;
 import com.swiftdrop.backend.customer.entity.DeliveryStatus;
 import com.swiftdrop.backend.customer.service.CustomerDeliveryService;

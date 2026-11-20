@@ -1,0 +1,6 @@
+apiVersion: v2
+name: swiftdrop
+description: SwiftDrop backend + RabbitMQ on one k3s server (AWS t4g)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

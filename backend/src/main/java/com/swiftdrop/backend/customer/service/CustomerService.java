@@ -11,7 +11,7 @@ import com.swiftdrop.backend.customer.exception.ConflictException;
 import com.swiftdrop.backend.customer.exception.NotFoundException;
 import com.swiftdrop.backend.customer.repository.CustomerAddressRepository;
 import com.swiftdrop.backend.customer.repository.CustomerRepository;
-import com.swiftdrop.backend.identity.AppUser;
+import com.swiftdrop.backend.identity.entity.AppUser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,11 +38,24 @@ public class CustomerService {
 
     /** @param user the caller, from {@code UserDirectory.caller(token)} */
     public CustomerResponse register(AppUser user, RegisterCustomerRequest request) {
+        return register(user, request, null);
+    }
+
+    /** Email is read only from a validated login token, never from the customer-submitted body. */
+    public CustomerResponse register(AppUser user, RegisterCustomerRequest request, String loginEmail) {
         if (customers.existsByUserId(user.getId())) {
             throw new ConflictException("You are already registered as a customer");
         }
-        Customer customer = new Customer(user, request.firstName().trim(), request.lastName().trim(),
-                request.email().trim(), request.phoneNumber().trim());
+        Customer customer = new Customer(user, request.phoneNumber().trim());
+        String fullName = blankToNull(request.fullName());
+        customer.setFullName(fullName == null ? user.getName().orElse(null) : fullName.trim());
+        if (loginEmail != null && loginEmail.length() <= 150) customer.setEmail(blankToNull(loginEmail));
+        // The first address is saved together with the profile (one transaction) and is the default
+        CustomerAddressRequest first = request.address();
+        CustomerAddress address = new CustomerAddress(first.label().trim(), first.street().trim(),
+                first.city().trim(), first.district().trim(), blankToNull(first.postalCode()));
+        address.setDefaultAddress(true);
+        customer.addAddress(address);
         return CustomerResponse.from(customers.save(customer));
     }
 
@@ -54,10 +67,11 @@ public class CustomerService {
     public CustomerResponse updateProfile(UUID authUserId, UpdateCustomerProfileRequest request) {
         Customer customer = requireCustomer(authUserId);
         customer.setPhoneNumber(request.phoneNumber().trim());
-        customer.setDetails(
-                keepIfBlank(request.firstName(), customer.getFirstName()),
-                keepIfBlank(request.lastName(), customer.getLastName()),
-                keepIfBlank(request.email(), customer.getEmail()));
+        if (request.fullName() != null) {
+            String name = blankToNull(request.fullName());
+            if (name == null) throw new IllegalArgumentException("Full name cannot be blank");
+            customer.setFullName(name.trim());
+        }
         return CustomerResponse.from(customers.saveAndFlush(customer));
     }
 
@@ -120,10 +134,6 @@ public class CustomerService {
 
     private void clearDefault(Long customerId) {
         addresses.findByCustomerIdAndDefaultAddressTrue(customerId).ifPresent(current -> current.setDefaultAddress(false));
-    }
-
-    private static String keepIfBlank(String value, String current) {
-        return value == null || value.isBlank() ? current : value.trim();
     }
 
     static String blankToNull(String value) {

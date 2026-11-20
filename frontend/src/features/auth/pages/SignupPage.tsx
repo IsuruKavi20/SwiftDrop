@@ -1,11 +1,12 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import lockIcon from '../../../assets/auth/icon-lock.svg';
 import mailIcon from '../../../assets/auth/icon-mail.svg';
 import userIcon from '../../../assets/auth/icon-user.svg';
 import { navigate, routes } from '../../../app/router';
 import { AuthError, logIn, signUp, startGoogleLogin } from '../api/authApi';
+import { forgetNext, landingPage, rememberNextFromUrl, withNext } from '../lib/landing';
 import { AuthLayout } from '../components/AuthLayout';
-import { Alert, Divider, GoogleButton, PrimaryButton, TextField } from '../components/FormControls';
+import { Alert, Divider, EntryPoints, GoogleButton, PrimaryButton, TextField } from '../components/FormControls';
 import styles from '../components/FormControls.module.css';
 
 // The auth service's rule (NIST SP 800-63B): long passphrases beat complex short passwords
@@ -14,6 +15,8 @@ const MIN_PASSWORD_LENGTH = 15;
 /** Figma "SwiftDrop desktop signup" / "mobile signup". */
 export function SignupPage() {
   const [fullName, setFullName] = useState('');
+  // "?next=" (e.g. from "Sell with SwiftDrop") is remembered for after the login, also across Google login
+  useEffect(rememberNextFromUrl, []);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -27,15 +30,19 @@ export function SignupPage() {
       setError(`Use at least ${MIN_PASSWORD_LENGTH} characters, for example a few words: "blue river lamp cactus".`);
       return;
     }
+    if (!fullName.trim()) {
+      setError('Please enter your full name.');
+      return;
+    }
     setBusy(true);
     try {
-      // Full name is in the design but not stored yet: the auth service accepts only email + password
-      await signUp(email, password);
+      // The name is stored in the login account: every SwiftDrop module reads it from there (AppUser)
+      await signUp(fullName.trim(), email, password);
       // Sign the new customer straight in and open their dashboard. If the auth service won't log them in yet
       // (for example the email still needs confirming), fall back to the "check your inbox" message.
       try {
         await logIn(email, password);
-        navigate(routes.customerDashboard);
+        navigate(landingPage());
         return;
       } catch {
         setDone(true);
@@ -62,7 +69,7 @@ export function SignupPage() {
       ) : (
         <form className={styles.form} onSubmit={onSubmit} noValidate>
           {error && <Alert kind="error">{error}</Alert>}
-          <TextField id="fullName" label="Full name" icon={userIcon} autoComplete="name"
+          <TextField id="fullName" label="Full name" icon={userIcon} autoComplete="name" required
             placeholder="e.g. Isuru Perera" value={fullName} onChange={(e) => setFullName(e.target.value)} />
           <TextField id="email" label="Email" icon={mailIcon} type="email" autoComplete="email" required
             placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -71,8 +78,8 @@ export function SignupPage() {
             value={password} onChange={(e) => setPassword(e.target.value)} />
           <p className={styles.hint}>
             By creating an account, you agree to SwiftDrop's{' '}
-            <a href="https://getswiftdrop.me/terms.html" target="_blank" rel="noreferrer">Terms</a> and{' '}
-            <a href="https://getswiftdrop.me/privacy.html" target="_blank" rel="noreferrer">Privacy Policy</a>.
+            <a href="https://getswiftdrop.me/terms.html" target="_blank" rel="noopener noreferrer">Terms</a> and{' '}
+            <a href="https://getswiftdrop.me/privacy.html" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
           </p>
           <PrimaryButton type="submit" disabled={busy}>{busy ? 'Creating account…' : 'Create account'}</PrimaryButton>
         </form>
@@ -81,10 +88,11 @@ export function SignupPage() {
       <Divider>or continue with</Divider>
       <GoogleButton onClick={() => void startGoogleLogin()} />
 
-      <p className={styles.footer}>
-        Already have an account?{' '}
-        <button type="button" className={styles.link} onClick={() => navigate(routes.login)}>Log in</button>
-      </p>
+      <EntryPoints items={[
+        { icon: 'user', title: 'Log in', text: 'Already have an account?', onClick: () => { forgetNext(); navigate(routes.login); } },
+        { icon: 'store', title: 'Sell with SwiftDrop', text: 'Are you a business?',
+          onClick: () => navigate(withNext(routes.signup, routes.merchantApply)) },
+      ]} />
     </AuthLayout>
   );
 }

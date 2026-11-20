@@ -1,0 +1,9 @@
+.timeline { margin: 1rem 0 0; padding: 0; list-style: none; }
+.event { position: relative; display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 0.8rem; padding-bottom: 1.25rem; }
+.event:last-child { padding-bottom: 0; }
+.event:not(:last-child)::before { content: ''; position: absolute; inset: 2rem auto 0 0.95rem; width: 2px; background: var(--color-border); }
+.marker { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%; border: 1px solid var(--color-border); background: var(--color-cream); color: var(--color-text); }
+.event strong { display: block; margin-top: 0.2rem; }
+.event p { margin: 0.25rem 0; }
+.eventMeta { display: flex; flex-wrap: wrap; gap: 0.25rem 0.8rem; margin-top: 0.3rem; font-size: 0.8rem; color: var(--color-text-muted); }
+.empty { margin-bottom: 0; color: var(--color-text-muted); }

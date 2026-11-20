@@ -24,7 +24,7 @@ public class PublicTrackingService {
 
     public TrackingResponse trackByTrackingNumber(String trackingNumber) {
         return deliveries.findByTrackingNumber(CustomerDeliveryService.normalize(trackingNumber))
-                .map(TrackingResponse::from)
+                .map(TrackingResponse::publicFrom)
                 .orElseThrow(() -> new NotFoundException(NOT_FOUND));
     }
 
@@ -34,7 +34,7 @@ public class PublicTrackingService {
             throw new NotFoundException(NOT_FOUND);
         }
         return deliveries.findByPublicTrackingToken(publicTrackingToken.trim())
-                .map(TrackingResponse::from)
+                .map(TrackingResponse::publicFrom)
                 .orElseThrow(() -> new NotFoundException(NOT_FOUND));
     }
 }

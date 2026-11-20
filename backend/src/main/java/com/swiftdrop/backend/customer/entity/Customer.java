@@ -10,7 +10,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
-import com.swiftdrop.backend.identity.AppUser;
+import com.swiftdrop.backend.identity.entity.AppUser;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -19,8 +19,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A customer's delivery profile: the name, email and phone they gave at registration, and their saved addresses.
- * The login account itself (photo, roles, status) is read through {@link AppUser}.
+ * A customer's delivery profile. Who the person is (name, photo, login email) belongs to the auth service and is
+ * read through {@link AppUser}; this record keeps only what deliveries need (phone, saved addresses).
  */
 @Entity
 @Table(name = "customer")
@@ -36,18 +36,14 @@ public class Customer {
     @JoinColumn(name = "auth_user_id", nullable = false, unique = true, updatable = false)
     private AppUser user;
 
-    /** Nullable in the database only because customers registered before these columns existed have no value yet. */
-    @Column(name = "first_name", length = 100)
-    private String firstName;
-
-    @Column(name = "last_name", length = 100)
-    private String lastName;
-
-    @Column(name = "phone_number", nullable = false, length = 20)
-    private String phoneNumber;
+    @Column(name = "full_name", length = 150)
+    private String fullName;
 
     @Column(name = "email", length = 150)
     private String email;
+
+    @Column(name = "phone_number", nullable = false, length = 20)
+    private String phoneNumber;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -71,12 +67,7 @@ public class Customer {
 
     public Customer(AppUser user, String firstName, String lastName, String email, String phoneNumber) {
         this(user, phoneNumber);
-        setDetails(firstName, lastName, email);
-    }
-
-    public void setDetails(String firstName, String lastName, String email) {
-        this.firstName = firstName;
-        this.lastName = lastName;
+        this.fullName = (firstName != null ? firstName + (lastName != null ? " " + lastName : "") : lastName);
         this.email = email;
     }
 
@@ -92,9 +83,10 @@ public class Customer {
 
     public Long getId() { return id; }
     public AppUser getUser() { return user; }
-    public String getFirstName() { return firstName; }
-    public String getLastName() { return lastName; }
+    public String getFullName() { return fullName; }
+    public void setFullName(String fullName) { this.fullName = fullName; }
     public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
     public String getPhoneNumber() { return phoneNumber; }
     public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
     public Instant getCreatedAt() { return createdAt; }

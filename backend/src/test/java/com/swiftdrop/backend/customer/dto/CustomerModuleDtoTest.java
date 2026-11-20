@@ -1,6 +1,6 @@
 package com.swiftdrop.backend.customer.dto;
 
-import com.swiftdrop.backend.identity.TestPeople;
+import com.swiftdrop.backend.identity.entity.TestPeople;
 import com.swiftdrop.backend.customer.entity.AddressType;
 import com.swiftdrop.backend.customer.entity.Customer;
 import com.swiftdrop.backend.customer.entity.Delivery;
@@ -73,9 +73,14 @@ class CustomerModuleDtoTest {
     }
 
     @Test
-    void registrationChecksTheEmailAndPhone() {
-        assertThat(invalidFields(new RegisterCustomerRequest("Nimal", "Perera", "not-an-email", "077"))).containsExactlyInAnyOrder("email", "phoneNumber");
-        assertThat(invalidFields(new RegisterCustomerRequest("Nimal", "Perera", "nimal@example.com", "0771234567"))).isEmpty();
+    void registrationChecksThePhoneTheNameAndTheAddress() {
+        // (phoneNumber, fullName, address): fullName is optional (the login account's name is used when empty)
+        CustomerAddressRequest home = new CustomerAddressRequest("Home", "12 Galle Road", "Colombo", "Colombo", null, null);
+        assertThat(invalidFields(new RegisterCustomerRequest("077", "Nimal Perera", home))).containsExactly("phoneNumber");
+        assertThat(invalidFields(new RegisterCustomerRequest("0771234567", "x".repeat(151), home))).containsExactly("fullName");
+        assertThat(invalidFields(new RegisterCustomerRequest("0771234567", "Nimal Perera", null))).containsExactly("address");
+        assertThat(invalidFields(new RegisterCustomerRequest("0771234567", " ", home))).isEmpty();
+        assertThat(invalidFields(new RegisterCustomerRequest("0771234567", "Nimal Perera", home))).isEmpty();
     }
 
     private static Delivery bookedDelivery() {

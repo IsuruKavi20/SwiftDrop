@@ -7,7 +7,7 @@ import com.swiftdrop.backend.customer.dto.RegisterCustomerRequest;
 import com.swiftdrop.backend.customer.dto.UpdateCustomerProfileRequest;
 import com.swiftdrop.backend.customer.service.CustomerService;
 import jakarta.validation.Valid;
-import com.swiftdrop.backend.identity.UserDirectory;
+import com.swiftdrop.backend.identity.service.UserDirectory;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -45,7 +45,7 @@ class CustomerController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     CustomerResponse register(@Valid @RequestBody RegisterCustomerRequest request, @AuthenticationPrincipal Jwt user) {
-        return customers.register(userDirectory.caller(user), request);
+        return customers.register(userDirectory.caller(user), request, user.getClaimAsString("email"));
     }
 
     @GetMapping

@@ -9,7 +9,7 @@ import com.swiftdrop.backend.courier.dto.CourierStatusUpdateRequest;
 import com.swiftdrop.backend.courier.dto.DeliveryConfirmationRequest;
 import com.swiftdrop.backend.courier.dto.DeliveryFailureRequest;
 import com.swiftdrop.backend.courier.service.CourierService;
-import com.swiftdrop.backend.customer.dto.PageResponse;
+import com.swiftdrop.backend.shared.dto.PageResponse;
 import com.swiftdrop.backend.customer.entity.DeliveryStatus;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.PageRequest;

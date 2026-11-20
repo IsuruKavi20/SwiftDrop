@@ -28,8 +28,8 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 /** Always answers the same way whether or not the email is new (the service hides which emails exist). */
-export function signUp(email: string, password: string): Promise<void> {
-  return post<void>('/api/v1/auth/signup', { email, password });
+export function signUp(name: string, email: string, password: string): Promise<void> {
+  return post<void>('/api/v1/auth/signup', { name, email, password });
 }
 
 export async function logIn(email: string, password: string): Promise<void> {
@@ -43,7 +43,8 @@ export function verifyEmail(token: string): Promise<void> {
 /** Leaves the page: Google, then the auth service, then back to /auth/callback#code=... */
 export async function startGoogleLogin(): Promise<void> {
   const challenge = await createChallenge();
-  window.location.assign(`${env.authUrl}/oauth2/authorization/google?code_challenge=${challenge}`);
+  const params = new URLSearchParams({ code_challenge: challenge, frontend: env.frontendId });
+  window.location.assign(`${env.authUrl}/oauth2/authorization/google?${params}`);
 }
 
 export async function finishGoogleLogin(code: string): Promise<void> {
@@ -74,6 +75,24 @@ export async function logOut(): Promise<void> {
   clearTokens();
   if (refreshToken) {
     await post<void>('/api/v1/auth/logout', { refresh_token: refreshToken }).catch(() => undefined);
+  }
+}
+
+/**
+ * The signed-in person's name from the auth service's OpenID userinfo endpoint. Used when the access token has no
+ * "name" claim (e.g. right after sign-up). Null if it can't be read: callers show a generic label instead.
+ */
+export async function fetchAccountName(): Promise<string | null> {
+  try {
+    const response = await authorizedFetch(`${env.authUrl}/oauth2/userinfo`);
+    if (!response.ok) {
+      return null;
+    }
+    const info = (await response.json()) as { name?: string; given_name?: string; family_name?: string };
+    const name = info.name?.trim() || [info.given_name, info.family_name].filter(Boolean).join(' ').trim();
+    return name || null;
+  } catch {
+    return null;
   }
 }
 

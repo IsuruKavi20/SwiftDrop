@@ -1,12 +1,17 @@
-
 package com.swiftdrop.backend.merchant.dto;
 
 import com.swiftdrop.backend.merchant.entity.Merchant;
 
 import java.time.Instant;
 
+/**
+ * The merchant's business profile. {@code complete} is false until the business details are filled in;
+ * {@code ownerName} comes from the owner's login account.
+ */
 public record MerchantResponse(
         Long id,
+        boolean complete,
+        String ownerName,
         String businessName,
         String businessEmail,
         String contactNumber,
@@ -19,9 +24,12 @@ public record MerchantResponse(
         Instant createdAt,
         Instant updatedAt
 ) {
+
     public static MerchantResponse from(Merchant merchant) {
         return new MerchantResponse(
                 merchant.getId(),
+                merchant.isComplete(),
+                merchant.getOwner().getName().orElse(null),
                 merchant.getBusinessName(),
                 merchant.getBusinessEmail(),
                 merchant.getContactNumber(),

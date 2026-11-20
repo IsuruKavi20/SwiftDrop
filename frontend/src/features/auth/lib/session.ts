@@ -15,6 +15,9 @@ export interface AccessClaims {
   sub: string;
   roles?: string[];
   entitlements?: string[];
+  /** From the login account: shown, never asked for again */
+  name?: string;
+  email?: string;
   exp: number;
 }
 

@@ -14,17 +14,18 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
-import com.swiftdrop.backend.identity.AppUser;
+import com.swiftdrop.backend.identity.entity.AppUser;
 import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
+
 
 /**
  * A delivery booking and its current state. Its pickup and destination are {@link DeliveryAddress} rows, its
@@ -39,9 +40,12 @@ public class Delivery {
     @Column(name = "delivery_id")
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "customer_id", nullable = false, updatable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_id", updatable = false)
     private Customer customer;
+
+    @Column(name = "merchant_id", updatable = false)
+    private Long merchantId;
 
     /** The assigned courier (a person from the auth service); null until a courier is assigned. */
     @ManyToOne(fetch = FetchType.LAZY)
@@ -65,6 +69,12 @@ public class Delivery {
 
     @Column(name = "special_instructions", length = 500)
     private String specialInstructions;
+
+    @Column(name = "estimated_fee", precision = 12, scale = 2)
+    private BigDecimal estimatedFee;
+
+    @Column(name = "cancellation_reason", length = 200)
+    private String cancellationReason;
 
     @Column(name = "estimated_delivery_date")
     private LocalDate estimatedDeliveryDate;
@@ -98,6 +108,13 @@ public class Delivery {
 
     public Delivery(Customer customer, String trackingNumber, String publicTrackingToken, DeliveryType deliveryType) {
         this.customer = customer;
+        this.trackingNumber = trackingNumber;
+        this.publicTrackingToken = publicTrackingToken;
+        this.deliveryType = deliveryType;
+    }
+
+    public Delivery(Long merchantId, String trackingNumber, String publicTrackingToken, DeliveryType deliveryType) {
+        this.merchantId = merchantId;
         this.trackingNumber = trackingNumber;
         this.publicTrackingToken = publicTrackingToken;
         this.deliveryType = deliveryType;
@@ -148,6 +165,8 @@ public class Delivery {
 
     public Long getId() { return id; }
     public Customer getCustomer() { return customer; }
+    public Long getMerchantId() { return merchantId; }
+    public void setMerchantId(Long merchantId) { this.merchantId = merchantId; }
     public AppUser getCourier() { return courier; }
     /** Get the courier with UserDirectory.require(id) first: it checks they exist and are not blocked. */
     public void assignCourier(AppUser courier) { this.courier = courier; }
@@ -164,6 +183,10 @@ public class Delivery {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
     public Instant getDeliveredAt() { return deliveredAt; }
+    public String getCancellationReason() { return cancellationReason; }
+    public void setCancellationReason(String cancellationReason) { this.cancellationReason = cancellationReason; }
+    public BigDecimal getEstimatedFee() { return estimatedFee; }
+    public void setEstimatedFee(BigDecimal estimatedFee) { this.estimatedFee = estimatedFee; }
     public List<DeliveryAddress> getAddresses() { return addresses; }
     public List<Parcel> getParcels() { return parcels; }
     public List<TrackingEvent> getTrackingEvents() { return trackingEvents; }

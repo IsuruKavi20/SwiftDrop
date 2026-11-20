@@ -1,0 +1,1018 @@
+/* The home page (15 Nov refine). Same palette as login / sign up (styles/theme.css); mobile first, then wider. */
+.page {
+  /* 15 Nov refine, our pages only: pill buttons and softer button shadows (teammates' pages keep the shared defaults) */
+  --radius-button: 999px;
+  --shadow-button: 0 4px 14px rgba(63, 47, 31, 0.12);
+  --ink: var(--color-text);
+  --muted: var(--color-text-muted);
+  --gold: #e2b85a;
+  --wrap: 1160px;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  min-height: 100vh;
+  overflow-x: clip;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-page);
+  color: var(--ink);
+}
+
+/* Header: a floating glass "pill" that stays at the top while you scroll */
+.header {
+  position: sticky;
+  top: 12px;
+  z-index: 10;
+  padding: 0 12px;
+}
+
+.headerInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: calc(var(--wrap) - 48px);
+  margin: 0 auto;
+  padding: 8px 8px 8px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: saturate(1.5) blur(14px);
+  border: 1px solid rgba(227, 220, 203, 0.9);
+  box-shadow: 0 10px 30px rgba(63, 47, 31, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  animation: dropIn 0.6s var(--ease) both;
+}
+
+@keyframes dropIn {
+  from { opacity: 0; transform: translateY(-14px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+.navLinks {
+  display: none;
+  position: relative;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(252, 249, 240, 0.9);
+  border: 1px solid #efe7d6;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.logo:hover .logoMark {
+  transform: rotate(-8deg) scale(1.05);
+}
+
+.logoMark {
+  transition: transform 0.25s var(--ease);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  /* the parcel alone on light backgrounds, no gold tile */
+}
+
+.logoMark img {
+  width: 100% !important;
+  height: auto;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.navLink {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.15s, background 0.15s;
+}
+
+.navLink:hover {
+  color: var(--ink);
+  background: var(--color-surface);
+  box-shadow: 0 2px 8px rgba(63, 47, 31, 0.08);
+}
+
+.navLink svg {
+  color: #b08a3e;
+}
+
+.textButton,
+.primaryButton,
+.trackButton,
+.cardLink,
+.footerLink {
+  cursor: pointer;
+  border: none;
+  font-weight: 600;
+}
+
+.textButton {
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+}
+
+.textButton:hover {
+  background: var(--color-cream);
+}
+
+.primaryButton {
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: var(--ink);
+  box-shadow: 0 6px 14px rgba(63, 47, 31, 0.14);
+  transition: transform 0.15s var(--ease), box-shadow 0.15s, background 0.15s;
+}
+
+.primaryButton:hover {
+  background: #ebc974;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(63, 47, 31, 0.18);
+}
+
+:is(.textButton, .primaryButton, .trackButton, .cardLink, .footerLink, .logo, .navLink, .trackInput):focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* Hero: the tracking box first, an example tracking card beside it */
+.hero {
+  position: relative;
+  display: grid;
+  gap: 40px;
+  max-width: var(--wrap);
+  margin: 0 auto;
+  padding: 40px 16px 48px;
+}
+
+.hero::before {
+  /* soft warm glow behind the hero, drawn with the palette colours */
+  content: '';
+  position: absolute;
+  inset: -40px -20% auto auto;
+  width: 520px;
+  height: 520px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(244, 213, 141, 0.45), transparent);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.heroText,
+.preview {
+  position: relative;
+  z-index: 1;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+
+.liveDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-success);
+  box-shadow: 0 0 0 0 rgba(46, 107, 58, 0.5);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  70% { box-shadow: 0 0 0 8px rgba(46, 107, 58, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(46, 107, 58, 0); }
+}
+
+.headline {
+  margin: 18px 0 14px;
+  font-size: clamp(38px, 7vw, 64px);
+  font-weight: 650;
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+}
+
+.headline em {
+  font-style: normal;
+  background: linear-gradient(transparent 62%, var(--color-primary) 62%, var(--color-primary) 92%, transparent 92%);
+}
+
+.tagline {
+  max-width: 520px;
+  margin: 0 0 28px;
+  font-size: 18px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.trackForm {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 580px;
+  padding: 8px;
+  border-radius: 28px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-card);
+}
+
+.trackIcon {
+  display: none;
+}
+
+.trackInput {
+  min-width: 0;
+  flex: 1;
+  padding: 15px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 18px;
+  font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--color-surface);
+}
+
+.trackInput::placeholder {
+  color: #a69a8f;
+  text-transform: none;
+}
+
+.trackButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 15px 24px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--color-cream);
+  font-size: 16px;
+  transition: background 0.15s, transform 0.15s var(--ease);
+}
+
+.trackButton:hover {
+  background: #2d2116;
+}
+
+.trackButton:hover svg {
+  transform: translateX(2px);
+}
+
+.trackButton svg {
+  transition: transform 0.15s var(--ease);
+}
+
+.hint {
+  margin: 12px 4px 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* Example tracking card */
+.preview {
+  margin: 0;
+  padding: 22px;
+  border-radius: 24px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 30px 60px rgba(63, 47, 31, 0.12), 0 2px 6px rgba(63, 47, 31, 0.05);
+}
+
+.previewHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.previewLabel {
+  display: block;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.previewCode {
+  display: block;
+  margin-top: 4px;
+  font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  font-size: 17px;
+  letter-spacing: 0.03em;
+}
+
+.previewBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #e8f1f7;
+  color: #336b84;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.previewRoute {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--color-cream);
+  font-weight: 650;
+}
+
+.previewRoute small {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.previewLine {
+  flex: 1;
+  height: 2px;
+  background: repeating-linear-gradient(90deg, var(--gold) 0 6px, transparent 6px 12px);
+}
+
+.previewSteps {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.previewSteps li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  font-size: 14px;
+  color: #a69a8f;
+}
+
+.previewSteps li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 30px;
+  bottom: -10px;
+  width: 2px;
+  background: var(--color-border);
+}
+
+.previewSteps li.stepDone::after {
+  background: var(--gold);
+}
+
+.previewDot {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.stepDone,
+.stepCurrent {
+  color: var(--ink) !important;
+}
+
+.stepDone .previewDot {
+  border-color: var(--gold);
+  background: var(--color-primary);
+}
+
+.stepCurrent .previewDot {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 5px rgba(244, 213, 141, 0.5);
+}
+
+.stepCurrent .previewStep {
+  font-weight: 700;
+}
+
+.previewTime {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.previewCaption {
+  margin-top: 10px;
+  font-size: 11px;
+  color: #a69a8f;
+  text-align: right;
+}
+
+/* Floating 3D parcels around the example card */
+.previewWrap {
+  position: relative;
+  z-index: 1;
+}
+
+.preview {
+  animation: rise 0.8s var(--ease) both;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(16px) rotateX(6deg); }
+  to { opacity: 1; transform: none; }
+}
+
+.cube {
+  --s: 46px;
+  position: absolute;
+  z-index: 2;
+  width: var(--s);
+  height: var(--s);
+  perspective: 600px;
+  animation: float 6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.cubeInner {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform: rotateX(-24deg) rotateY(38deg);
+  animation: turn 14s linear infinite;
+}
+
+.face {
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  border: 1px solid rgba(63, 47, 31, 0.12);
+}
+
+/* All six sides, so the box looks solid from every angle while it turns */
+.face {
+  backface-visibility: hidden;
+}
+
+.faceFront,
+.faceBack {
+  background: linear-gradient(160deg, #f4d58d, #e2b85a);
+}
+
+.faceRight,
+.faceLeft {
+  background: linear-gradient(160deg, #e6bd62, #d4a23f);
+}
+
+.faceTop {
+  background: #f8e3b0;
+}
+
+.faceBottom {
+  background: #c9963a;
+}
+
+.faceFront { transform: translateZ(calc(var(--s) / 2)); }
+.faceBack { transform: rotateY(180deg) translateZ(calc(var(--s) / 2)); }
+.faceRight { transform: rotateY(90deg) translateZ(calc(var(--s) / 2)); }
+.faceLeft { transform: rotateY(-90deg) translateZ(calc(var(--s) / 2)); }
+.faceTop { transform: rotateX(90deg) translateZ(calc(var(--s) / 2)); }
+.faceBottom { transform: rotateX(-90deg) translateZ(calc(var(--s) / 2)); }
+
+/* the parcel tape: across the front, back and top */
+.faceFront::after,
+.faceBack::after,
+.faceTop::after {
+  content: '';
+  position: absolute;
+  inset: 0 calc(50% - 4px);
+  background: rgba(255, 247, 225, 0.75);
+}
+
+.cubeA {
+  top: -26px;
+  left: -28px;
+}
+
+.cubeB {
+  --s: 34px;
+  right: -18px;
+  top: 38%;
+  animation-delay: -2s;
+  animation-duration: 7s;
+}
+
+.cubeB .cubeInner {
+  animation-duration: 18s;
+  animation-direction: reverse;
+}
+
+.cubeC {
+  --s: 26px;
+  bottom: -14px;
+  left: 18%;
+  animation-delay: -4s;
+  animation-duration: 5s;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px); }
+}
+
+@keyframes turn {
+  from { transform: rotateX(-24deg) rotateY(38deg); }
+  to { transform: rotateX(-24deg) rotateY(398deg); }
+}
+
+/* Feature strip */
+.features {
+  display: grid;
+  gap: 1px;
+  max-width: var(--wrap);
+  margin: 0 auto 64px;
+  padding: 0 16px;
+}
+
+.feature {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 4px;
+  border-top: 1px solid var(--color-border);
+}
+
+.feature strong {
+  display: block;
+  font-size: 15px;
+}
+
+.feature span {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.featureIcon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: var(--color-cream);
+  border: 1px solid #f0e3cb;
+  color: var(--ink);
+}
+
+/* Three ways to use it */
+.cards {
+  max-width: var(--wrap);
+  margin: 0 auto;
+  padding: 0 16px 72px;
+}
+
+.sectionTitle {
+  max-width: 620px;
+  margin: 0 0 28px;
+  font-size: clamp(26px, 4vw, 36px);
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+}
+
+.cardGrid {
+  display: grid;
+  gap: 16px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 26px;
+  border: 1px solid var(--color-border);
+  border-radius: 22px;
+  background: var(--color-surface);
+  transition: transform 0.2s var(--ease), box-shadow 0.2s, border-color 0.2s;
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  border-color: #e3cf9f;
+  box-shadow: 0 20px 40px rgba(63, 47, 31, 0.08);
+}
+
+.cardFeatured {
+  background: linear-gradient(160deg, var(--color-cream), var(--color-surface) 70%);
+  border-color: #f0dfb6;
+}
+
+.cardIcon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 6px;
+  border-radius: 14px;
+  background: var(--color-primary);
+  color: var(--ink);
+}
+
+.card h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.card p {
+  flex: 1;
+  margin: 0;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.cardLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  margin-top: 8px;
+  padding: 6px 0;
+  background: transparent;
+  color: var(--ink);
+}
+
+.cardLink svg {
+  transition: transform 0.15s var(--ease);
+}
+
+.cardLink:hover svg {
+  transform: translateX(3px);
+}
+
+/* How it works */
+.steps {
+  padding: 72px 16px;
+  background: var(--color-cream);
+  border-block: 1px solid #f0e3cb;
+}
+
+.stepsInner {
+  max-width: var(--wrap);
+  margin: 0 auto;
+}
+
+.eyebrowPlain {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #9a7b3c;
+}
+
+.stepList {
+  position: relative;
+  display: grid;
+  gap: 28px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step h3 {
+  margin: 14px 0 6px;
+  font-size: 19px;
+}
+
+.step p {
+  max-width: 320px;
+  margin: 0;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.stepNumber {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--color-surface);
+  border: 1px solid #ead9b0;
+  box-shadow: 0 6px 14px rgba(63, 47, 31, 0.08);
+  font-weight: 750;
+}
+
+/* For business */
+.business {
+  display: grid;
+  gap: 32px;
+  max-width: var(--wrap);
+  margin: 72px auto;
+  padding: 36px 24px;
+  border-radius: 28px;
+  background: var(--ink);
+  color: var(--color-cream);
+}
+
+.business .eyebrowPlain {
+  color: var(--color-primary);
+}
+
+.businessText h2 {
+  margin: 0 0 12px;
+  font-size: clamp(26px, 4vw, 34px);
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.businessText p {
+  max-width: 480px;
+  margin: 0 0 24px;
+  line-height: 1.6;
+  color: rgba(255, 247, 225, 0.75);
+}
+
+.businessList {
+  display: grid;
+  gap: 12px;
+  align-content: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.businessList li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(255, 247, 225, 0.06);
+  border: 1px solid rgba(255, 247, 225, 0.12);
+}
+
+.businessList svg {
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+/* Footer */
+.footer {
+  margin-top: auto;
+  border-top: 1px solid var(--color-border);
+}
+
+.footerInner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  max-width: var(--wrap);
+  margin: 0 auto;
+  padding: 24px 16px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.footerBrand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.footerBrand .logoMark {
+  width: 28px;
+  height: 28px;
+}
+
+.footerLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+
+.footerLink {
+  padding: 0;
+  background: transparent;
+  color: var(--muted);
+}
+
+.footerLink:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Wider screens */
+@media (min-width: 640px) {
+  .trackForm {
+    flex-direction: row;
+    align-items: center;
+    border-radius: 999px;
+  }
+
+  .trackIcon {
+    display: grid;
+    place-items: center;
+    padding-left: 10px;
+    color: var(--muted);
+  }
+
+  .trackInput {
+    border-color: transparent;
+    padding-left: 4px;
+  }
+
+  .features {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0 24px;
+  }
+
+  .cardGrid,
+  .stepList {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .stepList::before {
+    /* the line joining the three step numbers */
+    content: '';
+    position: absolute;
+    top: 22px;
+    left: 44px;
+    right: 33%;
+    height: 2px;
+    background: repeating-linear-gradient(90deg, #e3cf9f 0 6px, transparent 6px 12px);
+  }
+}
+
+@media (max-width: 639px) {
+  .cubeB,
+  .cubeC {
+    display: none;
+  }
+}
+
+@media (min-width: 960px) {
+  .navLinks {
+    display: inline-flex;
+  }
+
+  .hero {
+    grid-template-columns: 1.15fr 0.85fr;
+    align-items: center;
+    gap: 56px;
+    padding: 80px 24px 72px;
+  }
+
+  .features {
+    grid-template-columns: repeat(4, 1fr);
+    padding: 0 24px;
+  }
+
+  .cards {
+    padding: 0 24px 96px;
+  }
+
+  .steps {
+    padding: 88px 0;
+  }
+
+  .stepsInner {
+    padding: 0 24px;
+  }
+
+  .business {
+    max-width: calc(var(--wrap) - 48px);
+    grid-template-columns: 1.2fr 1fr;
+    padding: 56px;
+    margin: 96px auto;
+  }
+}
+
+@media (min-width: 1200px) {
+  .business {
+    margin-inline: auto;
+  }
+}
+
+@media (max-width: 1199px) {
+  .business {
+    margin-inline: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .headerInner,
+  .cube,
+  .cubeInner,
+  .preview {
+    animation: none;
+  }
+
+  .liveDot {
+    animation: none;
+  }
+
+  .card,
+  .primaryButton,
+  .trackButton,
+  .trackButton svg,
+  .cardLink svg {
+    transition: none;
+  }
+
+  .card:hover,
+  .primaryButton:hover {
+    transform: none;
+  }
+}
+
+/* Anchor jumps (#how-it-works, #business) stop below the floating header */
+.steps,
+.business,
+.trackInput {
+  scroll-margin-top: 110px;
+}
+
+/* Phones (15 Nov): header buttons stay on one line; the floating parcels stay inside the screen */
+@media (max-width: 639px) {
+  .textButton,
+  .primaryButton {
+    white-space: nowrap;
+    padding: 9px 14px;
+    font-size: 14px;
+  }
+
+  .headerInner {
+    padding: 6px 6px 6px 12px;
+  }
+
+  .logo {
+    font-size: 17px;
+  }
+
+  .cubeA {
+    display: none;
+  }
+
+  .headline {
+    font-size: 40px;
+  }
+}

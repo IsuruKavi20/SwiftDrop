@@ -1,16 +1,18 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import lockIcon from '../../../assets/auth/icon-lock.svg';
 import mailIcon from '../../../assets/auth/icon-mail.svg';
 import { navigate, routes } from '../../../app/router';
 import { AuthError, logIn, startGoogleLogin } from '../api/authApi';
-import { landingPage } from '../lib/landing';
+import { forgetNext, landingPage, rememberNextFromUrl, withNext } from '../lib/landing';
 import { AuthLayout } from '../components/AuthLayout';
-import { Alert, Divider, GoogleButton, PrimaryButton, TextField } from '../components/FormControls';
+import { Alert, Divider, EntryPoints, GoogleButton, PrimaryButton, TextField } from '../components/FormControls';
 import styles from '../components/FormControls.module.css';
 
 /** Figma "SwiftDrop desktop login" / "mobile login". */
 export function LoginPage() {
   const [email, setEmail] = useState('');
+  // "?next=" (e.g. from "Sell with SwiftDrop") is remembered for after the login, also across Google login
+  useEffect(rememberNextFromUrl, []);
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -51,10 +53,13 @@ export function LoginPage() {
       <Divider>or continue with</Divider>
       <GoogleButton onClick={() => void startGoogleLogin()} />
 
-      <p className={styles.footer}>
-        New here?{' '}
-        <button type="button" className={styles.link} onClick={() => navigate(routes.signup)}>Create an account</button>
-      </p>
+      <EntryPoints items={[
+        { icon: 'user', title: 'Create an account', text: 'New here?', onClick: () => { forgetNext(); navigate(routes.signup); } },
+        { icon: 'store', title: 'Sell with SwiftDrop', text: 'Are you a business?',
+          onClick: () => navigate(withNext(routes.signup, routes.merchantApply)) },
+        { icon: 'search', title: 'Track without logging in', text: 'Just tracking a parcel?',
+          onClick: () => navigate(routes.publicTrack) },
+      ]} />
     </AuthLayout>
   );
 }

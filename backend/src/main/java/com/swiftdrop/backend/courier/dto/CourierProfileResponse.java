@@ -2,7 +2,7 @@ package com.swiftdrop.backend.courier.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.swiftdrop.backend.courier.entity.CourierProfile;
-import com.swiftdrop.backend.identity.AppUser;
+import com.swiftdrop.backend.identity.entity.AppUser;
 
 import java.util.UUID;
 

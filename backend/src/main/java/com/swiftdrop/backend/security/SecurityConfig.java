@@ -1,6 +1,7 @@
 package com.swiftdrop.backend.security;
 
 import com.nimbusds.jose.JOSEObjectType;
+import com.swiftdrop.backend.shared.error.SecurityProblemHandlers;
 import com.nimbusds.jose.proc.DefaultJOSEObjectTypeVerifier;
 import com.nimbusds.jose.proc.SecurityContext;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -40,13 +41,26 @@ import java.util.List;
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain api(HttpSecurity http) throws Exception {
+    SecurityFilterChain api(HttpSecurity http, SecurityProblemHandlers problems) throws Exception {
         http
                 .authorizeHttpRequests(requests -> requests
                         // Public parcel tracking: no login, read-only, answers hold no private data
                         .requestMatchers(HttpMethod.GET, "/api/public/**").permitAll()
+                        // AI assistant chat: open to guests on purpose, rate-limited in AiAssistantController
+                        .requestMatchers(HttpMethod.POST, "/api/public/ai/chat").permitAll()
+                        // Identity events from the auth service: no login, the SET's own signature is the proof
+                        // (checked by the identity module's SetVerifier); rate-limited there
+                        .requestMatchers(HttpMethod.POST, "/internal/identity-events").permitAll()
+                        // Health checks for Kubernetes: only on the private management port (8081), never public;
+                        // they answer UP/DOWN only, no details
+                        .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
                         .anyRequest().authenticated())
-                .oauth2ResourceServer(server -> server.jwt(jwt -> jwt.jwtAuthenticationConverter(authenticationConverter())))
+                .oauth2ResourceServer(server -> server
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(authenticationConverter()))
+                        // 401 (bad or missing token) and 403 as problem JSON, not an empty body
+                        .authenticationEntryPoint(problems)
+                        .accessDeniedHandler(problems))
+                .exceptionHandling(errors -> errors.authenticationEntryPoint(problems).accessDeniedHandler(problems))
                 // Tokens, not cookies: no session and nothing for CSRF to abuse
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .csrf(csrf -> csrf.disable())
@@ -100,7 +114,7 @@ public class SecurityConfig {
         CorsConfiguration cors = new CorsConfiguration();
         cors.setAllowedOrigins(auth.allowedOrigins());
         cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE"));
-        cors.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        cors.setAllowedHeaders(List.of("Authorization", "Content-Type", "Idempotency-Key"));
         cors.setAllowCredentials(false);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", cors);

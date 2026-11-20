@@ -32,6 +32,9 @@ build/
 ### VS Code ###
 .vscode/
 
+### Local config with secrets (never commit) ###
+src/main/resources/application-local.properties
+
 ### JVM crash reports (can contain memory contents) ###
 hs_err_pid*.log
 replay_pid*.log

@@ -2,30 +2,68 @@ import { AccountPage } from '../features/account/pages/AccountPage';
 import { GoogleCallbackPage } from '../features/auth/pages/GoogleCallbackPage';
 import { LoginPage } from '../features/auth/pages/LoginPage';
 import { SignupPage } from '../features/auth/pages/SignupPage';
-import { CustomerDashboardPage } from '../features/customer/pages/CustomerDashboardPage';
+import { CustomerPortal, PublicTrackingPage } from '../features/customer/pages/CustomerPortal';
+import { MerchantApplyPage } from '../features/merchant/pages/MerchantApplyPage';
+import { MerchantProfilePage } from '../features/merchant/pages/MerchantProfilePage';
 import { VerifyEmailPage } from '../features/auth/pages/VerifyEmailPage';
 import { CourierApp } from '../pages/courier/CourierApp';
+import { ProtectedMerchantRoute } from '../features/merchant/components/ProtectedMerchantRoute';
+import { MerchantPortal } from '../features/merchant/MerchantPortal';
+import { matchMerchantRoute } from '../features/merchant/merchantRoutes';
+import { DispatcherArea } from '../features/dispatcher/DispatcherPortal';
+import { matchDispatcherRoute } from '../features/dispatcher/dispatcherRoutes';
 import { routes, usePath } from './router';
+import { LandingPage } from '../features/landing/pages/LandingPage';
+import { DeliveryAiAssistant } from '../features/ai/components/DeliveryAiAssistant';
 
 export default function App() {
   const path = usePath();
 
-  if (path.startsWith('/courier')) {
-    return <CourierApp />;
-  }
+  // Every page, plus the AI assistant floating on top (PR #39). Notifications and the dashboard open inside the
+  // customer portal (no separate old pages).
+  const renderContent = () => {
+    if (path.startsWith('/courier')) return <CourierApp />;
+    if (path === routes.publicTrack || path.startsWith('/track/')) return <PublicTrackingPage />;
+    if (path.startsWith('/customer/')) return <CustomerPortal />;
+    if (path === routes.merchantProfile) return <MerchantProfilePage />;
 
-  switch (path) {
-    case routes.signup:
-      return <SignupPage />;
-    case routes.googleCallback:
-      return <GoogleCallbackPage />;
-    case routes.verifyEmail:
-      return <VerifyEmailPage />;
-    case routes.account:
-      return <AccountPage />;
-    case routes.customerDashboard:
-      return <CustomerDashboardPage />;
-    default:
-      return <LoginPage />;
-  }
+    const merchantRoute = matchMerchantRoute(path);
+    if (merchantRoute) {
+      if (merchantRoute.preview) return <MerchantPortal route={merchantRoute} />;
+      return (
+        <ProtectedMerchantRoute>
+          {(claims) => <MerchantPortal route={merchantRoute} claims={claims} />}
+        </ProtectedMerchantRoute>
+      );
+    }
+
+    // Admin area (admin and dispatch pages), ADMIN only
+    const dispatcherRoute = matchDispatcherRoute(path);
+    if (dispatcherRoute) return <DispatcherArea route={dispatcherRoute} />;
+
+    switch (path) {
+      case routes.signup:
+        return <SignupPage />;
+      case routes.googleCallback:
+        return <GoogleCallbackPage />;
+      case routes.verifyEmail:
+        return <VerifyEmailPage />;
+      case routes.account:
+        return <AccountPage />;
+      case routes.merchantApply:
+        return <MerchantApplyPage />;
+      case routes.login:
+        return <LoginPage />;
+      // The home page (and any unknown address): tracking for everyone, login only when needed
+      default:
+        return <LandingPage />;
+    }
+  };
+
+  return (
+    <>
+      {renderContent()}
+      <DeliveryAiAssistant />
+    </>
+  );
 }

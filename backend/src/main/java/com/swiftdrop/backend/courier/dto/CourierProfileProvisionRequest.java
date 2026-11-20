@@ -6,7 +6,7 @@ import jakarta.validation.constraints.Size;
 /**
  * Request payload for provisioning or updating a courier operational profile.
  * Operational attributes (vehicle, zone, active status) are maintained here under
- * Dispatcher/Admin supervision while identity belongs to {@link com.swiftdrop.backend.identity.AppUser}.
+ * Dispatcher/Admin supervision while identity belongs to {@link com.swiftdrop.backend.identity.entity.AppUser}.
  */
 public record CourierProfileProvisionRequest(
         @NotBlank(message = "Phone number is required")
