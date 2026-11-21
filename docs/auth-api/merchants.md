@@ -62,7 +62,12 @@ current status. Reusing the same key with different shipment fields returns 409.
 A retry must use the same client, key and shipment data. The booking and its client
 audit record are stored in one transaction.
 
-The route denies authenticated requests until an issuer adapter is installed.
-The adapter must establish the verified machine token type, booking permission,
-stable client ID, authoritative business ownership, and revocation and suspension
-rules. The current implementation includes a test-only contract.
+SwiftDrop's adapter is enabled only when `SWIFTDROP_MERCHANT_MACHINE_BOOKING_ENABLED=true`.
+It uses the configured backend service credentials for introspection on every booking attempt,
+including idempotent replays. Auth unavailability or an invalid introspection response
+returns 503. An active response whose owner is absent or differs from the signed
+owner is denied. Locally, the Merchant profile is linked by `merchant.auth_user_id`.
+
+Before enabling production booking, verify that introspection marks previously issued
+tokens inactive after credential revocation, Merchant suspension, or owner blocking,
+and that the backend service client can call the introspection endpoint.

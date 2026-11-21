@@ -3,6 +3,7 @@ import logoIcon from '../../../assets/auth/logo-box.svg';
 import { navigate, routes } from '../../../app/router';
 import { logOut, refresh } from '../../auth/api/authApi';
 import { Alert } from '../../auth/components/FormControls';
+import { areasFor } from '../../auth/lib/areas';
 import { getAccessToken, readClaims, type AccessClaims } from '../../auth/lib/session';
 import { getMerchantProfile, MerchantApiError, type MerchantResponse } from '../api/merchantApi';
 import { BusinessProfileForm } from '../components/BusinessProfileForm';
@@ -79,6 +80,7 @@ export function MerchantProfilePage() {
   }
 
   const claims = state.kind === 'ready' ? state.claims : null;
+  const customerArea = areasFor(claims?.entitlements ?? []).find((area) => area.id === 'customer');
 
   return (
     <div className={styles.page}>
@@ -132,11 +134,11 @@ export function MerchantProfilePage() {
           >
             Webhooks
           </button>
-          {claims?.entitlements?.includes('parcel:read-own') && (
+          {customerArea && (
             <button
               type="button"
               className={styles.ghostButton}
-              onClick={() => navigate(routes.customerDashboard)}
+              onClick={() => navigate(customerArea.path)}
             >
               Customer Dashboard
             </button>
