@@ -564,7 +564,7 @@ test.describe('Merchant Business Profile E2E', () => {
     await expect(page.locator('role=alert')).toContainText('You need merchant privileges to access this page.');
   });
 
-  test('13. Multi-role users can switch between Merchant and Customer views seamlessly', async ({ page }) => {
+  test('13. Merchant-entitled users only see permitted account areas', async ({ page }) => {
     await setupNetworkMocks(page, {
       claims: {
         sub: 'dual-role-user-uuid',
@@ -575,23 +575,15 @@ test.describe('Merchant Business Profile E2E', () => {
     });
     await injectSessionToken(page);
 
-    // On Merchant Profile: button to Customer Dashboard is visible
     await page.goto('/merchant/profile');
     await expect(page.locator('#profile-title')).toBeVisible();
-    const customerDashBtn = page.locator('button:text("Customer Dashboard")');
-    await expect(customerDashBtn).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Customer Dashboard', exact: true })).toHaveCount(0);
 
-    // Click to switch to Customer Dashboard
-    await customerDashBtn.click();
-    await expect(page).toHaveURL(/\/customer\/dashboard/);
-
-    // On Customer Dashboard: button to Merchant view is visible in sidebar footer
-    const merchantViewBtn = page.locator('button:text("Merchant view")');
-    await expect(merchantViewBtn).toBeVisible();
-
-    // Customer → Merchant view reaches /merchant/dashboard
-    await merchantViewBtn.click();
-    await expect(page).toHaveURL(/\/merchant\/dashboard/);
+    // A direct Customer URL still lands in the authorized Merchant portal.
+    await page.goto('/customer/dashboard');
+    await expect(page).toHaveURL(/\/merchant\/dashboard$/);
+    await page.locator('summary').filter({ hasText: 'Merchant account' }).click();
+    await expect(page.getByRole('link', { name: 'Customer View', exact: true })).toHaveCount(0);
 
     // The dashboard renders successfully
     await expect(page.locator('text=SwiftDrop Merchant')).toBeVisible();
