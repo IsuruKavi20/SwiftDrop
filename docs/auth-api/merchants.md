@@ -32,11 +32,11 @@ It is a **machine** token: no person, no name or email.
 | `merchant_owner` | the merchant owner's user id (UUID) | **finding the Merchant**: `merchants.owner_id` |
 | `merchant_id` | the auth service's own merchant id | not needed in the backend |
 | `roles` | `["MERCHANT"]` | |
-| `entitlements` | `merchant:api-access`, `parcel:create`, `parcel:read-own` | booking needs `parcel:create` **and** `merchant:api-access` |
+| `entitlements` | `merchant:api-access`, `merchant:api-booking`, `parcel:create`, `parcel:read-own` | booking needs **`merchant:api-booking`** (only machine tokens have it; no person's login ever does) |
 | `aud` / `typ` | `swiftdrop-api` / `at+jwt` | already checked by the backend's token validator |
 
 ## Rules for the booking API (backend)
-1. **Permission:** require `parcel:create` and `merchant:api-access`.
+1. **Permission:** require `merchant:api-booking`.
 2. **Still valid?** Tokens live 15 minutes. A deleted key, a suspended merchant or a blocked owner gets no new
    tokens, but one already issued keeps working until it ends. Booking creates real work, so first ask the auth
    service: `POST https://auth.getswiftdrop.me/oauth2/introspect` (Basic auth with our `svc_swiftdrop-backend`
