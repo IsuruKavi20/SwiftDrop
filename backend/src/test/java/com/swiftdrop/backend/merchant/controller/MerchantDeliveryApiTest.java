@@ -732,13 +732,42 @@ class MerchantDeliveryApiTest {
     }
 
     @Test
-    void dashboardReflectsIncompleteProfile() throws Exception {
-        UUID ownerId = UUID.randomUUID();
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void freshMerchantReadsReturnEmptyResultsWithoutCreatingAProfile() throws Exception {
+        UUID fresh = UUID.randomUUID();
+        UUID other = UUID.randomUUID();
+        var freshCaller = merchant(fresh, "New Merchant");
+        try {
+            var booked = mockMvc.perform(post("/api/merchants/me/deliveries").with(merchant(other, "Other Merchant"))
+                            .contentType(MediaType.APPLICATION_JSON).content(VALID_DELIVERY_JSON))
+                    .andExpect(status().isCreated()).andReturn();
+            long otherDelivery = objectMapper.readTree(booked.getResponse().getContentAsString()).path("id").asLong();
 
-        mockMvc.perform(get("/api/merchants/me/dashboard").with(merchant(ownerId, "New Merchant")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.profileComplete").value(false))
-                .andExpect(jsonPath("$.totalOrders").value(0));
+            mockMvc.perform(get("/api/merchants/me/dashboard").with(freshCaller))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.profileComplete").value(false))
+                    .andExpect(jsonPath("$.totalOrders").value(0))
+                    .andExpect(jsonPath("$.countsByStatus.PENDING").value(0))
+                    .andExpect(jsonPath("$.recentOrders").isEmpty());
+            mockMvc.perform(get("/api/merchants/me/deliveries?status=CONFIRMED&page=2&size=5").with(freshCaller))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content").isEmpty())
+                    .andExpect(jsonPath("$.page").value(2))
+                    .andExpect(jsonPath("$.size").value(5))
+                    .andExpect(jsonPath("$.totalElements").value(0))
+                    .andExpect(jsonPath("$.totalPages").value(0));
+            mockMvc.perform(get("/api/merchants/me/deliveries/" + otherDelivery).with(freshCaller))
+                    .andExpect(status().isNotFound());
+
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM merchant WHERE auth_user_id = ?", Integer.class, fresh))
+                    .isZero();
+        } finally {
+            new TransactionTemplate(transactions).executeWithoutResult(status -> {
+                jdbc.update("DELETE FROM delivery WHERE merchant_id = (SELECT merchant_id FROM merchant WHERE auth_user_id = ?)", other);
+                jdbc.update("DELETE FROM merchant WHERE auth_user_id IN (?, ?)", fresh, other);
+                jdbc.update("DELETE FROM app_users WHERE id IN (?, ?)", fresh, other);
+            });
+        }
     }
 
     @Test

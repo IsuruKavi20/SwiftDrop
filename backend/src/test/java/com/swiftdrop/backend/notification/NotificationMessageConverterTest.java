@@ -5,6 +5,8 @@ import com.swiftdrop.backend.notification.config.RabbitMqConfig;
 import com.swiftdrop.backend.notification.event.DeliveryStatusChangedEvent;
 import com.swiftdrop.backend.notification.event.MerchantAssignmentWebhook;
 import com.swiftdrop.backend.notification.event.MerchantConfirmedWebhook;
+import com.swiftdrop.backend.notification.event.MerchantLifecycleWebhook;
+import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
@@ -83,16 +85,22 @@ class NotificationMessageConverterTest {
     }
 
     @Test
-    void merchantQueueCanDeserializeBothEventTypesWithoutAnInferredType() {
+    void merchantQueueRoundTripsAndRequiresMandatoryRoutingForEachWebhook() {
         var timestamp = Instant.parse("2026-01-01T00:00:00Z");
         var confirmation = new MerchantConfirmedWebhook(42L,
                 new MerchantConfirmedWebhook.Payload("delivery-status-1", 5L, "SD-123", "CONFIRMED", timestamp));
         var assignment = new MerchantAssignmentWebhook(42L,
                 new MerchantAssignmentWebhook.Payload("courier-assignment-2", 5L, "SD-123", "COURIER_ASSIGNED", timestamp));
-        for (Object value : new Object[]{confirmation, assignment}) {
+        var lifecycle = new MerchantLifecycleWebhook(42L,
+                new MerchantLifecycleWebhook.Payload("delivery-status-3", 5L, "SD-123", "PICKED_UP", timestamp));
+        var rabbit = config.rabbitTemplate(org.mockito.Mockito.mock(ConnectionFactory.class), messageConverter);
+        for (Object value : new Object[]{confirmation, assignment, lifecycle}) {
             var message = messageConverter.toMessage(value, new MessageProperties());
             assertThat(messageConverter.fromMessage(message)).isEqualTo(value);
+            assertThat(message.getMessageProperties().getReceivedRoutingKey()).isNull();
+            assertThat(rabbit.isMandatoryFor(message)).isTrue();
         }
+        assertThat(rabbit.isMandatoryFor(messageConverter.toMessage("unrelated", new MessageProperties()))).isFalse();
     }
 
     @Test

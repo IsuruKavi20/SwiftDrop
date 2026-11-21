@@ -529,11 +529,12 @@ test.describe('Merchant Module Full Feature Set', () => {
     await form.getByPlaceholder('https://api.yourdomain.com/webhooks/swiftdrop').fill('https://example.com/swiftdrop');
     await form.getByRole('checkbox', { name: 'Delivery Confirmed', exact: true }).check();
     await form.getByRole('checkbox', { name: 'Courier Assigned', exact: true }).check();
+    await form.getByRole('checkbox', { name: 'Out for Delivery', exact: true }).check();
     const saved = page.waitForRequest((request) =>
       request.method() === 'POST' && request.url().endsWith('/api/merchants/me/webhooks'));
     await form.getByRole('button', { name: 'Register Webhook', exact: true }).click();
     expect((await saved).postDataJSON().subscribedEvents.split(',').sort())
-      .toEqual(['COURIER_ASSIGNED', 'DELIVERY_CONFIRMED']);
+      .toEqual(['COURIER_ASSIGNED', 'DELIVERY_CONFIRMED', 'DELIVERY_OUT_FOR_DELIVERY']);
   });
 
   test('7. Create Order: auto-fills pickup details from saved business profile and allows manual editing', async ({ page }) => {

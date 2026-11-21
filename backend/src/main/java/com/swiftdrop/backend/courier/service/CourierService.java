@@ -12,6 +12,7 @@ import com.swiftdrop.backend.courier.entity.CourierProfile;
 import com.swiftdrop.backend.courier.entity.DeliveryFailure;
 import com.swiftdrop.backend.courier.entity.DeliveryProof;
 import com.swiftdrop.backend.courier.exception.InvalidStatusTransitionException;
+import com.swiftdrop.backend.courier.event.MerchantCourierStatusChanged;
 import com.swiftdrop.backend.courier.exception.UnauthorizedDeliveryAccessException;
 import com.swiftdrop.backend.courier.repository.CourierDeliveryRepository;
 import com.swiftdrop.backend.courier.repository.CourierProfileRepository;
@@ -24,6 +25,7 @@ import com.swiftdrop.backend.customer.entity.TrackingEvent;
 import com.swiftdrop.backend.shared.error.NotFoundException;
 import com.swiftdrop.backend.identity.entity.AppUser;
 import com.swiftdrop.backend.identity.service.UserDirectory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -49,17 +51,19 @@ public class CourierService {
     private final DeliveryProofRepository deliveryProofs;
     private final DeliveryFailureRepository deliveryFailures;
     private final UserDirectory userDirectory;
+    private final ApplicationEventPublisher events;
 
     public CourierService(CourierDeliveryRepository courierDeliveries,
                           CourierProfileRepository courierProfiles,
                           DeliveryProofRepository deliveryProofs,
                           DeliveryFailureRepository deliveryFailures,
-                          UserDirectory userDirectory) {
+                          UserDirectory userDirectory, ApplicationEventPublisher events) {
         this.courierDeliveries = courierDeliveries;
         this.courierProfiles = courierProfiles;
         this.deliveryProofs = deliveryProofs;
         this.deliveryFailures = deliveryFailures;
         this.userDirectory = userDirectory;
+        this.events = events;
     }
 
     /**
@@ -279,7 +283,7 @@ public class CourierService {
             String trackingNumber,
             CourierStatusUpdateRequest request) {
         AppUser courier = userDirectory.require(courierId);
-        Delivery delivery = requireCourierDelivery(trackingNumber, courierId);
+        Delivery delivery = lockCourierDelivery(trackingNumber, courierId);
 
         DeliveryStatus next = request.nextStatus();
         if (next == DeliveryStatus.DELIVERED) {
@@ -300,8 +304,7 @@ public class CourierService {
                 ? request.notes().trim()
                 : "Status updated to " + next;
 
-        delivery.addTrackingEvent(new TrackingEvent(next, description, location, Instant.now(), courier));
-        courierDeliveries.save(delivery);
+        recordTransition(delivery, new TrackingEvent(next, description, location, Instant.now(), courier));
 
         DeliveryProof proof = deliveryProofs.findByDeliveryId(delivery.getId()).orElse(null);
         List<DeliveryFailure> failures = deliveryFailures.findByDeliveryIdOrderByReportedAtDesc(delivery.getId());
@@ -316,7 +319,7 @@ public class CourierService {
             String trackingNumber,
             DeliveryConfirmationRequest request) {
         AppUser courier = userDirectory.require(courierId);
-        Delivery delivery = requireCourierDelivery(trackingNumber, courierId);
+        Delivery delivery = lockCourierDelivery(trackingNumber, courierId);
 
         if (!isTransitionAllowed(delivery.getStatus(), DeliveryStatus.DELIVERED)) {
             throw new InvalidStatusTransitionException(trackingNumber, delivery.getStatus(), DeliveryStatus.DELIVERED);
@@ -344,8 +347,7 @@ public class CourierService {
                         ? " (" + request.deliveryNotes().trim() + ")"
                         : "");
 
-        delivery.addTrackingEvent(new TrackingEvent(DeliveryStatus.DELIVERED, description, location, Instant.now(), courier));
-        courierDeliveries.save(delivery);
+        recordTransition(delivery, new TrackingEvent(DeliveryStatus.DELIVERED, description, location, Instant.now(), courier));
 
         List<DeliveryFailure> failures = deliveryFailures.findByDeliveryIdOrderByReportedAtDesc(delivery.getId());
         return CourierDeliveryDetailResponse.from(delivery, proof, failures);
@@ -359,7 +361,7 @@ public class CourierService {
             String trackingNumber,
             DeliveryFailureRequest request) {
         AppUser courier = userDirectory.require(courierId);
-        Delivery delivery = requireCourierDelivery(trackingNumber, courierId);
+        Delivery delivery = lockCourierDelivery(trackingNumber, courierId);
 
         if (!isTransitionAllowed(delivery.getStatus(), DeliveryStatus.FAILED)) {
             throw new InvalidStatusTransitionException(trackingNumber, delivery.getStatus(), DeliveryStatus.FAILED);
@@ -378,8 +380,7 @@ public class CourierService {
                 : "Delivery Attempt Location";
         String description = "Delivery failed: " + request.failureReason() + " - " + request.failureRemarks().trim();
 
-        delivery.addTrackingEvent(new TrackingEvent(DeliveryStatus.FAILED, description, location, Instant.now(), courier));
-        courierDeliveries.save(delivery);
+        recordTransition(delivery, new TrackingEvent(DeliveryStatus.FAILED, description, location, Instant.now(), courier));
 
         DeliveryProof proof = deliveryProofs.findByDeliveryId(delivery.getId()).orElse(null);
         List<DeliveryFailure> failures = deliveryFailures.findByDeliveryIdOrderByReportedAtDesc(delivery.getId());
@@ -417,10 +418,34 @@ public class CourierService {
         Delivery delivery = courierDeliveries.findByTrackingNumber(trackingNumber)
                 .orElseThrow(() -> new NotFoundException("Delivery not found with tracking number: " + trackingNumber));
 
+        return requireAssignedCourier(delivery, courierId);
+    }
+
+    private Delivery lockCourierDelivery(String trackingNumber, UUID courierId) {
+        Delivery delivery = courierDeliveries.lockByTrackingNumber(trackingNumber)
+                .orElseThrow(() -> new NotFoundException("Delivery not found with tracking number: " + trackingNumber));
+        return requireAssignedCourier(delivery, courierId);
+    }
+
+    private Delivery requireAssignedCourier(Delivery delivery, UUID courierId) {
         if (delivery.getCourier() == null || !delivery.getCourier().getId().equals(courierId)) {
-            throw new UnauthorizedDeliveryAccessException(trackingNumber, courierId);
+            throw new UnauthorizedDeliveryAccessException(delivery.getTrackingNumber(), courierId);
         }
         return delivery;
+    }
+
+    private void recordTransition(Delivery delivery, TrackingEvent tracking) {
+        delivery.addTrackingEvent(tracking);
+        if (delivery.getMerchantId() == null) {
+            courierDeliveries.save(delivery);
+            return;
+        }
+
+        Delivery saved = courierDeliveries.saveAndFlush(delivery);
+        // Hibernate may replace the newly attached event with its managed copy.
+        TrackingEvent persisted = saved.getTrackingEvents().getLast();
+        events.publishEvent(new MerchantCourierStatusChanged(saved.getMerchantId(), saved.getId(),
+                persisted.getId(), saved.getTrackingNumber(), persisted.getStatus(), persisted.getEventTime()));
     }
 }
 
