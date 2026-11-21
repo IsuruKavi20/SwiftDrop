@@ -40,6 +40,16 @@ export function verifyEmail(token: string): Promise<void> {
   return post<void>('/api/v1/auth/email-verification', { token });
 }
 
+/** Forgot password: always 202 with the same answer, whether or not the email has an account. */
+export function requestPasswordReset(email: string): Promise<void> {
+  return post<void>('/api/v1/auth/password-reset', { email });
+}
+
+/** Sets the new password with the one-time token from the email link (#token=...). Ends every session. */
+export function confirmPasswordReset(token: string, newPassword: string): Promise<void> {
+  return post<void>('/api/v1/auth/password-reset/confirm', { token, new_password: newPassword });
+}
+
 /** Leaves the page: Google, then the auth service, then back to /auth/callback#code=... */
 export async function startGoogleLogin(): Promise<void> {
   const challenge = await createChallenge();

@@ -6,6 +6,8 @@ import { CustomerPortal, PublicTrackingPage } from '../features/customer/pages/C
 import { MerchantApplyPage } from '../features/merchant/pages/MerchantApplyPage';
 import { MerchantProfilePage } from '../features/merchant/pages/MerchantProfilePage';
 import { VerifyEmailPage } from '../features/auth/pages/VerifyEmailPage';
+import { ForgotPasswordPage } from '../features/auth/pages/ForgotPasswordPage';
+import { ResetPasswordPage } from '../features/auth/pages/ResetPasswordPage';
 import { CourierApp } from '../pages/courier/CourierApp';
 import { ProtectedMerchantRoute } from '../features/merchant/components/ProtectedMerchantRoute';
 import { MerchantPortal } from '../features/merchant/MerchantPortal';
@@ -48,6 +50,10 @@ export default function App() {
         return <GoogleCallbackPage />;
       case routes.verifyEmail:
         return <VerifyEmailPage />;
+      case routes.forgotPassword:
+        return <ForgotPasswordPage />;
+      case routes.resetPassword:
+        return <ResetPasswordPage />;
       case routes.account:
         return <AccountPage />;
       case routes.merchantApply:
