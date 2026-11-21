@@ -9,6 +9,8 @@ export const routes = {
   signup: '/signup',
   googleCallback: '/auth/callback',
   verifyEmail: '/verify-email',
+  forgotPassword: '/forgot-password',
+  resetPassword: '/reset-password',
   account: '/account',
   customerDashboard: '/customer/dashboard',
   customerNotifications: '/customer/notifications',
