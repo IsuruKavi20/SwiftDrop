@@ -20,6 +20,19 @@ export interface McpToolDefinition {
   inputSchema: Record<string, unknown>;
 }
 
+/** A short message people can understand (the server's own text for limits and bad input; never raw error bodies). */
+async function friendlyError(response: Response): Promise<string> {
+  try {
+    const problem = (await response.json()) as { detail?: string };
+    if ((response.status === 429 || response.status === 400) && problem.detail) {
+      return problem.detail;
+    }
+  } catch {
+    // not JSON: fall through to the general message
+  }
+  return 'The assistant is not available right now. Please try again shortly.';
+}
+
 export async function sendAiMessage(
   message: string,
   history: AiChatMessage[] = [],
@@ -33,7 +46,7 @@ export async function sendAiMessage(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${env.apiUrl}/api/v1/ai/chat`, {
+  const response = await fetch(`${env.apiUrl}/api/public/ai/chat`, {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -44,15 +57,14 @@ export async function sendAiMessage(
   });
 
   if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`AI Service error (${response.status}): ${errorBody || response.statusText}`);
+    throw new Error(await friendlyError(response));
   }
 
   return response.json();
 }
 
 export async function fetchMcpTools(): Promise<McpToolDefinition[]> {
-  const response = await fetch(`${env.apiUrl}/api/v1/ai/mcp/tools`);
+  const response = await fetch(`${env.apiUrl}/api/public/ai/mcp/tools`);
   if (!response.ok) {
     throw new Error('Failed to load MCP tools');
   }

@@ -4,11 +4,13 @@ import com.swiftdrop.backend.shared.dto.PageResponse;
 import com.swiftdrop.backend.customer.entity.DeliveryStatus;
 import com.swiftdrop.backend.identity.entity.AppUser;
 import com.swiftdrop.backend.identity.service.UserDirectory;
+import com.swiftdrop.backend.merchant.security.MerchantMachineBookingAccess;
 import com.swiftdrop.backend.merchant.dto.CreateMerchantDeliveryRequest;
 import com.swiftdrop.backend.merchant.dto.MerchantDashboardResponse;
 import com.swiftdrop.backend.merchant.dto.MerchantDeliveryDetailResponse;
 import com.swiftdrop.backend.merchant.dto.MerchantDeliverySummaryResponse;
 import com.swiftdrop.backend.merchant.service.MerchantDeliveryService;
+import com.swiftdrop.backend.pricing.DeliveryPricing;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
@@ -21,7 +23,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RequestHeader;
+import com.swiftdrop.backend.merchant.service.MerchantHumanBookingService;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -37,17 +41,37 @@ public class MerchantDeliveryController {
 
     private final MerchantDeliveryService deliveryService;
     private final UserDirectory userDirectory;
+    private final MerchantHumanBookingService humanBooking;
+    private final MerchantMachineBookingAccess machineAccess;
 
-    public MerchantDeliveryController(MerchantDeliveryService deliveryService, UserDirectory userDirectory) {
+    public MerchantDeliveryController(MerchantDeliveryService deliveryService, UserDirectory userDirectory,
+                                      MerchantMachineBookingAccess machineAccess, MerchantHumanBookingService humanBooking) {
         this.deliveryService = deliveryService;
         this.userDirectory = userDirectory;
+        this.machineAccess = machineAccess;
+        this.humanBooking = humanBooking;
     }
 
     @PostMapping("/deliveries")
-    @ResponseStatus(HttpStatus.CREATED)
-    public MerchantDeliveryDetailResponse createDelivery(@Valid @RequestBody CreateMerchantDeliveryRequest request,
-                                                         @AuthenticationPrincipal Jwt token) {
-        return deliveryService.createDelivery(owner(token), request);
+    public ResponseEntity<MerchantDeliveryDetailResponse> createDelivery(
+            @Valid @RequestBody CreateMerchantDeliveryRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String key,
+            @AuthenticationPrincipal Jwt token) {
+        var result = humanBooking.book(owner(token), key, request);
+        return ResponseEntity.status(result.replayed() ? HttpStatus.OK : HttpStatus.CREATED).body(result.delivery());
+    }
+
+    @PostMapping("/deliveries/estimate")
+    public DeliveryPricing.Quote estimate(@Valid @RequestBody CreateMerchantDeliveryRequest request,
+                                          @AuthenticationPrincipal Jwt token) {
+        owner(token);
+        return deliveryService.estimate(request);
+    }
+
+    @PostMapping("/deliveries/{id}/confirm")
+    public MerchantDeliveryDetailResponse confirmDelivery(@PathVariable Long id,
+                                                           @AuthenticationPrincipal Jwt token) {
+        return deliveryService.confirmDelivery(owner(token), id);
     }
 
     @GetMapping("/deliveries")
@@ -71,7 +95,7 @@ public class MerchantDeliveryController {
     }
 
     private AppUser owner(Jwt token) {
-        if (!isPerson(token)) {
+        if (machineAccess.isMachine(token) || !isPerson(token)) {
             throw new AccessDeniedException("The merchant endpoints require a valid user account");
         }
         return userDirectory.caller(token);

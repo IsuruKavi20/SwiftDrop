@@ -1,0 +1,16 @@
+.dialog {
+  width: min(32rem, calc(100% - 2rem));
+  max-height: calc(100dvh - 2rem);
+  padding: clamp(1rem, 4vw, 1.75rem);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.dialog::backdrop { background: rgb(35 23 12 / 50%); }
+.dialog h3 { margin: 0; }
+.dialog dl { display: grid; gap: 0.65rem; margin-block: 1rem; padding: 1rem; border-radius: var(--radius-input); background: var(--color-page); }
+.dialog dt { color: var(--color-text-muted); font-size: 0.8rem; }
+.dialog dd { margin: 0.2rem 0 0; font-weight: 650; overflow-wrap: anywhere; }
+.cancel { min-height: 2.75rem; padding: 0.55rem 1rem; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface); color: var(--color-text); cursor: pointer; }
+.error { color: var(--color-error); }

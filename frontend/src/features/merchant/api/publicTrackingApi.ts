@@ -15,7 +15,7 @@ export interface PublicTracking {
 
 export async function findPublicTracking(number: string, signal: AbortSignal): Promise<PublicTracking | null> {
   // The public endpoint accepts unauthenticated requests. An expired bearer token can cause a 401 here.
-  const response = await fetch(`${env.apiUrl}/api/public/tracking/${encodeURIComponent(number)}`, { signal });
+  const response = await fetch(`${env.apiUrl}/api/public/tracking/${encodeURIComponent(number)}`, { signal, cache: 'no-store' });
   if (response.status === 404) return null;
   if (!response.ok) throw new Error('Tracking lookup failed.');
   return response.json() as Promise<PublicTracking>;

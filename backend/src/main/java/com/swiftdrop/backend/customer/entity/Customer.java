@@ -65,6 +65,12 @@ public class Customer {
         this.phoneNumber = phoneNumber;
     }
 
+    public Customer(AppUser user, String firstName, String lastName, String email, String phoneNumber) {
+        this(user, phoneNumber);
+        this.fullName = (firstName != null ? firstName + (lastName != null ? " " + lastName : "") : lastName);
+        this.email = email;
+    }
+
     public void addAddress(CustomerAddress address) {
         address.setCustomer(this);
         addresses.add(address);

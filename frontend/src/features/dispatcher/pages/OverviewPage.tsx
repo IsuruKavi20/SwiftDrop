@@ -7,6 +7,7 @@ import { dispatcherPath } from '../dispatcherRoutes';
 import { formatDateTime, formatToday, hoursSince, latestFailure, WAITING_ALERT_HOURS } from '../lib/format';
 import { useDeliveryDialogs } from '../lib/useDeliveryDialogs';
 import { useDispatchData } from '../lib/useDispatchData';
+import { EmptyState, LoadError } from '../components/States';
 import styles from '../components/Dispatcher.module.css';
 
 async function loadOverview() {
@@ -20,7 +21,7 @@ async function loadOverview() {
 }
 
 export function OverviewPage({ preview }: { preview: boolean }) {
-  const { data, error, loading } = useDispatchData(loadOverview, []);
+  const { data, error, loading, reload } = useDispatchData(loadOverview, []);
   const { openDetails, openAssign, dialogs } = useDeliveryDialogs();
 
   const counts = data?.counts;
@@ -47,9 +48,9 @@ export function OverviewPage({ preview }: { preview: boolean }) {
           </DispatcherLink>
         )} />
 
-      {error && <p className={styles.errorBox} role="alert">{error}</p>}
+      {error && <LoadError message={error} onRetry={reload} />}
 
-      <ul className={styles.statGrid} aria-busy={loading}>
+      <ul className={styles.statGrid} aria-busy={loading} data-loading={!data || undefined}>
         {cards.map((card) => (
           <li key={card.label} className={styles.statCard}>
             <div className={styles.statTop}>
@@ -70,7 +71,9 @@ export function OverviewPage({ preview }: { preview: boolean }) {
               <p>Failed attempts and bookings waiting more than {WAITING_ALERT_HOURS} hours for a courier.</p>
             </div>
           </header>
-          {data && attention.length === 0 && <p className={styles.empty}>Nothing needs attention right now.</p>}
+          {data && attention.length === 0 && (
+            <EmptyState icon="check" title="All clear" positive compact>Nothing needs attention right now.</EmptyState>
+          )}
           <ul className={styles.attentionList}>
             {attention.map((delivery) => {
               const failed = delivery.status === 'FAILED';

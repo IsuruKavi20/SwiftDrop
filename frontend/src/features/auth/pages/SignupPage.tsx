@@ -4,9 +4,9 @@ import mailIcon from '../../../assets/auth/icon-mail.svg';
 import userIcon from '../../../assets/auth/icon-user.svg';
 import { navigate, routes } from '../../../app/router';
 import { AuthError, logIn, signUp, startGoogleLogin } from '../api/authApi';
-import { landingPage, rememberNextFromUrl, withNext } from '../lib/landing';
+import { forgetNext, landingPage, rememberNextFromUrl, withNext } from '../lib/landing';
 import { AuthLayout } from '../components/AuthLayout';
-import { Alert, Divider, GoogleButton, PrimaryButton, TextField } from '../components/FormControls';
+import { Alert, Divider, EntryPoints, GoogleButton, PrimaryButton, TextField } from '../components/FormControls';
 import styles from '../components/FormControls.module.css';
 
 // The auth service's rule (NIST SP 800-63B): long passphrases beat complex short passwords
@@ -78,8 +78,8 @@ export function SignupPage() {
             value={password} onChange={(e) => setPassword(e.target.value)} />
           <p className={styles.hint}>
             By creating an account, you agree to SwiftDrop's{' '}
-            <a href="https://getswiftdrop.me/terms.html" target="_blank" rel="noreferrer">Terms</a> and{' '}
-            <a href="https://getswiftdrop.me/privacy.html" target="_blank" rel="noreferrer">Privacy Policy</a>.
+            <a href="https://getswiftdrop.me/terms.html" target="_blank" rel="noopener noreferrer">Terms</a> and{' '}
+            <a href="https://getswiftdrop.me/privacy.html" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
           </p>
           <PrimaryButton type="submit" disabled={busy}>{busy ? 'Creating account…' : 'Create account'}</PrimaryButton>
         </form>
@@ -88,17 +88,11 @@ export function SignupPage() {
       <Divider>or continue with</Divider>
       <GoogleButton onClick={() => void startGoogleLogin()} />
 
-      <p className={styles.footer}>
-        Already have an account?{' '}
-        <button type="button" className={styles.link} onClick={() => navigate(routes.login)}>Log in</button>
-      </p>
-      <p className={styles.footer}>
-        Are you a business?{' '}
-        <button type="button" className={styles.link}
-          onClick={() => navigate(withNext(routes.signup, routes.merchantApply))}>
-          Sell with SwiftDrop
-        </button>
-      </p>
+      <EntryPoints items={[
+        { icon: 'user', title: 'Log in', text: 'Already have an account?', onClick: () => { forgetNext(); navigate(routes.login); } },
+        { icon: 'store', title: 'Sell with SwiftDrop', text: 'Are you a business?',
+          onClick: () => navigate(withNext(routes.signup, routes.merchantApply)) },
+      ]} />
     </AuthLayout>
   );
 }

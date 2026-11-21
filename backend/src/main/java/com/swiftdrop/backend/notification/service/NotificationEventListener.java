@@ -8,6 +8,7 @@ import com.swiftdrop.backend.notification.config.RabbitMqConfig;
 import com.swiftdrop.backend.notification.entity.*;
 import com.swiftdrop.backend.notification.event.CourierAssignedEvent;
 import com.swiftdrop.backend.notification.event.DeliveryStatusChangedEvent;
+import com.swiftdrop.backend.notification.event.MerchantConfirmedWebhook;
 import com.swiftdrop.backend.notification.repository.NotificationLogRepository;
 import com.swiftdrop.backend.notification.repository.NotificationTemplateRepository;
 import org.slf4j.Logger;
@@ -104,7 +105,7 @@ public class NotificationEventListener {
         }
 
         // 3. Trigger Merchant Webhook if associated with a merchant
-        if (event.merchantId() != null) {
+        if (event.merchantId() != null && !MerchantConfirmedWebhook.STATUS.equals(event.status())) {
             try {
                 String payload = objectMapper.writeValueAsString(event);
                 webhookDispatcher.dispatchWebhook(event.merchantId(), event.deliveryId(), event.status(), payload);

@@ -56,3 +56,67 @@
 @container (max-width: 18rem) {
   .metrics { grid-template-columns: minmax(0, 1fr); }
 }
+
+@media (max-width: 48rem) {
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 28rem) {
+  .metrics { grid-template-columns: minmax(0, 1fr); }
+}
+
+.profileWarningBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid #fedb88;
+  border-radius: 1rem;
+  background: #fff8e6;
+  color: #7a5000;
+}
+.bannerContent {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.bannerTitle {
+  display: block;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.bannerText {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  color: #7a5000;
+}
+.bannerAction {
+  flex: none;
+}
+.metricLabel {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--merchant-secondary);
+}
+.metricValue {
+  display: block;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--merchant-text);
+  line-height: 1.2;
+}
+
+.dashboard { max-width: 82rem; margin-inline: auto; padding-bottom: 3rem; color: var(--color-text); }
+.welcome { border-radius: var(--radius-card); background: linear-gradient(110deg, var(--color-cream), var(--color-surface)); }
+.welcomeActions { display: flex; flex-wrap: wrap; gap: 0.65rem; margin-top: 1rem; }
+.metric, .panel { border-color: var(--color-border); border-radius: var(--radius-card); box-shadow: 0 12px 32px rgb(63 47 31 / 6%); }
+.metricValue { font-size: clamp(1.55rem, 3vw, 2rem); font-variant-numeric: tabular-nums; letter-spacing: -0.04em; }
+.distribution { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: 1rem 1.4rem; list-style: none; padding: 0; margin: 1rem 0 0; }
+.distributionLabel { display: flex; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.45rem; }
+.distributionTrack, .distributionTrack > span { display: block; height: 0.45rem; border-radius: 999px; }
+.distributionTrack { background: var(--color-page); }
+.distributionTrack > span { background: #b78c3e; }
+@container (max-width: 38rem) {
+  .profileWarningBanner { align-items: flex-start; flex-direction: column; }
+}

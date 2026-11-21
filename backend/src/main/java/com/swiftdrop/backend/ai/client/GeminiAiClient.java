@@ -97,12 +97,14 @@ public class GeminiAiClient {
                 ));
             }
 
-            String url = GEMINI_API_BASE + properties.model() + ":generateContent?key=" + properties.apiKey();
+            // The key goes in a header: addresses end up in logs and proxies, headers do not
+            String url = GEMINI_API_BASE + properties.model() + ":generateContent";
             log.info("Calling Gemini API model: {}", properties.model());
 
             String responseJson = restClient.post()
                     .uri(url)
                     .contentType(MediaType.APPLICATION_JSON)
+                    .header("x-goog-api-key", properties.apiKey())
                     .body(requestBody)
                     .retrieve()
                     .body(String.class);
@@ -179,10 +181,12 @@ public class GeminiAiClient {
                 ));
             }
 
-            String url = GEMINI_API_BASE + properties.model() + ":generateContent?key=" + properties.apiKey();
+            // The key goes in a header: addresses end up in logs and proxies, headers do not
+            String url = GEMINI_API_BASE + properties.model() + ":generateContent";
             String responseJson = restClient.post()
                     .uri(url)
                     .contentType(MediaType.APPLICATION_JSON)
+                    .header("x-goog-api-key", properties.apiKey())
                     .body(requestBody)
                     .retrieve()
                     .body(String.class);

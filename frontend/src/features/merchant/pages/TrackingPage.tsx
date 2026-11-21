@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { findPublicTracking, type PublicTracking } from '../api/publicTrackingApi';
-import styles from './MerchantPages.module.css';
+import { MerchantIcon } from '../components/MerchantIcon';
+import { ShipmentTimeline } from '../components/ShipmentTimeline';
+import shared from './MerchantPages.module.css';
+import actions from './MerchantOrders.module.css';
+import styles from './StoreOrdersPage.module.css';
 
 type Lookup = { status: 'idle' | 'loading' | 'missing' | 'error' } | { status: 'ready'; delivery: PublicTracking };
 
@@ -33,37 +37,49 @@ export function TrackingPage() {
   }
 
   return (
-    <section className={styles.panel} aria-labelledby="tracking-title">
-      <h2 id="tracking-title">Public tracking lookup</h2>
-      <p>Enter a SwiftDrop tracking number to see its public delivery status and tracking history.</p>
-      <form className={styles.lookup} onSubmit={(event) => void search(event)}>
-        <label><span>Tracking number</span><input type="search" required value={number}
-          disabled={lookup.status === 'loading'} onChange={(event) => {
-            setNumber(event.target.value);
-            setLookup({ status: 'idle' });
-          }} /></label>
-        <button className={styles.button} disabled={!number.trim() || lookup.status === 'loading'} type="submit">Track delivery</button>
-      </form>
-      {lookup.status === 'idle' && <p className={styles.state}>Tracking results will appear here after a lookup.</p>}
-      {lookup.status === 'loading' && <p role="status">Looking up delivery…</p>}
-      {lookup.status === 'missing' && <p role="status">No delivery found for that tracking number.</p>}
-      {lookup.status === 'error' && <p role="alert" className={styles.error}>Tracking is temporarily unavailable. Try again.</p>}
-      {lookup.status === 'ready' && <div className={styles.state}>
-        <h3>{lookup.delivery.trackingNumber}</h3>
-        <p role="status">Status: <strong>{statusLabel(lookup.delivery.status)}</strong></p>
-        {(lookup.delivery.fromCity || lookup.delivery.toCity) &&
-          <p>From {lookup.delivery.fromCity || 'an unavailable origin'} to {lookup.delivery.toCity || 'an unavailable destination'}</p>}
-        {lookup.delivery.events.length ? <ol className={styles.timeline}>
-          {lookup.delivery.events.map((event, index) => (
-            <li key={`${event.eventTime}-${index}`}>
-              <strong>{statusLabel(event.status)}</strong>
-              {event.description && <p>{event.description}</p>}
-              {event.locationName && <p>{event.locationName}</p>}
-              <time dateTime={event.eventTime}>{new Date(event.eventTime).toLocaleString()}</time>
-            </li>
-          ))}
-        </ol> : <p>No tracking events have been recorded.</p>}
+    <section className={styles.shipment} aria-labelledby="tracking-title">
+      <div className={styles.detailCard}>
+        <h2 id="tracking-title">Public tracking lookup</h2>
+        <p>Enter a tracking number to see the shipment’s public status and history.</p>
+        <form className={shared.lookup} onSubmit={(event) => void search(event)}>
+          <label>
+            <span>Tracking number</span>
+            <input type="search" required value={number} disabled={lookup.status === 'loading'} onChange={(event) => {
+              setNumber(event.target.value);
+              setLookup({ status: 'idle' });
+            }} />
+          </label>
+          <button className={actions.primaryButton} disabled={!number.trim() || lookup.status === 'loading'} type="submit">
+            <MerchantIcon name="search" size={17} /> Track delivery
+          </button>
+        </form>
+      </div>
+      {lookup.status === 'loading' && <div className={styles.listState} role="status">
+        <span className={styles.spinner} aria-hidden="true" /><strong>Looking up delivery…</strong>
       </div>}
+      {lookup.status === 'missing' && <div className={styles.listState} role="status">
+        <span className={styles.stateIcon}><MerchantIcon name="pin" /></span>
+        <strong>No delivery found</strong><p>Check the tracking number and try again.</p>
+      </div>}
+      {lookup.status === 'error' && <div className={styles.listState}>
+        <div role="alert"><h3>Tracking is temporarily unavailable</h3><p>Try the lookup again.</p></div>
+      </div>}
+      {lookup.status === 'ready' && <>
+        <div className={styles.shipmentSummary}>
+          <h3 className={styles.trackingNumber}>{lookup.delivery.trackingNumber}</h3>
+          <span role="status" className={`${styles.statusBadge} ${styles.statusNeutral} ${styles.publicStatus}`}>
+            {statusLabel(lookup.delivery.status)}
+          </span>
+          {(lookup.delivery.fromCity || lookup.delivery.toCity) && <dl className={styles.shipmentFacts}>
+            <div><dt>Origin</dt><dd>{lookup.delivery.fromCity || '—'}</dd></div>
+            <div><dt>Destination</dt><dd>{lookup.delivery.toCity || '—'}</dd></div>
+          </dl>}
+        </div>
+        <section className={styles.detailCard}>
+          <h3 className={styles.detailCardTitle}>Tracking History</h3>
+          <ShipmentTimeline events={lookup.delivery.events} />
+        </section>
+      </>}
     </section>
   );
 }

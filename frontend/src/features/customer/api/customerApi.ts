@@ -110,7 +110,11 @@ export const STATUS_LABELS: Record<DeliveryStatus, string> = {
 export interface DeliveryAddressInput { contactName: string; contactPhone: string; street: string; city: string; district: string; postalCode: string }
 export interface ParcelInput { description: string; weightKg: number; lengthCm: number; widthCm: number; heightCm: number; declaredValue?: number }
 export interface BookingInput { deliveryType: DeliveryType; pickup: DeliveryAddressInput; destination: DeliveryAddressInput; parcels: ParcelInput[]; specialInstructions?: string }
-export interface FeeEstimate { currency: string; baseFee: number; weightCharge: number; serviceCharge: number; totalFee: number; explanation: string }
+/**
+ * distanceKm: the Google Maps road distance; null when it couldn't be found and the district base was used.
+ * routeFrom / routeTo: the addresses exactly as Google Maps was asked, to check the route.
+ */
+export interface FeeEstimate { currency: string; distanceKm: number | null;routeFrom: string; routeTo: string;baseFee: number; distanceCharge: number; weightCharge: number; serviceCharge: number; totalFee: number; explanation: string }
 export interface TrackingEvent { status: DeliveryStatus; description: string; locationName: string | null; eventTime: string }
 export interface Tracking { trackingNumber: string; deliveryType: DeliveryType; status: DeliveryStatus; fromCity: string | null; toCity: string | null; estimatedDeliveryDate: string | null; deliveredAt: string | null; events: TrackingEvent[] }
 export interface DeliveryDetails {

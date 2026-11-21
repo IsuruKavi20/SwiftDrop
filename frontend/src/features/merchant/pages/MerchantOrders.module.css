@@ -34,3 +34,24 @@
 }
 .fieldError { color: var(--color-error); font-size: 0.8rem; }
 .orderForm input[aria-invalid='true'], .select[aria-invalid='true'] { border-color: var(--color-error); }
+
+.primaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 2.75rem;
+  padding: 0.55rem 1rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: var(--color-text);
+  box-shadow: 0 4px 14px rgb(63 47 31 / 12%);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.primaryButton:hover:not(:disabled) { background: #ebc974; }
+.primaryButton:disabled { opacity: 0.6; box-shadow: none; cursor: not-allowed; }

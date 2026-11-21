@@ -5,6 +5,9 @@ import com.swiftdrop.backend.notification.entity.MerchantWebhookConfig;
 import com.swiftdrop.backend.notification.entity.NotificationChannel;
 import com.swiftdrop.backend.notification.entity.NotificationTemplate;
 import com.swiftdrop.backend.notification.event.DeliveryStatusChangedEvent;
+import com.swiftdrop.backend.notification.event.MerchantAssignmentWebhook;
+import com.swiftdrop.backend.notification.event.MerchantConfirmedWebhook;
+import org.mockito.ArgumentCaptor;
 import com.swiftdrop.backend.notification.repository.MerchantWebhookConfigRepository;
 import com.swiftdrop.backend.notification.repository.NotificationLogRepository;
 import com.swiftdrop.backend.notification.repository.NotificationTemplateRepository;
@@ -82,6 +85,36 @@ class NotificationSystemTest {
         String signature = WebhookDispatcherService.computeHmacSha256(payload, secret);
         assertNotNull(signature);
         assertTrue(signature.length() > 0);
+    }
+
+    @Test
+    void confirmedWebhookUsesOnlyTheMerchantFacingPayload() {
+        var timestamp = Instant.parse("2026-01-01T00:00:00Z");
+        new MerchantWebhookListener(webhookDispatcher, new ObjectMapper()).handle(new MerchantConfirmedWebhook(42L,
+                new MerchantConfirmedWebhook.Payload("delivery-status-7", 5L, "SD-123", "CONFIRMED", timestamp)));
+
+        var body = ArgumentCaptor.forClass(String.class);
+        verify(webhookDispatcher).dispatchWebhook(eq(42L), eq(5L), eq("CONFIRMED"), body.capture(),
+                eq("delivery-status-7"));
+        var json = new ObjectMapper().readTree(body.getValue());
+        org.assertj.core.api.Assertions.assertThat(json.propertyNames())
+                .containsExactlyInAnyOrder("eventId", "deliveryId", "trackingNumber", "status", "timestamp");
+        verifyNoInteractions(emailSender, smsSender);
+    }
+
+    @Test
+    void assignmentWebhookSendsOnlyTheMerchantFacingPayload() {
+        var timestamp = Instant.parse("2026-01-01T00:00:00Z");
+        new MerchantWebhookListener(webhookDispatcher, new ObjectMapper()).handle(new MerchantAssignmentWebhook(42L,
+                new MerchantAssignmentWebhook.Payload("courier-assignment-7", 5L, "SD-123", "COURIER_ASSIGNED", timestamp)));
+
+        var body = ArgumentCaptor.forClass(String.class);
+        verify(webhookDispatcher).dispatchWebhook(eq(42L), eq(5L), eq("COURIER_ASSIGNED"), body.capture(),
+                eq("courier-assignment-7"));
+        var json = new ObjectMapper().readTree(body.getValue());
+        org.assertj.core.api.Assertions.assertThat(json.propertyNames())
+                .containsExactlyInAnyOrder("eventId", "deliveryId", "trackingNumber", "eventType", "timestamp");
+        verifyNoInteractions(emailSender, smsSender);
     }
 
     @Test

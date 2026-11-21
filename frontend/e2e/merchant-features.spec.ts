@@ -121,14 +121,29 @@ test.describe('Merchant Module Full Feature Set', () => {
     await injectMerchantSession(page);
   });
 
-  test('1. Create Order: valid shipment submission succeeds and shows confirmation', async ({ page }) => {
+  test('1. Create Order: quotes a shipment, books it pending, and confirms it once', async ({ page }) => {
+    let confirmations = 0;
+    let finishConfirmation: () => void = () => {};
+    const holdConfirmation = new Promise<void>((resolve) => { finishConfirmation = resolve; });
+    const pending = { ...MOCK_ORDER_DETAIL, status: 'PENDING', estimatedFee: 520, trackingEvents: [] };
+    await page.route('**/api/merchants/me/deliveries/estimate', (route) => route.fulfill({
+      json: { currency: 'LKR', distanceKm: 15, routeFrom: 'Colombo', routeTo: 'Kandy', distanceCharge: 100, baseFee: 200, weightCharge: 100, serviceCharge: 120, totalFee: 520, explanation: '15 km by road' },
+    }));
+    await page.route('**/api/merchants/me/deliveries/101', (route) => route.fulfill({ json: pending }));
+    await page.route('**/api/merchants/me/deliveries/101/confirm', async (route) => {
+      confirmations += 1;
+      await holdConfirmation;
+      await route.fulfill({ json: { ...pending, status: 'CONFIRMED', trackingEvents: [{
+        status: 'CONFIRMED', description: 'Booking confirmed by merchant', eventTime: '2026-11-18T10:31:00Z',
+      }] } });
+    });
     // Mock delivery creation
     await page.route('**/api/merchants/me/deliveries*', async (route: Route) => {
       if (route.request().method() === 'POST') {
         await route.fulfill({
           status: 201,
           contentType: 'application/json',
-          body: JSON.stringify(MOCK_ORDER_DETAIL),
+          body: JSON.stringify(pending),
         });
       } else {
         await route.continue();
@@ -163,22 +178,57 @@ test.describe('Merchant Module Full Feature Set', () => {
     await page.fill('input[name="parcel-1.widthCm"]', '15');
     await page.fill('input[name="parcel-1.heightCm"]', '10');
 
-    // Submit
+    await page.getByRole('button', { name: 'Get fee estimate' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Estimated delivery fee' })).toContainText('520');
+    await expect(page.getByText('15 km by road')).toBeVisible();
+    await page.fill('input[name="parcel-1.weightKg"]', '2.25');
+    await expect(page.getByRole('status').filter({ hasText: 'Estimated delivery fee' })).toHaveCount(0);
+
+    // Booking leaves the shipment pending until the Merchant confirms it.
     await page.click('button:has-text("Submit order")');
 
     // Confirmation card
     await expect(page.locator('text=Shipment Booked Successfully!')).toBeVisible();
     await expect(page.locator('text=SD-TEA001')).toBeVisible();
     await expect(page.locator('text=View Order Details')).toBeVisible();
+    await expect.poll(() => confirmations).toBe(0);
+    await page.getByRole('link', { name: 'View Order Details' }).click();
+    await page.getByRole('button', { name: 'Confirm Order', exact: true }).click();
+    const confirmation = page.getByRole('dialog', { name: /Confirm shipment/ });
+    await expect(confirmation).toContainText('Kamal Perera');
+    await expect(confirmation).toContainText('520');
+    await confirmation.getByRole('button', { name: 'Back' }).click();
+    await expect(confirmation).not.toBeVisible();
+    expect(confirmations).toBe(0);
+    await page.getByRole('button', { name: 'Confirm Order', exact: true }).click();
+    await confirmation.getByRole('button', { name: 'Confirm Order', exact: true }).click();
+    await expect(confirmation.getByRole('button', { name: /^Confirming/ })).toBeDisabled();
+    finishConfirmation();
+    await expect(page.getByText('Booking confirmed by merchant')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Confirm Order', exact: true })).toHaveCount(0);
+    expect(confirmations).toBe(1);
   });
 
   test('2. Bulk CSV Import: switches tab, uploads CSV and completes batch booking', async ({ page }) => {
+    const bookings = new Map<string, number>();
+    const submitted: string[] = [];
     await page.route('**/api/merchants/me/deliveries*', async (route: Route) => {
       if (route.request().method() === 'POST') {
+        const key = route.request().headers()['idempotency-key'];
+        submitted.push(key);
+        const original = bookings.get(key);
+        if (original === undefined) {
+          bookings.set(key, bookings.size + 1);
+          if (bookings.size === 1) {
+            await route.abort('connectionreset');
+            return;
+          }
+        }
+        const id = original ?? bookings.get(key);
         await route.fulfill({
-          status: 201,
+          status: original === undefined ? 201 : 200,
           contentType: 'application/json',
-          body: JSON.stringify(MOCK_ORDER_DETAIL),
+          body: JSON.stringify({ ...MOCK_ORDER_DETAIL, id, trackingNumber: `SD-TEA00${id}`, status: 'PENDING', estimatedFee: 520 }),
         });
       } else {
         await route.continue();
@@ -194,28 +244,44 @@ test.describe('Merchant Module Full Feature Set', () => {
     const csvContent = [
       'deliveryType,pickupContactName,pickupPhone,pickupStreet,pickupCity,pickupDistrict,pickupPostalCode,destContactName,destPhone,destStreet,destCity,destDistrict,destPostalCode,parcelDescription,weightKg,lengthCm,widthCm,heightCm,declaredValue,specialInstructions',
       'EXPRESS,Central Hub,+94112345678,12 Flower Rd,Colombo,Colombo,00700,Kamal Perera,+94812233445,45 Peradeniya Rd,Kandy,Kandy,20000,Ceylon Black Tea Tin,0.75,20,15,10,3500.00,Fragile',
-    ].join('\n');
+    ];
+    csvContent.push(csvContent[1], csvContent[1].replace('0.75,20', '0,20'));
 
     await page.setInputFiles('input[type="file"]', {
       name: 'bulk-orders.csv',
       mimeType: 'text/csv',
-      buffer: Buffer.from(csvContent),
+      buffer: Buffer.from(csvContent.join('\n')),
     });
 
     await expect(page.locator('text=Import Preview')).toBeVisible();
-    await expect(page.getByText('1 valid', { exact: true })).toBeVisible();
-    await expect(page.locator('button:has-text("Start Import (1 valid)")')).toBeEnabled();
+    await expect(page.getByText('2 valid', { exact: true })).toBeVisible();
+    await expect(page.getByText('1 invalid', { exact: true })).toBeVisible();
+    await expect(page.locator('button:has-text("Start Import (2 valid)")')).toBeEnabled();
 
     await page.click('button:has-text("Start Import")');
 
     await expect(page.locator('text=Import Complete')).toBeVisible();
-    await expect(page.locator('text=Successfully created: 1')).toBeVisible();
+    await expect(page.locator('text=Successfully booked: 1')).toBeVisible();
+    await expect(page.locator('strong:has-text("SD-TEA002")')).toBeVisible();
+    await expect(page.getByText('Failed: 1')).toBeVisible();
+    expect(submitted).toHaveLength(2);
+    expect(submitted[0]).toBeTruthy();
+    expect(submitted[1]).toBeTruthy();
+    expect(submitted[0]).not.toBe(submitted[1]);
+
+    await page.getByRole('button', { name: 'Retry Failed Rows (1)' }).click();
     await expect(page.locator('strong:has-text("SD-TEA001")')).toBeVisible();
+    await expect(page.getByRole('button', { name: /Retry Failed Rows/ })).toHaveCount(0);
+    expect(submitted).toEqual([submitted[0], submitted[1], submitted[0]]);
+    expect(bookings.size).toBe(2);
+    await expect(page.getByText(/Estimated fee.*520/)).toHaveCount(2);
+    await expect(page.getByText(/confirm them individually/)).toBeVisible();
   });
 
   test('3. Store Orders: lists orders with status filters and pagination', async ({ page }) => {
     let requestedPage = 0;
     let requestedStatus: string | null = null;
+    await page.route('**/api/merchants/me/deliveries/101', (route) => route.fulfill({ json: MOCK_ORDER_DETAIL }));
 
     await page.route('**/api/merchants/me/deliveries*', async (route: Route) => {
       const url = new URL(route.request().url());
@@ -273,6 +339,10 @@ test.describe('Merchant Module Full Feature Set', () => {
     // Pagination controls
     await expect(page.locator('text=Page 1 of 2')).toBeVisible();
     await page.click('button:has-text("Next →")');
+    await expect(page.locator('text=Page 2 of 2')).toBeVisible();
+    await page.getByRole('link', { name: 'View Details' }).click();
+    await page.getByRole('link', { name: 'Back to Store Orders' }).click();
+    await expect(page.getByRole('button', { name: 'In Transit', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('text=Page 2 of 2')).toBeVisible();
   });
 
@@ -453,5 +523,233 @@ test.describe('Merchant Module Full Feature Set', () => {
     await page.click('button:has-text("Logs")');
     await expect(page.locator('text=Recent Delivery Logs')).toBeVisible();
     await expect(page.getByText('DELIVERY_STATUS_CHANGED', { exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: '+ Register Webhook', exact: true }).click();
+    const form = page.locator('form').filter({ has: page.getByRole('checkbox', { name: 'Delivery Confirmed', exact: true }) });
+    await form.getByPlaceholder('https://api.yourdomain.com/webhooks/swiftdrop').fill('https://example.com/swiftdrop');
+    await form.getByRole('checkbox', { name: 'Delivery Confirmed', exact: true }).check();
+    await form.getByRole('checkbox', { name: 'Courier Assigned', exact: true }).check();
+    const saved = page.waitForRequest((request) =>
+      request.method() === 'POST' && request.url().endsWith('/api/merchants/me/webhooks'));
+    await form.getByRole('button', { name: 'Register Webhook', exact: true }).click();
+    expect((await saved).postDataJSON().subscribedEvents.split(',').sort())
+      .toEqual(['COURIER_ASSIGNED', 'DELIVERY_CONFIRMED']);
+  });
+
+  test('7. Create Order: auto-fills pickup details from saved business profile and allows manual editing', async ({ page }) => {
+    const mockProfile = {
+      id: 1,
+      complete: true,
+      ownerName: 'Dilhan Fernando',
+      businessName: 'Ceylon Tea Exports',
+      businessEmail: 'orders@ceylontea.lk',
+      contactNumber: '+94112345678',
+      addressLine1: '12 Flower Road',
+      addressLine2: 'Suite 4B',
+      city: 'Colombo',
+      province: 'Western',
+      postalCode: '00700',
+      country: 'Sri Lanka',
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    };
+
+    await page.route('**/api/merchants/me', async (route: Route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(mockProfile),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.goto('/merchant/create-order');
+    await expect(page.locator('#create-order-title')).toHaveText('Book a Delivery Shipment');
+
+    // Click "Use Business Address"
+    const autoFillBtn = page.locator('#use-business-address');
+    await expect(autoFillBtn).toBeVisible();
+    await autoFillBtn.click();
+
+    // Verify fields populated
+    await expect(page.locator('input[name="pickup.contactName"]')).toHaveValue('Ceylon Tea Exports');
+    await expect(page.locator('input[name="pickup.contactPhone"]')).toHaveValue('+94112345678');
+    await expect(page.locator('input[name="pickup.street"]')).toHaveValue('12 Flower Road, Suite 4B');
+    await expect(page.locator('input[name="pickup.city"]')).toHaveValue('Colombo');
+    await expect(page.locator('input[name="pickup.district"]')).toHaveValue('Colombo');
+    await expect(page.locator('input[name="pickup.postalCode"]')).toHaveValue('00700');
+
+    // Verify status notice
+    await expect(page.locator('text=Pickup details populated from business profile.')).toBeVisible();
+
+    // Test manual editing of populated fields
+    await page.fill('input[name="pickup.contactPhone"]', '+94119998888');
+    await expect(page.locator('input[name="pickup.contactPhone"]')).toHaveValue('+94119998888');
+    await page.fill('input[name="pickup.street"]', '14 Flower Road Warehouse');
+    await expect(page.locator('input[name="pickup.street"]')).toHaveValue('14 Flower Road Warehouse');
+  });
+
+  test('8. Create Order: handles incomplete business profile gracefully', async ({ page }) => {
+    const incompleteProfile = {
+      id: 2,
+      complete: false,
+      ownerName: 'Sunil Shantha',
+      businessName: 'Sunil Craft Spices',
+      businessEmail: 'sunil@craftspices.lk',
+      contactNumber: '+94771234567',
+      addressLine1: null,
+      addressLine2: null,
+      city: null,
+      province: null,
+      postalCode: null,
+      country: 'Sri Lanka',
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    };
+
+    await page.route('**/api/merchants/me', async (route: Route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(incompleteProfile),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.goto('/merchant/create-order');
+    await page.click('#use-business-address');
+
+    // Populated available contact fields
+    await expect(page.locator('input[name="pickup.contactName"]')).toHaveValue('Sunil Craft Spices');
+    await expect(page.locator('input[name="pickup.contactPhone"]')).toHaveValue('+94771234567');
+    await expect(page.locator('input[name="pickup.street"]')).toHaveValue('');
+
+    // Incomplete notice shown
+    await expect(page.locator('text=Business profile is incomplete. Populated available fields.')).toBeVisible();
+
+    // Merchant can manually enter the missing street address
+    await page.fill('input[name="pickup.street"]', '88 Spice Garden Lane');
+    await page.fill('input[name="pickup.city"]', 'Matara');
+    await page.fill('input[name="pickup.district"]', 'Matara');
+    await expect(page.locator('input[name="pickup.street"]')).toHaveValue('88 Spice Garden Lane');
+  });
+
+  test('9. Create Order: handles profile API failure gracefully', async ({ page }) => {
+    await page.route('**/api/merchants/me', async (route: Route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 500,
+          contentType: 'application/json',
+          body: JSON.stringify({ message: 'Internal Server Error' }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.goto('/merchant/create-order');
+    await expect(page.locator('#create-order-title')).toHaveText('Book a Delivery Shipment');
+
+    // Clicking button shows graceful error notice without page crash
+    await page.click('#use-business-address');
+    await expect(page.locator('text=Could not load business profile. Please enter pickup details manually.')).toBeVisible();
+
+    // Form remains fully functional for manual input
+    await page.fill('input[name="pickup.contactName"]', 'Manual Merchant');
+    await expect(page.locator('input[name="pickup.contactName"]')).toHaveValue('Manual Merchant');
+  });
+
+  test('10. Create Order: auto-fills pickup district accurately from city mappings (Negombo -> Gampaha)', async ({ page }) => {
+    const negomboProfile = {
+      id: 3,
+      complete: true,
+      ownerName: 'Fernando Brothers',
+      businessName: 'Negombo Lagoon Fish',
+      businessEmail: 'info@lagoonfish.lk',
+      contactNumber: '+94312223344',
+      addressLine1: '88 Sea Street',
+      addressLine2: null,
+      city: 'Negombo',
+      province: 'Western',
+      postalCode: '11500',
+      country: 'Sri Lanka',
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    };
+
+    await page.route('**/api/merchants/me', async (route: Route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(negomboProfile),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.goto('/merchant/create-order');
+    await page.click('#use-business-address');
+
+    // City is populated as Negombo, but district is properly resolved to Gampaha (never Negombo)
+    await expect(page.locator('input[name="pickup.city"]')).toHaveValue('Negombo');
+    await expect(page.locator('input[name="pickup.district"]')).toHaveValue('Gampaha');
+    await expect(page.locator('text=Pickup details populated from business profile.')).toBeVisible();
+  });
+
+  test('11. Create Order: leaves district empty and prompts manual selection when city cannot be determined confidently', async ({ page }) => {
+    const unknownCityProfile = {
+      id: 4,
+      complete: true,
+      ownerName: 'Kamal Silva',
+      businessName: 'Kamal Crafts',
+      businessEmail: 'kamal@crafts.lk',
+      contactNumber: '+94773334455',
+      addressLine1: '50 Green Ridge Way',
+      addressLine2: null,
+      city: 'MysticTown',
+      province: 'Western',
+      postalCode: '99999',
+      country: 'Sri Lanka',
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    };
+
+    await page.route('**/api/merchants/me', async (route: Route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(unknownCityProfile),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.goto('/merchant/create-order');
+    await page.click('#use-business-address');
+
+    // Populated available contact and address fields
+    await expect(page.locator('input[name="pickup.contactName"]')).toHaveValue('Kamal Crafts');
+    await expect(page.locator('input[name="pickup.street"]')).toHaveValue('50 Green Ridge Way');
+    await expect(page.locator('input[name="pickup.city"]')).toHaveValue('MysticTown');
+
+    // District cannot be determined confidently: MUST be empty (never arbitrary city name or province)
+    await expect(page.locator('input[name="pickup.district"]')).toHaveValue('');
+
+    // Status banner asks the merchant to select the district manually
+    await expect(page.locator('text=Could not determine pickup district. Please select it manually.')).toBeVisible();
+
+    // Merchant can manually select / fill their district
+    await page.fill('input[name="pickup.district"]', 'Colombo');
+    await expect(page.locator('input[name="pickup.district"]')).toHaveValue('Colombo');
   });
 });

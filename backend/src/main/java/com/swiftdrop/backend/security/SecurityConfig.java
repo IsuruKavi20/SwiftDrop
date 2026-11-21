@@ -46,11 +46,14 @@ public class SecurityConfig {
                 .authorizeHttpRequests(requests -> requests
                         // Public parcel tracking: no login, read-only, answers hold no private data
                         .requestMatchers(HttpMethod.GET, "/api/public/**").permitAll()
-                        // AI Delivery Assistant: public access for rates, tracking queries, and FAQ
-                        .requestMatchers("/api/v1/ai/**", "/api/ai/**", "/api/public/ai/**").permitAll()
+                        // AI assistant chat: open to guests on purpose, rate-limited in AiAssistantController
+                        .requestMatchers(HttpMethod.POST, "/api/public/ai/chat").permitAll()
                         // Identity events from the auth service: no login, the SET's own signature is the proof
                         // (checked by the identity module's SetVerifier); rate-limited there
                         .requestMatchers(HttpMethod.POST, "/internal/identity-events").permitAll()
+                        // Health checks for Kubernetes: only on the private management port (8081), never public;
+                        // they answer UP/DOWN only, no details
+                        .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(server -> server
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(authenticationConverter()))
@@ -111,7 +114,7 @@ public class SecurityConfig {
         CorsConfiguration cors = new CorsConfiguration();
         cors.setAllowedOrigins(auth.allowedOrigins());
         cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE"));
-        cors.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        cors.setAllowedHeaders(List.of("Authorization", "Content-Type", "Idempotency-Key"));
         cors.setAllowCredentials(false);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", cors);

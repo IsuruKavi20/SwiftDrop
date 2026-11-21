@@ -3,7 +3,7 @@ import type { CourierAvailability, DeliveryType } from './dispatcherTypes';
 /**
  * Shapes for the admin screens. Users, roles and merchant applications live in the auth service
  * (docs/auth-api/admin.md, merchants.md); courier profiles in the backend's dispatcher module (courier table);
- * prices in the backend's customer.service.CustomerPricingService. Zones have no backend counterpart yet.
+ * published prices and zones in the backend (/api/admin/pricing, /api/admin/zones).
  */
 
 /**
@@ -39,7 +39,10 @@ export interface MerchantApplication {
   reason: string | null;
 }
 
-/** A courier's work profile (dispatcher.entity.Courier); name and email come from the person (AppUser). */
+/**
+ * A courier's work profile (GET /api/dispatcher/couriers). Name, account state and roles come from the person
+ * (identity's AppUser); the email is read from the auth service and is empty when it can't be read.
+ */
 export interface CourierProfile {
   courierId: number;
   userId: string;
@@ -50,6 +53,10 @@ export interface CourierProfile {
   vehicleNumber: string | null;
   availability: CourierAvailability;
   activeDeliveries: number;
+  /** False once the account is blocked in the auth service. */
+  accountActive: boolean;
+  /** False once the Courier role is taken away in the auth service. */
+  courierRole: boolean;
 }
 
 export interface CourierProfileInput {
@@ -69,8 +76,16 @@ export interface DeliveryZone {
 
 export type DeliveryZoneInput = Omit<DeliveryZone, 'id'>;
 
-/** The tariff CustomerPricingService quotes with (swiftdrop.customer.pricing.* settings), all in LKR. */
+/**
+ * The tariff CustomerPricingService quotes with (swiftdrop.customer.pricing.* settings), in LKR except includedKm.
+ * Fee = distanceBase (first includedKm of road distance) + perKm × km after that + weight + surcharge. The road
+ * distance comes from Google Maps; when it can't be found, the district bases replace the distance part.
+ */
 export interface PricingRates {
+  distanceBase: number;
+  /** The km of road distance the base fee covers. */
+  includedKm: number;
+  perKm: number;
   sameDistrictBase: number;
   otherDistrictBase: number;
   /** Charged for each kg of total parcel weight above the first kg. */
@@ -79,13 +94,18 @@ export interface PricingRates {
   sameDaySurcharge: number;
 }
 
+/** GET /api/admin/pricing. Version 0: nothing published yet, the server's settings apply (no date or publisher). */
 export interface PublishedPricing {
   version: number;
-  publishedAt: string;
+  publishedAt: string | null;
+  /** The admin who published it. */
+  publishedBy?: string | null;
   rates: PricingRates;
 }
 
 export interface QuoteRequest {
+  /** Road distance in km; undefined = unknown, so the district bases apply. */
+  distanceKm?: number;
   pickupDistrict: string;
   destinationDistrict: string;
   totalWeightKg: number;
@@ -95,14 +115,17 @@ export interface QuoteRequest {
 /** Same parts as customer.dto.FeeEstimateResponse. */
 export interface Quote {
   baseFee: number;
+  distanceCharge: number;
   weightCharge: number;
   serviceCharge: number;
   totalFee: number;
 }
 
 export interface DayCount {
-  /** yyyy-mm-dd, local time */
+  /** yyyy-mm-dd, a Sri Lanka day */
   day: string;
+  /** Bookings created that day (the backend's report; the sample data leaves it out). */
+  bookings?: number;
   delivered: number;
   failedAttempts: number;
 }
@@ -115,7 +138,11 @@ export interface CourierReport {
   active: number;
 }
 
+/** GET /api/admin/reports?days=…: the last days, today included, in Sri Lanka days. */
 export interface DeliveryReport {
+  /** First and last day (yyyy-mm-dd, both included); the sample data leaves them out. */
+  from?: string;
+  to?: string;
   bookingsCreated: number;
   delivered: number;
   failedAttempts: number;

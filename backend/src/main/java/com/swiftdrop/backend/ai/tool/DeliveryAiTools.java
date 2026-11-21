@@ -160,12 +160,8 @@ public class DeliveryAiTools {
         delivery.getDestinationAddress().ifPresent(addr -> {
             result.put("destinationCity", addr.getCity());
             result.put("destinationDistrict", addr.getDistrict());
-            result.put("recipientName", addr.getContactName());
         });
 
-        if (delivery.getCourier() != null) {
-            result.put("courierName", delivery.getCourier().getName().orElse("Assigned Courier"));
-        }
 
         if (delivery.getEstimatedDeliveryDate() != null) {
             result.put("estimatedDeliveryDate", delivery.getEstimatedDeliveryDate().toString());
@@ -182,7 +178,9 @@ public class DeliveryAiTools {
             ));
         }
         result.put("timeline", timeline);
-        result.put("trackingUrl", frontendUrl + "/track/" + delivery.getPublicTrackingToken());
+        // Public answer, like the tracking page: towns and status only, no names, phones or the secret SMS-link
+        // token (someone who only knows the tracking number must not get the private link)
+        result.put("trackingUrl", frontendUrl + "/track/" + delivery.getTrackingNumber());
 
         return result;
     }
@@ -211,7 +209,7 @@ public class DeliveryAiTools {
             item.put("status", d.getStatus().name());
             item.put("deliveryType", d.getDeliveryType().name());
             d.getDestinationAddress().ifPresent(dest -> item.put("destinationCity", dest.getCity()));
-            item.put("trackingUrl", frontendUrl + "/track/" + d.getPublicTrackingToken());
+            item.put("trackingUrl", frontendUrl + "/track/" + d.getTrackingNumber());
             deliveries.add(item);
         }
 
@@ -273,7 +271,7 @@ public class DeliveryAiTools {
                 ),
                 new McpToolDefinition(
                         "trackParcel",
-                        "Tracks a SwiftDrop parcel using its tracking number (e.g. SD-829104) and returns current status, location, timeline, and courier info.",
+                        "Tracks a SwiftDrop parcel using its tracking number (e.g. SD-829104) and returns current status, towns, timeline and estimated date (no personal details).",
                         Map.of(
                                 "type", "object",
                                 "properties", Map.of(

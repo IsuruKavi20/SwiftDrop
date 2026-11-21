@@ -29,6 +29,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Transactional
 class MerchantApiTest {
 
+    @Test
+    void machineBookingFailsClosedWithoutAnIssuerAdapter() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .post("/api/merchant-integrations/deliveries")
+                        .with(jwt().jwt(token -> token.subject("test-unconfigured-client"))
+                                .authorities(new SimpleGrantedAuthority("merchant:api-access")))
+                        .header("Idempotency-Key", "test-booking")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(MerchantDeliveryApiTest.VALID_DELIVERY_JSON))
+                .andExpect(status().isForbidden());
+    }
+
     private static final String COMPLETE_PROFILE = """
             {"businessName":"Ceylon Tea House","businessEmail":"orders@ceylontea.lk","contactNumber":"0112345678",
              "addressLine1":"12 Galle Road","city":"Colombo","country":"Sri Lanka"}""";

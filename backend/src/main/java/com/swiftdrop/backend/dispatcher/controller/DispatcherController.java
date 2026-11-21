@@ -2,25 +2,31 @@ package com.swiftdrop.backend.dispatcher.controller;
 
 import com.swiftdrop.backend.customer.entity.DeliveryStatus;
 import com.swiftdrop.backend.dispatcher.dto.AssignCourierRequest;
+import com.swiftdrop.backend.dispatcher.dto.CourierCandidateResponse;
+import com.swiftdrop.backend.dispatcher.dto.CourierProfileRequest;
 import com.swiftdrop.backend.dispatcher.dto.CourierWorkloadResponse;
 import com.swiftdrop.backend.dispatcher.dto.DispatchDeliveryDetailsResponse;
 import com.swiftdrop.backend.dispatcher.dto.DispatchDeliveryResponse;
 import com.swiftdrop.backend.dispatcher.dto.StatusCountsResponse;
 import com.swiftdrop.backend.dispatcher.entity.CourierAvailability;
 import com.swiftdrop.backend.dispatcher.service.CourierAssignmentService;
+import com.swiftdrop.backend.dispatcher.service.CourierProfileService;
 import com.swiftdrop.backend.dispatcher.service.CourierWorkloadService;
 import com.swiftdrop.backend.dispatcher.service.DispatcherDeliveryService;
 import com.swiftdrop.backend.shared.dto.PageResponse;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -38,12 +44,14 @@ class DispatcherController {
     private final DispatcherDeliveryService deliveries;
     private final CourierAssignmentService assignments;
     private final CourierWorkloadService workloads;
+    private final CourierProfileService profiles;
 
     DispatcherController(DispatcherDeliveryService deliveries, CourierAssignmentService assignments,
-                         CourierWorkloadService workloads) {
+                         CourierWorkloadService workloads, CourierProfileService profiles) {
         this.deliveries = deliveries;
         this.assignments = assignments;
         this.workloads = workloads;
+        this.profiles = profiles;
     }
 
     /** e.g. GET /api/dispatcher/deliveries?status=FAILED&search=kandy&page=0&size=10 (newest first, size max 50) */
@@ -90,5 +98,24 @@ class DispatcherController {
     @GetMapping("/couriers/assignable")
     List<CourierWorkloadResponse> assignable() {
         return workloads.assignable();
+    }
+
+    /** Active people with the Courier role who have no courier profile yet, by name. */
+    @GetMapping("/couriers/candidates")
+    List<CourierCandidateResponse> candidates() {
+        return profiles.candidates();
+    }
+
+    /** Creates the work profile for a person with the Courier role ({ userId, phoneNumber, vehicle…, availability }). */
+    @PostMapping("/couriers")
+    @ResponseStatus(HttpStatus.CREATED)
+    CourierWorkloadResponse createCourier(@Valid @RequestBody CourierProfileRequest request) {
+        return profiles.create(request);
+    }
+
+    /** Edits phone, vehicle and availability. */
+    @PutMapping("/couriers/{courierId}")
+    CourierWorkloadResponse updateCourier(@PathVariable Long courierId, @Valid @RequestBody CourierProfileRequest request) {
+        return profiles.update(courierId, request);
     }
 }

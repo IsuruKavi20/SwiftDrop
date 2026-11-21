@@ -6,10 +6,14 @@ import { DispatcherIcon } from '../components/DispatcherIcon';
 import { PageHeader } from '../components/DispatcherLayout';
 import { FormDialog } from '../components/FormDialog';
 import { useDispatchData } from '../lib/useDispatchData';
-import { useToast } from '../lib/useToast';
+import { useToast, type ToastOptions } from '../lib/useToast';
+import { EmptyState, LoadError } from '../components/States';
+import { SortHeader } from '../components/SortHeader';
+import { useSort } from '../lib/useSort';
+import { useFlash } from '../lib/useFlash';
 import styles from '../components/Dispatcher.module.css';
 
-function ZoneDialog({ zone, zones, onClose, onSaved }: { zone?: DeliveryZone; zones: DeliveryZone[]; onClose: () => void; onSaved: (message: string) => void }) {
+function ZoneDialog({ zone, zones, onClose, onSaved }: { zone?: DeliveryZone; zones: DeliveryZone[]; onClose: () => void; onSaved: (message: string, options?: ToastOptions, changed?: string) => void }) {
   const [form, setForm] = useState<DeliveryZoneInput>({
     name: zone?.name ?? '', code: zone?.code ?? '', districts: zone?.districts ?? [], active: zone?.active ?? true,
   });
@@ -25,7 +29,9 @@ function ZoneDialog({ zone, zones, onClose, onSaved }: { zone?: DeliveryZone; zo
       canSubmit={form.name.trim() !== '' && form.code.trim() !== '' && form.districts.length > 0}
       onSubmit={async () => {
         await saveZone(zone?.id ?? null, form);
-        onSaved(`${form.name.trim()} is saved.`);
+        // An edited zone can be put back as it was (a new one has no delete to undo it with)
+        const undo = zone ? () => saveZone(zone.id, { name: zone.name, code: zone.code, districts: zone.districts, active: zone.active }) : undefined;
+        onSaved(`${form.name.trim()} is saved.`, { undo }, form.code.trim());
       }}>
       <div className={styles.formGrid}>
         <label className={styles.field}>
@@ -62,9 +68,13 @@ function ZoneDialog({ zone, zones, onClose, onSaved }: { zone?: DeliveryZone; zo
 }
 
 export function DeliveryZonesPage() {
-  const { data, error, loading } = useDispatchData(listZones, []);
+  const { data, error, loading, reload } = useDispatchData(listZones, []);
+  const { rows, sort, toggle } = useSort(data, {
+    zone: (z) => z.name, code: (z) => z.code, districts: (z) => z.districts.length, state: (z) => (z.active ? 0 : 1),
+  });
   const [editing, setEditing] = useState<DeliveryZone | 'new'>();
   const { showToast, toast } = useToast();
+  const { mark, flashOf, withFlash } = useFlash();
   const covered = new Set(data?.flatMap((z) => z.districts));
   const uncovered = Object.values(districtsByProvince).flat().filter((d) => !covered.has(d));
 
@@ -77,25 +87,25 @@ export function DeliveryZonesPage() {
           </button>
         )} />
       <p className={styles.infoBox}>
-        Prices don't depend on zones: the backend compares the pickup and destination districts (see Pricing).
+        Zones group districts for planning. They don't change prices or bookings: prices compare the pickup and destination districts (see Pricing).
       </p>
-      {error && <p className={styles.errorBox} role="alert">{error}</p>}
+      {error && <LoadError message={error} onRetry={reload} />}
 
       <div className={styles.tableCard} aria-busy={loading}>
         <div className={styles.tableScroll}>
           <table className={styles.table}>
             <thead>
               <tr>
-                <th scope="col">Zone</th>
-                <th scope="col">Code</th>
-                <th scope="col">Districts</th>
-                <th scope="col">State</th>
+                <SortHeader label="Zone" column="zone" sort={sort} onSort={toggle} />
+                <SortHeader label="Code" column="code" sort={sort} onSort={toggle} />
+                <SortHeader label="Districts" column="districts" sort={sort} onSort={toggle} />
+                <SortHeader label="State" column="state" sort={sort} onSort={toggle} />
                 <th scope="col"><span className={styles.visuallyHidden}>Actions</span></th>
               </tr>
             </thead>
             <tbody>
-              {data?.map((z) => (
-                <tr key={z.id}>
+              {rows?.map((z) => (
+                <tr key={z.id} data-flash={flashOf(z.code)}>
                   <td><strong>{z.name}</strong></td>
                   <td className={styles.mono}>{z.code}</td>
                   <td>{z.districts.join(', ')}</td>
@@ -110,7 +120,12 @@ export function DeliveryZonesPage() {
             </tbody>
           </table>
         </div>
-        {data?.length === 0 && <p className={styles.empty}>No zones yet.</p>}
+        {data?.length === 0 && (
+          <EmptyState icon="map" title="No delivery zones yet"
+            action={<button className={styles.primaryButton} type="button" onClick={() => setEditing('new')}><DispatcherIcon name="plus" size={18} /> Add zone</button>}>
+            A zone groups districts, so couriers and reports can be organised by area.
+          </EmptyState>
+        )}
       </div>
       {data && uncovered.length > 0 && (
         <p className={styles.panelNote} style={{ padding: '0.75rem 0 0' }}>Not in any zone: {uncovered.join(', ')}.</p>
@@ -118,7 +133,7 @@ export function DeliveryZonesPage() {
 
       {editing && data && (
         <ZoneDialog zone={editing === 'new' ? undefined : editing} zones={data} onClose={() => setEditing(undefined)}
-          onSaved={(message) => { setEditing(undefined); showToast(message); }} />
+          onSaved={(message, options, changed) => { setEditing(undefined); showToast(message, withFlash(options, changed)); mark(changed); }} />
       )}
       {toast}
     </>

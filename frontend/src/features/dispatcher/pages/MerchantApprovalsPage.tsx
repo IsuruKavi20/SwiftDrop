@@ -7,6 +7,7 @@ import { FormDialog, ReasonField } from '../components/FormDialog';
 import { formatDateTime, merchantStatusLabels } from '../lib/format';
 import { useDispatchData } from '../lib/useDispatchData';
 import { useToast } from '../lib/useToast';
+import { EmptyState, LoadError } from '../components/States';
 import styles from '../components/Dispatcher.module.css';
 
 const statusTones: Record<MerchantApplicationStatus, Tone> = { PENDING: 'amber', APPROVED: 'green', REJECTED: 'red', SUSPENDED: 'grey' };
@@ -28,7 +29,7 @@ function DecisionDialog({ pending, onClose, onSaved }: { pending: Pending; onClo
   }[action];
 
   return (
-    <FormDialog title={copy.title} subtitle={`${m.businessName} · ${m.registrationNumber}`} submitLabel={copy.button} danger={copy.danger}
+    <FormDialog title={copy.title} subtitle={m.registrationNumber ? `${m.businessName} · ${m.registrationNumber}` : m.businessName} submitLabel={copy.button} danger={copy.danger}
       canSubmit={action !== 'REJECT' || reason.trim().length > 0} onClose={onClose}
       onSubmit={async () => {
         if (action === 'APPROVE' || action === 'REJECT') await decideMerchant(m.merchantId, action, reason);
@@ -45,7 +46,7 @@ function DecisionDialog({ pending, onClose, onSaved }: { pending: Pending; onClo
 }
 
 export function MerchantApprovalsPage() {
-  const { data, error, loading } = useDispatchData(() => listMerchantApplications(), []);
+  const { data, error, loading, reload } = useDispatchData(() => listMerchantApplications(), []);
   const [pending, setPending] = useState<Pending>();
   const { showToast, toast } = useToast();
 
@@ -55,26 +56,29 @@ export function MerchantApprovalsPage() {
   return (
     <>
       <PageHeader title="Merchant Approvals" subtitle="Approving a merchant unlocks business orders, API keys and webhooks." />
-      {error && <p className={styles.errorBox} role="alert">{error}</p>}
+      {error && <LoadError message={error} onRetry={reload} />}
 
-      <h2 className={styles.sectionTitle}>Waiting for a decision ({waiting.length})</h2>
-      {data && waiting.length === 0 && <p className={styles.infoBox}>No applications are waiting.</p>}
+      <h2 className={styles.sectionTitle}>Waiting for a decision{data ? ` (${waiting.length})` : ''}</h2>
+      {data && waiting.length === 0 && (
+        <EmptyState icon="check" title="All caught up" positive compact>No merchant applications are waiting for a decision.</EmptyState>
+      )}
       <div className={styles.cardGrid} aria-busy={loading}>
         {waiting.map((m) => (
           <article key={m.merchantId} className={styles.appCard}>
             <header>
               <div>
                 <h3>{m.businessName}</h3>
-                <small>Applied {formatDateTime(m.submittedAt)}</small>
+                {m.submittedAt && <small>Applied {formatDateTime(m.submittedAt)}</small>}
               </div>
               <MerchantStatus status={m.status} />
             </header>
             <dl>
-              <dt>Registration no.</dt><dd className={styles.mono}>{m.registrationNumber}</dd>
+              <dt>Registration no.</dt><dd className={styles.mono}>{m.registrationNumber || '—'}</dd>
               <dt>Website</dt>
               <dd>{m.website ? <a href={m.website} target="_blank" rel="noreferrer">{m.website}</a> : <span className={styles.muted}>Not given</span>}</dd>
-              <dt>Applicant</dt><dd>{m.applicantName}</dd>
-              <dt>Email</dt><dd><a href={`mailto:${m.applicantEmail}`}>{m.applicantEmail}</a></dd>
+              <dt>Applicant</dt><dd>{m.applicantName || <span className={styles.muted}>Not given</span>}</dd>
+              <dt>Email</dt>
+              <dd>{m.applicantEmail ? <a href={`mailto:${m.applicantEmail}`}>{m.applicantEmail}</a> : <span className={styles.muted}>Not given</span>}</dd>
             </dl>
             <div className={styles.cardActions}>
               <button className={styles.primaryButton} type="button" onClick={() => setPending({ application: m, action: 'APPROVE' })}>Approve</button>
@@ -85,7 +89,7 @@ export function MerchantApprovalsPage() {
       </div>
 
       <h2 className={styles.sectionTitle}>Reviewed</h2>
-      <div className={styles.tableCard}>
+      <div className={styles.tableCard} aria-busy={loading}>
         <div className={styles.tableScroll}>
           <table className={styles.table}>
             <thead>
@@ -102,7 +106,7 @@ export function MerchantApprovalsPage() {
               {reviewed.map((m) => (
                 <tr key={m.merchantId}>
                   <td><strong>{m.businessName}</strong><small className={styles.cellSub}>{m.registrationNumber}</small></td>
-                  <td>{m.applicantName}<small className={styles.cellSub}>{m.applicantEmail}</small></td>
+                  <td>{m.applicantName || <span className={styles.muted}>—</span>}<small className={styles.cellSub}>{m.applicantEmail}</small></td>
                   <td className={styles.dateCell}>{m.decidedAt ? formatDateTime(m.decidedAt) : '—'}</td>
                   <td><MerchantStatus status={m.status} /></td>
                   <td className={styles.reasonCell}>{m.reason ?? <span className={styles.muted}>—</span>}</td>
@@ -119,7 +123,9 @@ export function MerchantApprovalsPage() {
             </tbody>
           </table>
         </div>
-        {data && reviewed.length === 0 && <p className={styles.empty}>No decisions yet.</p>}
+        {data && reviewed.length === 0 && (
+          <EmptyState icon="store" title="No decisions yet">Approved, rejected and suspended merchants are listed here.</EmptyState>
+        )}
       </div>
 
       {pending && <DecisionDialog pending={pending} onClose={() => setPending(undefined)}

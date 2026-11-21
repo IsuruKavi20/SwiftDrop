@@ -1,3 +1,4 @@
+import logoMark from '../../../assets/brand/logo-mark.svg';
 import { merchantPages, merchantPath, type MerchantPageId } from '../merchantRoutes';
 import { MerchantIcon } from './MerchantIcon';
 import { MerchantLink } from './MerchantLink';
@@ -13,7 +14,7 @@ export function MerchantSidebar({ page, preview, onSignOut }: MerchantSidebarPro
   return (
     <aside className={styles.sidebar}>
       <div className={styles.brand}>
-        <span className={styles.brandIcon}><MerchantIcon name="box" size={23} /></span>
+        <img className={styles.brandIcon} src={logoMark} alt="" />
         <span><strong>SwiftDrop</strong><small>Merchant Portal</small></span>
       </div>
       <nav aria-label="Merchant navigation">

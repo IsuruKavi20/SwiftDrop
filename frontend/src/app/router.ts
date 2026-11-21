@@ -22,6 +22,8 @@ export const routes = {
   customerSupport: '/customer/support',
   publicTrack: '/track',
   merchantApply: '/merchant/apply',
+  courier: '/courier',
+  courierDashboard: '/courier/dashboard',
 } as const;
 
 export function navigate(path: string, { replace = false } = {}): void {

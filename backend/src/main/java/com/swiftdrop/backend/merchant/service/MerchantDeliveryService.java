@@ -15,10 +15,13 @@ import com.swiftdrop.backend.merchant.dto.MerchantDeliveryDetailResponse;
 import com.swiftdrop.backend.merchant.dto.MerchantDeliverySummaryResponse;
 import com.swiftdrop.backend.merchant.dto.ParcelRequest;
 import com.swiftdrop.backend.merchant.entity.Merchant;
+import com.swiftdrop.backend.merchant.event.MerchantDeliveryConfirmed;
 import com.swiftdrop.backend.merchant.event.MerchantStatusChange;
 import com.swiftdrop.backend.merchant.repository.MerchantDeliveryRepository;
 import com.swiftdrop.backend.merchant.repository.MerchantDeliveryRepository.StatusCount;
 import com.swiftdrop.backend.shared.dto.PageResponse;
+import com.swiftdrop.backend.pricing.DeliveryPricing;
+import com.swiftdrop.backend.shared.error.ConflictException;
 import com.swiftdrop.backend.shared.error.NotFoundException;
 import com.swiftdrop.backend.shared.util.TrackingCodeGenerator;
 import org.slf4j.Logger;
@@ -50,44 +53,78 @@ public class MerchantDeliveryService {
     private final TrackingCodeGenerator codes;
     private final ApplicationEventPublisher events;
     private final Clock clock;
+    private final DeliveryPricing pricing;
 
     public MerchantDeliveryService(MerchantService merchantService,
                                    MerchantDeliveryRepository deliveries,
                                    TrackingCodeGenerator codes,
                                    ApplicationEventPublisher events,
-                                   Clock clock) {
+                                   Clock clock,
+                                   DeliveryPricing pricing) {
         this.merchantService = merchantService;
         this.deliveries = deliveries;
         this.codes = codes;
         this.events = events;
         this.clock = clock;
+        this.pricing = pricing;
+    }
+
+    public DeliveryPricing.Quote estimate(CreateMerchantDeliveryRequest request) {
+        return pricing.estimate(pricingAddress(request.pickup()), pricingAddress(request.destination()),
+                request.deliveryType().name(), request.parcels().stream().map(ParcelRequest::weightKg).toList());
     }
 
     /**
      * Books a new delivery belonging to the authenticated merchant.
      */
     public MerchantDeliveryDetailResponse createDelivery(AppUser owner, CreateMerchantDeliveryRequest request) {
-        Merchant merchant = merchantService.profileOf(owner);
+        Delivery saved = bookDelivery(merchantService.profileOf(owner), owner, request);
+        publishLatestStatus(saved);
+        return MerchantDeliveryDetailResponse.from(saved);
+    }
 
+    Delivery bookDelivery(Merchant merchant, AppUser recordedBy, CreateMerchantDeliveryRequest request) {
         Delivery delivery = new Delivery(merchant.getId(), uniqueTrackingNumber(), codes.newPublicTrackingToken(), request.deliveryType());
         delivery.setSpecialInstructions(blankToNull(request.specialInstructions()));
+        delivery.setEstimatedFee(estimate(request).totalFee());
         delivery.setEstimatedDeliveryDate(estimatedDeliveryDate(request.deliveryType()));
         delivery.setAddress(toDeliveryAddress(AddressType.PICKUP, request.pickup()));
         delivery.setAddress(toDeliveryAddress(AddressType.DESTINATION, request.destination()));
         request.parcels().forEach(parcel -> delivery.addParcel(toParcel(parcel)));
 
-        TrackingEvent initialEvent = new TrackingEvent(DeliveryStatus.PENDING, "Delivery booked by merchant", null, clock.instant(), owner);
+        String description = recordedBy == null ? "Delivery booked via Merchant API" : "Delivery booked by merchant";
+        TrackingEvent initialEvent = new TrackingEvent(DeliveryStatus.PENDING, description, null, clock.instant(), recordedBy);
         delivery.addTrackingEvent(initialEvent);
 
-        Delivery saved = deliveries.saveAndFlush(delivery);
+        return deliveries.saveAndFlush(delivery);
+    }
 
+    public MerchantDeliveryDetailResponse confirmDelivery(AppUser owner, Long id) {
+        Merchant merchant = merchantService.profileOf(owner);
+        Delivery delivery = deliveries.lockMerchantDelivery(id, merchant.getId())
+                .orElseThrow(() -> new NotFoundException("Delivery not found"));
+        if (delivery.getStatus() != DeliveryStatus.PENDING) {
+            throw new ConflictException("Only a pending booking can be confirmed; this one is " + delivery.getStatus());
+        }
+        TrackingEvent event = new TrackingEvent(DeliveryStatus.CONFIRMED, "Booking confirmed by merchant",
+                null, clock.instant(), owner);
+        delivery.addTrackingEvent(event);
+        Delivery saved = deliveries.saveAndFlush(delivery);
+        TrackingEvent persisted = saved.getTrackingEvents().getLast();
+        events.publishEvent(new MerchantDeliveryConfirmed(saved.getId(), persisted.getId(), merchant.getId(),
+                saved.getTrackingNumber(), persisted.getEventTime()));
+        return MerchantDeliveryDetailResponse.from(saved);
+    }
+
+    void publishLatestStatus(Delivery saved) {
         try {
-            events.publishEvent(new MerchantStatusChange(saved.getId(), initialEvent.getId()));
+            // Merge may replace a newly added event with its persisted copy.
+            TrackingEvent persisted = saved.getTrackingEvents().getLast();
+            events.publishEvent(new MerchantStatusChange(saved.getId(), persisted.getId()));
         } catch (Exception ex) {
             log.warn("Failed to publish notification event for merchant delivery {}: {}", saved.getTrackingNumber(), ex.getMessage());
         }
 
-        return MerchantDeliveryDetailResponse.from(saved);
     }
 
     /**
@@ -148,6 +185,10 @@ public class MerchantDeliveryService {
             case EXPRESS -> today.plusDays(1);
             case STANDARD -> today.plusDays(3);
         };
+    }
+
+    private static DeliveryPricing.Address pricingAddress(DeliveryAddressRequest request) {
+        return new DeliveryPricing.Address(request.street(), request.city(), request.district(), request.postalCode());
     }
 
     private static DeliveryAddress toDeliveryAddress(AddressType type, DeliveryAddressRequest request) {

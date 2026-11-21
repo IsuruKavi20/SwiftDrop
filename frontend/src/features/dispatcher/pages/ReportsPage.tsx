@@ -1,16 +1,21 @@
-import { useState } from 'react';
 import { getDeliveryReport } from '../api/adminApi';
 import { DeliveriesChart } from '../components/DeliveriesChart';
 import { PageHeader } from '../components/DispatcherLayout';
+import { Dropdown } from '../components/Dropdown';
 import { formatPercent, successRate } from '../lib/format';
 import { useDispatchData } from '../lib/useDispatchData';
+import { ChartSkeleton } from '../components/Skeleton';
+import { LoadError } from '../components/States';
+import { useUrlState } from '../lib/useUrlState';
 import styles from '../components/Dispatcher.module.css';
 
 const RANGES = [7, 14, 30] as const;
 
 export function ReportsPage() {
-  const [days, setDays] = useState<(typeof RANGES)[number]>(7);
-  const { data, error, loading } = useDispatchData(() => getDeliveryReport(days), [days]);
+  const [daysParam, setDaysParam] = useUrlState('days', '7', RANGES.map(String));
+  const days = Number(daysParam) as (typeof RANGES)[number];
+  const setDays = (value: (typeof RANGES)[number]) => setDaysParam(String(value));
+  const { data, error, loading, reload } = useDispatchData(() => getDeliveryReport(days), [days]);
   const rate = data ? successRate(data.delivered, data.failedAttempts) : null;
 
   return (
@@ -19,14 +24,13 @@ export function ReportsPage() {
         action={(
           <label className={styles.select}>
             <span className={styles.visuallyHidden}>Period</span>
-            <select value={days} onChange={(e) => setDays(Number(e.target.value) as (typeof RANGES)[number])}>
-              {RANGES.map((r) => <option key={r} value={r}>Last {r} days</option>)}
-            </select>
+            <Dropdown value={String(days)} onChange={(v) => setDays(Number(v) as (typeof RANGES)[number])}
+              options={RANGES.map((r) => ({ value: String(r), label: `Last ${r} days` }))} />
           </label>
         )} />
-      {error && <p className={styles.errorBox} role="alert">{error}</p>}
+      {error && <LoadError message={error} onRetry={reload} />}
 
-      <ul className={styles.statGrid} aria-busy={loading}>
+      <ul className={styles.statGrid} aria-busy={loading} data-loading={!data || undefined}>
         <li className={styles.statCard}>
           <div className={styles.statTop}><span>Bookings created</span></div>
           <strong>{data?.bookingsCreated ?? '–'}</strong>
@@ -56,7 +60,7 @@ export function ReportsPage() {
             <p>Success rate = delivered ÷ (delivered + failed attempts) in the period. Parcels still in progress are left out.</p>
           </div>
         </header>
-        {data && <DeliveriesChart days={data.perDay} />}
+        {data ? <DeliveriesChart days={data.perDay} /> : !error && <ChartSkeleton />}
       </section>
 
       <h2 className={styles.sectionTitle} style={{ marginTop: '1.75rem' }}>Courier summary</h2>

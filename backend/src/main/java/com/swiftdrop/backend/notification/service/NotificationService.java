@@ -23,6 +23,9 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class NotificationService {
 
+    /** Largest page a caller may ask for: stops one request from loading a customer's whole history at once. */
+    static final int MAX_PAGE_SIZE = 50;
+
     private final NotificationLogRepository notificationLogs;
     private final CustomerRepository customerRepository;
     private final CustomerDeliveryRepository deliveryRepository;
@@ -55,7 +58,7 @@ public class NotificationService {
                 customerId,
                 phone,
                 emailClaim,
-                PageRequest.of(Math.max(0, page), Math.max(1, size))
+                PageRequest.of(Math.max(0, page), Math.clamp(size, 1, MAX_PAGE_SIZE))
         );
 
         return PageResponse.from(logPage, NotificationResponse::from);

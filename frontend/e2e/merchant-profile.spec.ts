@@ -544,7 +544,7 @@ test.describe('Merchant Business Profile E2E', () => {
 
     // Visiting /customer/dashboard
     await page.goto('/customer/dashboard');
-    await expect(page.locator('h1:text("Customer Dashboard")')).toBeVisible();
+    await expect(page.locator('text=CUSTOMER / OVERVIEW')).toBeVisible();
     await expect(page.locator('button:text("Merchant view")')).toHaveCount(0);
   });
 
