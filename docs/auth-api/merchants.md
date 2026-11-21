@@ -23,7 +23,31 @@
 
 → `200` `{ "access_token": "...", "token_type": "Bearer", "expires_in": 900 }`. Ask again when it ends (no refresh token).
 
-## Merchant API shipment booking (issuer integration pending)
+## What is inside that token (live since 21 Nov 2026)
+It is a **machine** token: no person, no name or email.
+
+| Claim | Value | Use it for |
+|---|---|---|
+| `sub`, `client_id` | `mc_` + 22 characters (the key's id) | which key is calling. People's tokens have a UUID here instead |
+| `merchant_owner` | the merchant owner's user id (UUID) | **finding the Merchant**: `merchants.owner_id` |
+| `merchant_id` | the auth service's own merchant id | not needed in the backend |
+| `roles` | `["MERCHANT"]` | |
+| `entitlements` | `merchant:api-access`, `parcel:create`, `parcel:read-own` | booking needs `parcel:create` **and** `merchant:api-access` |
+| `aud` / `typ` | `swiftdrop-api` / `at+jwt` | already checked by the backend's token validator |
+
+## Rules for the booking API (backend)
+1. **Permission:** require `parcel:create` and `merchant:api-access`.
+2. **Still valid?** Tokens live 15 minutes. A deleted key, a suspended merchant or a blocked owner gets no new
+   tokens, but one already issued keeps working until it ends. Booking creates real work, so first ask the auth
+   service: `POST https://auth.getswiftdrop.me/oauth2/introspect` (Basic auth with our `svc_swiftdrop-backend`
+   client, form `token=<the token>`). `{"active": false}` → answer `401`. `{"active": true, ...}` also contains
+   `merchant_owner`.
+3. **Which merchant:** read `merchant_owner` from the token (or the introspection answer) and find the Merchant by
+   owner id. **Never** use a merchant or owner id sent in the request body: the caller writes the body, the auth
+   service signs the token.
+4. **No owner, no merchant row, or merchant not approved** → `403`.
+
+## Merchant API shipment booking
 
 The delivery backend exposes POST /api/merchant-integrations/deliveries. It accepts the same
 shipment fields as personal Merchant booking, with a bearer access token and a required
