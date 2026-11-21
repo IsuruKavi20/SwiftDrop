@@ -43,7 +43,7 @@ class AuthMerchantBookingTest {
     private static final String CLIENT = "mc_1234567890123456789012";
     private static final String TOKEN = "machine-token-fixture";
     private static final String API = "/api/merchant-integrations/deliveries";
-    private static final List<String> PERMISSIONS = List.of("merchant:api-access", "parcel:create");
+    private static final List<String> BOOKING_PERMISSION = List.of("merchant:api-booking");
 
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
@@ -81,7 +81,7 @@ class AuthMerchantBookingTest {
         UUID owner = UUID.randomUUID();
         mvc.perform(get("/api/merchants/me").with(person(owner))).andExpect(status().isOk());
         when(introspection.inspect(TOKEN)).thenReturn(new Result(true, owner.toString()));
-        var caller = machine(owner.toString(), CLIENT, PERMISSIONS);
+        var caller = machine(owner.toString(), CLIENT, BOOKING_PERMISSION);
         var created = book(caller).andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("PENDING"))
                 .andExpect(jsonPath("$.trackingNumber").isNotEmpty()).andReturn();
@@ -97,16 +97,17 @@ class AuthMerchantBookingTest {
     void rejectsHumansMissingPermissionAndMalformedClaimsWithoutIntrospection() throws Exception {
         UUID owner = UUID.randomUUID();
         book(person(owner)).andExpect(status().isForbidden());
-        book(machine(owner.toString(), CLIENT, List.of("merchant:api-access"))).andExpect(status().isForbidden());
-        book(machine("illegal-owner", CLIENT, PERMISSIONS)).andExpect(status().isForbidden());
-        book(machine(owner.toString(), CLIENT + "x", PERMISSIONS)).andExpect(status().isForbidden());
+        book(machine(owner.toString(), CLIENT, List.of())).andExpect(status().isForbidden());
+        book(machine(owner.toString(), CLIENT, List.of("parcel:create", "merchant:api-access"))).andExpect(status().isForbidden());
+        book(machine("illegal-owner", CLIENT, BOOKING_PERMISSION)).andExpect(status().isForbidden());
+        book(machine(owner.toString(), CLIENT + "x", BOOKING_PERMISSION)).andExpect(status().isForbidden());
         verifyNoInteractions(introspection);
     }
 
     @Test
     void rejectsMissingProfileAndMissingOrConflictingIntrospectedOwner() throws Exception {
         UUID owner = UUID.randomUUID();
-        var caller = machine(owner.toString(), CLIENT, PERMISSIONS);
+        var caller = machine(owner.toString(), CLIENT, BOOKING_PERMISSION);
         when(introspection.inspect(TOKEN)).thenReturn(new Result(true, owner.toString()),
                 new Result(true, null), new Result(true, UUID.randomUUID().toString()));
         book(caller).andExpect(status().isForbidden());
@@ -115,18 +116,28 @@ class AuthMerchantBookingTest {
     }
 
     @Test
+    void rejectsMalformedBearerTokenBeforeIntrospection() throws Exception {
+        mvc.perform(post(API).header("Authorization", "Bearer not-a-jwt")
+                        .header("Idempotency-Key", "order-1").contentType(MediaType.APPLICATION_JSON)
+                        .content(MerchantDeliveryApiTest.VALID_DELIVERY_JSON))
+                .andExpect(status().isUnauthorized());
+        verifyNoInteractions(introspection);
+    }
+
+    @Test
     void deniesInactiveTokensAndFailsClosedOnOutage() throws Exception {
         UUID owner = UUID.randomUUID();
         when(introspection.inspect(TOKEN)).thenReturn(new Result(false, null))
                 .thenThrow(new ServiceUnavailableException("Introspection unavailable"));
-        var caller = machine(owner.toString(), CLIENT, PERMISSIONS);
+        var caller = machine(owner.toString(), CLIENT, BOOKING_PERMISSION);
         book(caller).andExpect(status().isUnauthorized());
         book(caller).andExpect(status().isServiceUnavailable());
     }
 
     @Test
     void machineDoesNotProvisionAHumanOrAccessPersonalEndpoints() throws Exception {
-        var caller = machine(UUID.randomUUID().toString(), CLIENT, PERMISSIONS);
+        var caller = machine(UUID.randomUUID().toString(), CLIENT,
+                List.of("merchant:api-access", "merchant:api-booking", "parcel:create", "parcel:read-own"));
         int users = jdbc.queryForObject("SELECT count(*) FROM app_users", Integer.class);
         mvc.perform(get("/api/merchants/me").with(caller)).andExpect(status().isForbidden());
         mvc.perform(get("/api/merchants/me/webhooks").with(caller)).andExpect(status().isForbidden());
@@ -148,6 +159,6 @@ class AuthMerchantBookingTest {
     private static RequestPostProcessor machine(String owner, String clientId, List<String> permissions) {
         return jwt().jwt(token -> token.tokenValue(TOKEN).subject(CLIENT).claim("client_id", clientId)
                         .claim("merchant_owner", owner).claim("entitlements", permissions))
-                .authorities(new SimpleGrantedAuthority("merchant:api-access"), new SimpleGrantedAuthority("parcel:create"));
+                .authorities(permissions.stream().map(SimpleGrantedAuthority::new).toArray(SimpleGrantedAuthority[]::new));
     }
 }
