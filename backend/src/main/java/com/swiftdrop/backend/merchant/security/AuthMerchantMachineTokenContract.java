@@ -34,7 +34,7 @@ public class AuthMerchantMachineTokenContract implements MerchantMachineTokenCon
         UUID owner = ownerId(stringClaim(token, "merchant_owner"));
         if (!isMachine(token) || clientId.length() != CLIENT_ID_LENGTH || !clientId.equals(token.getSubject())
                 || owner == null || !(permissions instanceof List<?> entitlements)
-                || !entitlements.containsAll(List.of("parcel:create", "merchant:api-access"))) {
+                || !entitlements.contains("merchant:api-booking")) {
             return Optional.empty();
         }
 
