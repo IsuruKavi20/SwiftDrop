@@ -46,7 +46,7 @@ export function LoginPage() {
           placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
         <TextField id="password" label="Password" icon={lockIcon} type="password" autoComplete="current-password"
           required placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
-        <p className={styles.forgot} title="Password reset is coming soon">Forgot password? (coming soon)</p>
+        <p className={styles.forgot}><a href={routes.forgotPassword} onClick={(e) => { e.preventDefault(); navigate(routes.forgotPassword); }}>Forgot password?</a></p>
         <PrimaryButton type="submit" disabled={busy}>{busy ? 'Logging in…' : 'Log in'}</PrimaryButton>
       </form>
 
