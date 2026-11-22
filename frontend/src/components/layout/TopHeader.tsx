@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BellIcon, ShieldCheckIcon } from '../common/Icons';
+import { BellIcon } from '../common/Icons';
 
 interface TopHeaderProps {
   title?: string;
@@ -12,8 +12,8 @@ interface TopHeaderProps {
 export const TopHeader: React.FC<TopHeaderProps> = ({
   title = 'Courier Dashboard',
   subtitle = 'Manage assigned parcels and update delivery progress.',
-  courierName = 'Sachin Maleesha',
-  courierZone = 'Kurunegala North',
+  courierName = 'Courier Personnel',
+  courierZone = 'Assigned Fleet Zone',
 }) => {
   const navigate = useNavigate();
 
@@ -23,7 +23,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
     .map((n) => n[0])
     .join('')
     .slice(0, 2)
-    .toUpperCase() || 'CO';
+    .toUpperCase() || 'CP';
 
   return (
     <header className="top-header">
@@ -48,7 +48,6 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           onClick={() => navigate('/courier/notifications')}
         >
           <BellIcon size={19} color="var(--text-primary)" />
-          <span className="notification-badge-dot" />
         </button>
 
         {/* Profile Chip */}
@@ -66,7 +65,6 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           <div className="profile-info">
             <span className="profile-name">
               {courierName}
-              <ShieldCheckIcon size={13} color="#10B981" />
             </span>
             <span className="profile-role">{courierZone}</span>
           </div>

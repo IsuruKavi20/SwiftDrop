@@ -43,7 +43,10 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -95,6 +98,9 @@ class CourierDispatcherIntegrationTest {
 
     @Autowired
     private DeliveryFailureRepository failureRepository;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @MockitoBean
     private RabbitTemplate rabbitTemplate;
@@ -418,5 +424,78 @@ class CourierDispatcherIntegrationTest {
         assertThat(failures.get(0).getFailureReason()).isEqualTo(DeliveryFailureReason.RECIPIENT_UNAVAILABLE);
         assertThat(failures.get(0).getFailureRemarks()).isEqualTo("No answer at door or phone after 3 attempts");
         assertThat(failures.get(0).getCourier().getId()).isEqualTo(courierBId);
+    }
+
+    @Test
+    @DisplayName("Persistence: Separate physical committed transactions commit and reload proof and failure")
+    void testSeparateCommittedTransactionsPersistence() {
+        TransactionTemplate requiresNewTx = new TransactionTemplate(transactionManager);
+        requiresNewTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+
+        String trackingProof = "SD-TX-PROOF-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        UUID committedCourierId = UUID.randomUUID();
+        UUID committedCustUserId = UUID.randomUUID();
+        java.util.concurrent.atomic.AtomicReference<Long> proofDeliveryIdRef = new java.util.concurrent.atomic.AtomicReference<>();
+        java.util.concurrent.atomic.AtomicReference<Long> custIdRef = new java.util.concurrent.atomic.AtomicReference<>();
+
+        try {
+            // Transaction 1: Create delivery, assign, advance to OUT_FOR_DELIVERY and confirm delivery with proof
+            requiresNewTx.executeWithoutResult(status -> {
+                AppUser testCourier = TestPeople.saved(em, committedCourierId, "Tx Courier", "COURIER");
+                AppUser testCustUser = TestPeople.saved(em, committedCustUserId, "Tx Customer User", "CUSTOMER");
+                Customer cust = new Customer(testCustUser, "0770000000");
+                em.persist(cust);
+                em.flush();
+                custIdRef.set(cust.getId());
+
+                Delivery d = new Delivery(cust, trackingProof, "tok-" + trackingProof, DeliveryType.STANDARD);
+                d.setStatus(DeliveryStatus.CONFIRMED);
+                d.assignCourier(testCourier);
+                em.persist(d);
+                em.flush();
+                proofDeliveryIdRef.set(d.getId());
+
+                courierService.updateDeliveryStatus(committedCourierId, trackingProof,
+                        new CourierStatusUpdateRequest(DeliveryStatus.PICKED_UP, "Picked up", "Hub"));
+                courierService.updateDeliveryStatus(committedCourierId, trackingProof,
+                        new CourierStatusUpdateRequest(DeliveryStatus.IN_TRANSIT, "In transit", "Main Highway"));
+                courierService.updateDeliveryStatus(committedCourierId, trackingProof,
+                        new CourierStatusUpdateRequest(DeliveryStatus.OUT_FOR_DELIVERY, "Out for delivery", "Zone 1"));
+                courierService.confirmDelivery(committedCourierId, trackingProof,
+                        new DeliveryConfirmationRequest("Alice Verified", "SIGNATURE", "Signed at door", null, "Doorstep"));
+            });
+
+            Long proofDeliveryId = proofDeliveryIdRef.get();
+            assertThat(proofDeliveryId).isNotNull();
+
+            // Transaction 2: Brand new transaction reads back from database to verify physical commit
+            requiresNewTx.executeWithoutResult(status -> {
+                Delivery loaded = deliveryRepository.findById(proofDeliveryId).orElseThrow();
+                assertThat(loaded.getStatus()).isEqualTo(DeliveryStatus.DELIVERED);
+
+                DeliveryProof p = proofRepository.findByDeliveryId(proofDeliveryId).orElseThrow();
+                assertThat(p.getRecipientSignName()).isEqualTo("Alice Verified");
+                assertThat(p.getProofType()).isEqualTo("SIGNATURE");
+                assertThat(p.getCourier().getId()).isEqualTo(committedCourierId);
+            });
+        } finally {
+            // Cleanup in separate transaction so no committed test entities leak into subsequent tests
+            requiresNewTx.executeWithoutResult(status -> {
+                Long proofDeliveryId = proofDeliveryIdRef.get();
+                if (proofDeliveryId != null) {
+                    proofRepository.findByDeliveryId(proofDeliveryId).ifPresent(proofRepository::delete);
+                    deliveryRepository.findById(proofDeliveryId).ifPresent(deliveryRepository::delete);
+                }
+                Long custId = custIdRef.get();
+                if (custId != null) {
+                    Customer c = em.find(Customer.class, custId);
+                    if (c != null) em.remove(c);
+                }
+                AppUser u1 = em.find(AppUser.class, committedCourierId);
+                if (u1 != null) em.remove(u1);
+                AppUser u2 = em.find(AppUser.class, committedCustUserId);
+                if (u2 != null) em.remove(u2);
+            });
+        }
     }
 }
