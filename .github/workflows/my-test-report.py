@@ -12,17 +12,19 @@ MINE_PACKAGES = [
     r"^com\.swiftdrop\.backend\.identity(\.|$)",
     r"^com\.swiftdrop\.backend\.security$",
     r"^com\.swiftdrop\.backend\.shared\.error$",
-    r"^com\.swiftdrop\.backend\.ai\.(security|config)$",
+    r"^com\.swiftdrop\.backend\.ai\.security$",
 ]
+# classes in my packages that a teammate built: never counted
+NOT_MINE = {"com.swiftdrop.backend.identity.client": ["MerchantTokenIntrospection"]}
 MINE_CLASSES = {
-    "com.swiftdrop.backend.ai.controller": ["AiAssistantController"],
-    "com.swiftdrop.backend.ai.dto": ["AiChatRequest"],
     "com.swiftdrop.backend.notification.service": ["CustomerStatusListener", "OutboxResubmitter", "TrackingLinks"],
 }
 
 
 def mine(package, cls):
     top = cls.split(".")[0]   # inner classes (Outer.Inner) belong to their outer class
+    if top in NOT_MINE.get(package, []):
+        return False
     return any(re.match(p, package) for p in MINE_PACKAGES) or top in MINE_CLASSES.get(package, [])
 
 

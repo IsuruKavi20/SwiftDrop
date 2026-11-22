@@ -34,7 +34,7 @@ jobs:
       - name: Run my tests with coverage
         run: |
           J=org.jacoco:jacoco-maven-plugin:0.8.13
-          TESTS='com.swiftdrop.backend.identity.**.*Test,com.swiftdrop.backend.security.*Test,com.swiftdrop.backend.shared.error.*Test,com.swiftdrop.backend.ai.security.*Test,com.swiftdrop.backend.ai.AiAssistantApiTest,com.swiftdrop.backend.ModularityTest,com.swiftdrop.backend.notification.service.CustomerStatusListenerTest,com.swiftdrop.backend.notification.service.NotificationServicePagingTest,com.swiftdrop.backend.notification.service.OutboxTest,com.swiftdrop.backend.notification.service.TrackingLinksTest'
+          TESTS='com.swiftdrop.backend.identity.**.*Test,com.swiftdrop.backend.security.*Test,com.swiftdrop.backend.shared.error.*Test,com.swiftdrop.backend.ai.security.*Test,!com.swiftdrop.backend.identity.client.MerchantTokenIntrospectionTest,com.swiftdrop.backend.ModularityTest,com.swiftdrop.backend.notification.service.CustomerStatusListenerTest,com.swiftdrop.backend.notification.service.NotificationServicePagingTest,com.swiftdrop.backend.notification.service.OutboxTest,com.swiftdrop.backend.notification.service.TrackingLinksTest'
           ./mvnw -B $J:prepare-agent test $J:report -Dtest="$TESTS" -Dsurefire.failIfNoSpecifiedTests=false
       - name: Results and coverage of my code (into the run summary)
         if: always()
