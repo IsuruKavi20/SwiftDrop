@@ -24,12 +24,15 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class WebhookDispatcherService {
 
     private static final Logger log = LoggerFactory.getLogger(WebhookDispatcherService.class);
     private static final int MAX_ATTEMPTS = 3;
+    private static final Set<String> COURIER_STATUSES =
+            Set.of("PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED");
 
     private final MerchantWebhookConfigRepository configRepository;
     private final WebhookDeliveryLogRepository deliveryLogRepository;
@@ -93,7 +96,9 @@ public class WebhookDispatcherService {
         for (String ev : subscribedEvents.split(",")) {
             String key = ev.trim();
             if (key.equalsIgnoreCase(eventType)
-                    || (MerchantConfirmedWebhook.STATUS.equalsIgnoreCase(eventType) && "DELIVERY_CONFIRMED".equalsIgnoreCase(key))) {
+                    || (MerchantConfirmedWebhook.STATUS.equalsIgnoreCase(eventType) && "DELIVERY_CONFIRMED".equalsIgnoreCase(key))
+                    || (COURIER_STATUSES.contains(eventType) && ("DELIVERY_" + eventType).equalsIgnoreCase(key))
+                    || (COURIER_STATUSES.contains(eventType) && "DELIVERY_STATUS_CHANGED".equalsIgnoreCase(key))) {
                 return true;
             }
         }

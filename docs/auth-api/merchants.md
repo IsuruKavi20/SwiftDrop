@@ -23,7 +23,31 @@
 
 → `200` `{ "access_token": "...", "token_type": "Bearer", "expires_in": 900 }`. Ask again when it ends (no refresh token).
 
-## Merchant API shipment booking (issuer integration pending)
+## What is inside that token (live since 21 Nov 2026)
+It is a **machine** token: no person, no name or email.
+
+| Claim | Value | Use it for |
+|---|---|---|
+| `sub`, `client_id` | `mc_` + 22 characters (the key's id) | which key is calling. People's tokens have a UUID here instead |
+| `merchant_owner` | the merchant owner's user id (UUID) | **finding the Merchant**: `merchants.owner_id` |
+| `merchant_id` | the auth service's own merchant id | not needed in the backend |
+| `roles` | `["MERCHANT"]` | |
+| `entitlements` | `merchant:api-access`, `merchant:api-booking`, `parcel:create`, `parcel:read-own` | booking needs **`merchant:api-booking`** (only machine tokens have it; no person's login ever does) |
+| `aud` / `typ` | `swiftdrop-api` / `at+jwt` | already checked by the backend's token validator |
+
+## Rules for the booking API (backend)
+1. **Permission:** require `merchant:api-booking`.
+2. **Still valid?** Tokens live 15 minutes. A deleted key, a suspended merchant or a blocked owner gets no new
+   tokens, but one already issued keeps working until it ends. Booking creates real work, so first ask the auth
+   service: `POST https://auth.getswiftdrop.me/oauth2/introspect` (Basic auth with our `svc_swiftdrop-backend`
+   client, form `token=<the token>`). `{"active": false}` → answer `401`. `{"active": true, ...}` also contains
+   `merchant_owner`.
+3. **Which merchant:** read `merchant_owner` from the token (or the introspection answer) and find the Merchant by
+   owner id. **Never** use a merchant or owner id sent in the request body: the caller writes the body, the auth
+   service signs the token.
+4. **No owner, no merchant row, or merchant not approved** → `403`.
+
+## Merchant API shipment booking
 
 The delivery backend exposes POST /api/merchant-integrations/deliveries. It accepts the same
 shipment fields as personal Merchant booking, with a bearer access token and a required
@@ -38,7 +62,12 @@ current status. Reusing the same key with different shipment fields returns 409.
 A retry must use the same client, key and shipment data. The booking and its client
 audit record are stored in one transaction.
 
-The route denies authenticated requests until an issuer adapter is installed.
-The adapter must establish the verified machine token type, booking permission,
-stable client ID, authoritative business ownership, and revocation and suspension
-rules. The current implementation includes a test-only contract.
+SwiftDrop's adapter is enabled only when `SWIFTDROP_MERCHANT_MACHINE_BOOKING_ENABLED=true`.
+It uses the configured backend service credentials for introspection on every booking attempt,
+including idempotent replays. Auth unavailability or an invalid introspection response
+returns 503. An active response whose owner is absent or differs from the signed
+owner is denied. Locally, the Merchant profile is linked by `merchant.auth_user_id`.
+
+Before enabling production booking, verify that introspection marks previously issued
+tokens inactive after credential revocation, Merchant suspension, or owner blocking,
+and that the backend service client can call the introspection endpoint.
