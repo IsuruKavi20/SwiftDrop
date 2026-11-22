@@ -1,7 +1,9 @@
 package com.swiftdrop.backend.merchant.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.swiftdrop.backend.customer.entity.DeliveryType;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -17,5 +19,10 @@ public record CreateMerchantDeliveryRequest(
         @NotNull @Valid DeliveryAddressRequest pickup,
         @NotNull @Valid DeliveryAddressRequest destination,
         @NotEmpty @Size(max = 20) List<@NotNull @Valid ParcelRequest> parcels,
-        @Size(max = 500) String specialInstructions) {
+        @Size(max = 500) String specialInstructions,
+        @JsonInclude(JsonInclude.Include.NON_NULL) @Email @Size(max = 254) String recipientEmail) {
+
+    public CreateMerchantDeliveryRequest {
+        recipientEmail = recipientEmail == null || recipientEmail.isBlank() ? null : recipientEmail.strip();
+    }
 }

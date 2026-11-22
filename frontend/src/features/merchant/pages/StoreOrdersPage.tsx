@@ -410,6 +410,7 @@ export function OrderDetailsPage({ orderId, preview }: { orderId: string; previe
           <ul className={extra.detailList}>
             <li><strong>Recipient:</strong> {order.destination.contactName}</li>
             <li><strong>Phone:</strong> {order.destination.contactPhone}</li>
+            <li><strong>Recipient Email:</strong> {order.recipientEmail ?? 'Not provided'}</li>
             <li><strong>Street:</strong> {order.destination.street}</li>
             <li><strong>City / District:</strong> {order.destination.city}, {order.destination.district}</li>
             {order.destination.postalCode && <li><strong>Postal Code:</strong> {order.destination.postalCode}</li>}

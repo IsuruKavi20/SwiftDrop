@@ -72,6 +72,9 @@
   border-radius: var(--radius-input);
 }
 
+.fullWidth { grid-column: 1 / -1; }
+.fieldHint { color: var(--merchant-secondary); font-size: 0.85rem; font-weight: 400; }
+
 .trackingNumber { font-family: monospace; }
 .copyButton {
   min-height: 2rem;

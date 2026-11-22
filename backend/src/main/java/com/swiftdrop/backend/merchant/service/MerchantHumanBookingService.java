@@ -89,7 +89,7 @@ public class MerchantHumanBookingService {
     private String fingerprint(CreateMerchantDeliveryRequest request) {
         var normalized = new CreateMerchantDeliveryRequest(request.deliveryType(), normalize(request.pickup()),
                 normalize(request.destination()), request.parcels().stream().map(MerchantHumanBookingService::normalize).toList(),
-                optionalText(request.specialInstructions()));
+                optionalText(request.specialInstructions()), request.recipientEmail());
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(json.writeValueAsBytes(normalized)));
         } catch (NoSuchAlgorithmException e) {

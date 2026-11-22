@@ -70,6 +70,9 @@ public class Delivery {
     @Column(name = "special_instructions", length = 500)
     private String specialInstructions;
 
+    @Column(name = "recipient_email", length = 254)
+    private String recipientEmail;
+
     @Column(name = "estimated_fee", precision = 12, scale = 2)
     private BigDecimal estimatedFee;
 
@@ -176,6 +179,9 @@ public class Delivery {
     public void setDeliveryType(DeliveryType deliveryType) { this.deliveryType = deliveryType; }
     public DeliveryStatus getStatus() { return status; }
     public void setStatus(DeliveryStatus status) { this.status = status; }
+    public String getRecipientEmail() { return recipientEmail; }
+    public void setRecipientEmail(String recipientEmail) { this.recipientEmail = recipientEmail; }
+
     public String getSpecialInstructions() { return specialInstructions; }
     public void setSpecialInstructions(String specialInstructions) { this.specialInstructions = specialInstructions; }
     public LocalDate getEstimatedDeliveryDate() { return estimatedDeliveryDate; }
