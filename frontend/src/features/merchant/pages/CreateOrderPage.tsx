@@ -55,13 +55,14 @@ const parcelFields = [
   { name: 'declaredValue', label: 'Declared value', digits: 10, optional: true },
 ];
 
-type Field = { name: string; label: string; max?: number; optional?: boolean; phone?: boolean; digits?: number };
+type Field = { name: string; label: string; max?: number; optional?: boolean; phone?: boolean; email?: boolean; digits?: number };
 
 function fieldError(field: Field, rawValue: string): string | undefined {
   const value = rawValue.trim();
   if (!value) return field.optional ? undefined : 'This field is required.';
   if (field.max && value.length > field.max) return `Use at most ${field.max} characters.`;
   if (field.phone && !/^\+?[0-9]{9,15}$/.test(value)) return 'Enter 9–15 digits, optionally starting with +.';
+  if (field.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Enter a valid email address.';
   if (field.digits) {
     const decimal = new RegExp(`^(?:[0-9]{1,${field.digits}}(?:\\.[0-9]{1,2})?|\\.[0-9]{1,2})$`);
     if (!decimal.test(value)) return `Use up to ${field.digits} digits before the decimal and up to 2 after it.`;
@@ -278,7 +279,7 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
 
   const instructions = { name: 'specialInstructions', label: 'Special instructions', max: 500, optional: true };
   const groups = [
-    { label: 'Recipient and delivery address', prefix: 'destination', fields: [...contactFields, ...addressFields] },
+    { label: 'Recipient and delivery address', prefix: 'destination', fields: [...contactFields, { name: 'email', label: 'Recipient Email', email: true, max: 254, optional: true }, ...addressFields] },
     { label: 'Pickup information and address', prefix: 'pickup', fields: [...contactFields, ...addressFields] },
     ...parcelIds.map((id, index) => ({
       label: `Parcel ${index + 1}`,
@@ -365,7 +366,8 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
     }
     try {
       setIsSubmitting(true);
-      const result = await createMerchantDelivery(payload);
+      const recipientEmail = values['destination.email']?.trim();
+      const result = await createMerchantDelivery({ ...payload, recipientEmail: recipientEmail || undefined });
       setCreatedOrder(result);
       setQuote(undefined);
       setValues({ deliveryType: '' });
@@ -387,7 +389,7 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
     const id = `order-${field.name}`;
     const isDistrict = field.name.endsWith('.district');
     return (
-      <label key={field.name} htmlFor={id}>
+      <label key={field.name} htmlFor={id} className={field.email ? extra.fullWidth : undefined}>
         <span>
           {field.label}
           {field.optional && ' (optional)'}
@@ -395,7 +397,7 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
         <input
           id={id}
           name={field.name}
-          type={field.phone ? 'tel' : 'text'}
+          type={field.email ? 'email' : field.phone ? 'tel' : 'text'}
           inputMode={field.digits ? 'decimal' : undefined}
           required={!field.optional}
           maxLength={field.max}
@@ -403,9 +405,12 @@ export function CreateOrderPage({ preview }: { preview: boolean }) {
           value={values[field.name] ?? ''}
           onChange={(event) => change(field.name, event.target.value)}
           aria-invalid={error ? true : undefined}
-          aria-describedby={error ? `${id}-error` : undefined}
+          aria-describedby={[field.email ? `${id}-help` : undefined, error ? `${id}-error` : undefined].filter(Boolean).join(' ') || undefined}
           disabled={isSubmitting}
         />
+        {field.email && (
+          <span className={extra.fieldHint} id={`${id}-help`}>Stored with this shipment for recipient notifications. Email delivery is not enabled yet.</span>
+        )}
         {error && (
           <span className={styles.fieldError} id={`${id}-error`}>
             {error}

@@ -61,6 +61,7 @@ export interface MerchantDeliveryDetail {
   deliveryType: DeliveryType;
   status: DeliveryStatus;
   specialInstructions?: string | null;
+  recipientEmail?: string | null;
   estimatedDeliveryDate: string | null;
   createdAt: string;
   deliveredAt?: string | null;
@@ -112,6 +113,7 @@ export interface CreateMerchantDeliveryInput {
   destination: DeliveryAddress;
   parcels: Parcel[];
   specialInstructions?: string | null;
+  recipientEmail?: string | null;
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
