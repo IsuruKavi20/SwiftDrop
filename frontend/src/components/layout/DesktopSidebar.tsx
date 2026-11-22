@@ -40,15 +40,15 @@ export const DesktopSidebar: React.FC = () => {
     window.location.href = '/';
   };
 
-  const displayName = profile?.fullName || 'Sachin Maleesha';
-  const displayZone = profile?.assignedZone || 'Kurunegala North';
+  const displayName = profile?.fullName || 'Courier Personnel';
+  const displayZone = profile?.assignedZone || 'Fleet Operations';
   const initials = displayName
     .split(' ')
     .filter(Boolean)
     .map((n) => n[0])
     .join('')
     .slice(0, 2)
-    .toUpperCase() || 'SM';
+    .toUpperCase() || 'CP';
 
   return (
     <aside className="sidebar" aria-label="Main Navigation">
