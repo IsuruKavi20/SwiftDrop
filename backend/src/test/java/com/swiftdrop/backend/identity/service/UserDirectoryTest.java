@@ -160,6 +160,37 @@ public class UserDirectoryTest {
         jdbc.update("INSERT INTO app_user_roles (user_id, role) VALUES (?, 'COURIER')", id);
     }
 
+    @Test
+    void requireFreshRefusesSomeoneAuthDoesNotKnow() {
+        UUID ghost = UUID.randomUUID();
+        when(directory.get(ghost, false)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userDirectory.requireFresh(ghost)).isInstanceOf(UnknownUserException.class);
+    }
+
+    @Test
+    void theCallersNameIsFilledInOnceATokenCarriesIt() {
+        UUID nimal = UUID.randomUUID();
+        userDirectory.caller(org.springframework.security.oauth2.jwt.Jwt.withTokenValue("t").header("alg", "none")
+                .subject(nimal.toString()).claim("roles", List.of("CUSTOMER")).build());   // first token: no name yet
+
+        AppUser named = userDirectory.caller(org.springframework.security.oauth2.jwt.Jwt.withTokenValue("t")
+                .header("alg", "none").subject(nimal.toString()).claim("name", "  Nimal Perera ").build());
+
+        assertThat(named.getName()).contains("Nimal Perera");   // trimmed
+    }
+
+    @Test
+    void anEmailIsAskedLiveAndNeverStored() {
+        UUID kasun = UUID.randomUUID();
+        when(directory.get(kasun, true)).thenReturn(Optional.of(new DirectoryPerson(kasun, "Kasun", null,
+                AppUserStatus.ACTIVE, true, List.of("CUSTOMER"), null, "kasun@example.com")));
+
+        assertThat(userDirectory.email(kasun)).contains("kasun@example.com");
+        assertThat(jdbc.queryForList("SELECT column_name FROM information_schema.columns "
+                + "WHERE table_name = 'app_users' AND column_name = 'email'")).isEmpty();
+    }
+
     private static DirectoryPerson person(UUID id, String name, AppUserStatus status, boolean active) {
         return new DirectoryPerson(id, name, null, status, active, List.of("COURIER"),
                 Instant.parse("2026-11-01T10:00:00Z"), null);
