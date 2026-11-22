@@ -38,6 +38,9 @@ def tests():
     for path in sorted(glob.glob("target/surefire-reports/TEST-*.xml")):
         head = open(path, encoding="utf-8").read(2000)
         name = re.search(r'testsuite[^>]*name="([^"]+)"', head).group(1)
+        package, _, cls = name.rpartition(".")
+        if cls.removesuffix("Test") in NOT_MINE.get(package, []):
+            continue   # a teammate's test that the identity pattern also picks up
         counts = {k: int(v) for k, v in re.findall(r'(tests|failures|errors|skipped)="(\d+)"', head)}
         for key in totals:
             totals[key] += counts.get(key, 0)
