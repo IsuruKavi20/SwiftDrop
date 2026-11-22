@@ -25,7 +25,11 @@ import static org.mockito.Mockito.*;
 class WebhookDispatcherServiceTest {
 
     @ParameterizedTest
-    @CsvSource({"CONFIRMED, DELIVERY_CONFIRMED", "CONFIRMED, CONFIRMED", "CONFIRMED, *", "COURIER_ASSIGNED, COURIER_ASSIGNED"})
+    @CsvSource({"CONFIRMED, DELIVERY_CONFIRMED", "CONFIRMED, CONFIRMED", "CONFIRMED, *", "COURIER_ASSIGNED, COURIER_ASSIGNED",
+            "PICKED_UP, DELIVERY_PICKED_UP", "IN_TRANSIT, DELIVERY_IN_TRANSIT",
+            "OUT_FOR_DELIVERY, DELIVERY_OUT_FOR_DELIVERY", "DELIVERED, DELIVERY_DELIVERED",
+            "FAILED, 'DELIVERY_FAILED,DELIVERY_STATUS_CHANGED,FAILED'", "FAILED, *",
+            "PICKED_UP, DELIVERY_STATUS_CHANGED"})
     void retriesOnlySubscribedMerchantEndpointWithTheSameSignedEventId(String eventType, String subscription) throws Exception {
         var configs = mock(MerchantWebhookConfigRepository.class);
         var logs = mock(WebhookDeliveryLogRepository.class);
@@ -39,7 +43,7 @@ class WebhookDispatcherServiceTest {
         verifyNoInteractions(configs, logs, client);
         ReflectionTestUtils.setField(dispatcher, "httpClient", client);
         var subscribed = new MerchantWebhookConfig(null, "https://192.0.2.1/confirmed", "test-signing-key", subscription);
-        var unrelated = new MerchantWebhookConfig(null, "https://192.0.2.2/other", "test-signing-key", "DELIVERED");
+        var unrelated = new MerchantWebhookConfig(null, "https://192.0.2.2/other", "test-signing-key", "CANCELLED");
         when(configs.findByMerchant_IdAndActiveTrue(42L)).thenReturn(List.of(subscribed, unrelated));
         var failure = mock(HttpResponse.class);
         var recovery = mock(HttpResponse.class);

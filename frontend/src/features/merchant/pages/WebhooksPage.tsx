@@ -23,6 +23,7 @@ const AVAILABLE_EVENTS = [
   { key: 'COURIER_ASSIGNED', label: 'Courier Assigned' },
   { key: 'DELIVERY_PICKED_UP', label: 'Delivery Picked Up' },
   { key: 'DELIVERY_IN_TRANSIT', label: 'Delivery In Transit' },
+  { key: 'DELIVERY_OUT_FOR_DELIVERY', label: 'Out for Delivery' },
   { key: 'DELIVERY_DELIVERED', label: 'Delivery Delivered' },
   { key: 'DELIVERY_FAILED', label: 'Delivery Failed' },
   { key: 'DELIVERY_CANCELLED', label: 'Delivery Cancelled' },
