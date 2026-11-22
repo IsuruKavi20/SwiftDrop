@@ -183,22 +183,197 @@ public class GeminiAiClient {
 
             // The key goes in a header: addresses end up in logs and proxies, headers do not
             String url = GEMINI_API_BASE + properties.model() + ":generateContent";
-            String responseJson = restClient.post()
-                    .uri(url)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .header("x-goog-api-key", properties.apiKey())
-                    .body(requestBody)
-                    .retrieve()
-                    .body(String.class);
+            String responseJson = executeWithRetry(url, requestBody);
 
             JsonNode root = objectMapper.readTree(responseJson);
             GeminiTurnResult result = parseCandidate(root);
-            return result.text() != null ? result.text() : "Here is your delivery update.";
+            return result.text() != null ? result.text() : formatToolFallback(toolCall.name(), toolResult);
 
         } catch (Exception ex) {
             log.error("Failed to submit tool response to Gemini: {}", ex.getMessage(), ex);
-            // Fallback: format tool result nicely as text if Gemini roundtrip fails
-            return "Result: " + toolResult.toString();
+            // Fallback: format tool result gracefully in markdown if Gemini roundtrip fails
+            return formatToolFallback(toolCall.name(), toolResult);
+        }
+    }
+
+    private String executeWithRetry(String url, Map<String, Object> requestBody) {
+        int maxAttempts = 2;
+        Exception lastException = null;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                return restClient.post()
+                        .uri(url)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("x-goog-api-key", properties.apiKey())
+                        .body(requestBody)
+                        .retrieve()
+                        .body(String.class);
+            } catch (Exception ex) {
+                lastException = ex;
+                if (attempt < maxAttempts) {
+                    log.warn("Gemini API call attempt {} failed ({}), retrying in 1s...", attempt, ex.getMessage());
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+        }
+        if (lastException instanceof RuntimeException re) throw re;
+        throw new RuntimeException("Gemini call failed after retries", lastException);
+    }
+
+    /**
+     * Graceful fallback formatter for tool executions when Gemini is unavailable or errors out.
+     */
+    public static String formatToolFallback(String toolName, Map<String, Object> toolResult) {
+        if (toolResult == null || toolResult.isEmpty()) {
+            return "No information was returned for this request.";
+        }
+
+        if ("calculateDeliveryCost".equals(toolName)) {
+            return formatPricingFallback(toolResult);
+        } else if ("trackParcel".equals(toolName)) {
+            return formatTrackingFallback(toolResult);
+        } else if ("listMyDeliveries".equals(toolName)) {
+            return formatDeliveriesFallback(toolResult);
+        } else if ("getDeliveryPolicyInfo".equals(toolName)) {
+            return formatPolicyFallback(toolResult);
+        }
+
+        // Generic fallback
+        if (toolResult.containsKey("message")) {
+            return String.valueOf(toolResult.get("message"));
+        }
+        if (toolResult.containsKey("summary")) {
+            return String.valueOf(toolResult.get("summary"));
+        }
+
+        StringBuilder sb = new StringBuilder("Here is the requested delivery information:\n\n");
+        toolResult.forEach((k, v) -> {
+            if (v != null && !v.toString().isBlank()) {
+                sb.append("- **").append(k).append(":** ").append(v).append("\n");
+            }
+        });
+        return sb.toString().trim();
+    }
+
+    private static String formatPricingFallback(Map<String, Object> d) {
+        String currency = Objects.toString(d.getOrDefault("currency", "LKR"), "LKR");
+        String weight = Objects.toString(d.getOrDefault("weightKg", "1.0"), "1.0");
+        String type = Objects.toString(d.getOrDefault("deliveryType", "STANDARD"), "STANDARD");
+        String timeline = Objects.toString(d.getOrDefault("estimatedTimeline", "2-3 business days"), "2-3 business days");
+
+        String from = d.containsKey("pickupCity") && !d.get("pickupCity").toString().isBlank()
+                ? d.get("pickupCity") + " (" + d.get("pickupDistrict") + ")"
+                : Objects.toString(d.get("pickupDistrict"), "Colombo");
+        String to = d.containsKey("destinationCity") && !d.get("destinationCity").toString().isBlank()
+                ? d.get("destinationCity") + " (" + d.get("destinationDistrict") + ")"
+                : Objects.toString(d.get("destinationDistrict"), "Colombo");
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("The estimated delivery cost from **%s** to **%s** for a **%s kg** parcel is **%s %s** using **%s** delivery.\n\n",
+                from, to, weight, currency, formatNumber(d.get("totalEstimatedFee")), type));
+
+        sb.append("### Details:\n");
+        sb.append(String.format("- **Estimated Timeline:** %s\n", timeline));
+        if (d.containsKey("roadDistanceKm")) {
+            sb.append(String.format("- **Road Distance:** %s km\n", d.get("roadDistanceKm")));
+        }
+        if (d.containsKey("baseFee")) {
+            sb.append(String.format("- **Base Fee:** %s %s\n", currency, formatNumber(d.get("baseFee"))));
+        }
+        if (d.containsKey("distanceCharge") && hasPositiveAmount(d.get("distanceCharge"))) {
+            sb.append(String.format("- **Distance Charge:** %s %s\n", currency, formatNumber(d.get("distanceCharge"))));
+        }
+        if (d.containsKey("extraWeightFee") && hasPositiveAmount(d.get("extraWeightFee"))) {
+            sb.append(String.format("- **Extra Weight Fee:** %s %s\n", currency, formatNumber(d.get("extraWeightFee"))));
+        }
+        if (d.containsKey("serviceSurcharge") && hasPositiveAmount(d.get("serviceSurcharge"))) {
+            sb.append(String.format("- **Service Surcharge:** %s %s\n", currency, formatNumber(d.get("serviceSurcharge"))));
+        }
+        sb.append(String.format("- **Total Estimated Cost:** **%s %s**\n\n", currency, formatNumber(d.get("totalEstimatedFee"))));
+
+        if (d.containsKey("pricingExplanation")) {
+            sb.append("*").append(d.get("pricingExplanation")).append("*\n\n");
+        }
+        sb.append("Let me know if you would like to arrange this pickup or check other options!");
+        return sb.toString();
+    }
+
+    private static String formatTrackingFallback(Map<String, Object> d) {
+        if (Boolean.FALSE.equals(d.get("found"))) {
+            return Objects.toString(d.get("message"), "No parcel found matching that tracking identifier.");
+        }
+        String tn = Objects.toString(d.get("trackingNumber"), "N/A");
+        String status = Objects.toString(d.get("status"), "UNKNOWN");
+        String type = Objects.toString(d.get("deliveryType"), "STANDARD");
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("### Tracking Details: %s\n", tn));
+        sb.append(String.format("- **Status:** %s\n", status));
+        sb.append(String.format("- **Delivery Tier:** %s\n", type));
+        if (d.containsKey("pickupCity") || d.containsKey("pickupDistrict")) {
+            sb.append(String.format("- **Pickup:** %s, %s\n", d.getOrDefault("pickupCity", ""), d.getOrDefault("pickupDistrict", "")));
+        }
+        if (d.containsKey("destinationCity") || d.containsKey("destinationDistrict")) {
+            sb.append(String.format("- **Destination:** %s, %s\n", d.getOrDefault("destinationCity", ""), d.getOrDefault("destinationDistrict", "")));
+        }
+        if (d.containsKey("estimatedDeliveryDate")) {
+            sb.append(String.format("- **Estimated Delivery:** %s\n", d.get("estimatedDeliveryDate")));
+        }
+        if (d.containsKey("trackingUrl")) {
+            sb.append(String.format("\nTrack live at: %s\n", d.get("trackingUrl")));
+        }
+        return sb.toString().trim();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String formatDeliveriesFallback(Map<String, Object> d) {
+        if (Boolean.FALSE.equals(d.get("authenticated"))) {
+            return Objects.toString(d.get("message"), "Please log in to view your recent deliveries.");
+        }
+        List<Map<String, Object>> deliveries = (List<Map<String, Object>>) d.get("deliveries");
+        if (deliveries == null || deliveries.isEmpty()) {
+            return "You do not have any recent deliveries on your account.";
+        }
+        StringBuilder sb = new StringBuilder("### Your Recent Deliveries:\n\n");
+        for (Map<String, Object> del : deliveries) {
+            String tn = Objects.toString(del.get("trackingNumber"), "");
+            String st = Objects.toString(del.get("status"), "");
+            String city = Objects.toString(del.get("destinationCity"), "N/A");
+            String tier = Objects.toString(del.get("deliveryType"), "STANDARD");
+            sb.append(String.format("- **%s** (%s) ➔ %s — *%s*\n", tn, tier, city, st));
+        }
+        return sb.toString().trim();
+    }
+
+    private static String formatPolicyFallback(Map<String, Object> d) {
+        String topic = Objects.toString(d.get("topic"), "Information");
+        String policy = Objects.toString(d.get("policy"), "");
+        return String.format("### %s\n\n%s", topic, policy);
+    }
+
+    private static boolean hasPositiveAmount(Object val) {
+        if (val instanceof Number n) {
+            return n.doubleValue() > 0;
+        }
+        try {
+            return Double.parseDouble(Objects.toString(val, "0")) > 0;
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
+    }
+
+    private static String formatNumber(Object val) {
+        if (val == null) return "0.00";
+        try {
+            double d = Double.parseDouble(val.toString());
+            return String.format(Locale.US, "%,.2f", d);
+        } catch (Exception e) {
+            return val.toString();
         }
     }
 
