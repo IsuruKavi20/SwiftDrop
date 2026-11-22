@@ -57,14 +57,57 @@ function statusBadgeClass(status: DeliveryStatus): string {
   }
 }
 
-const FILTER_OPTIONS: Array<{ label: string; value: DeliveryStatus | 'ALL' }> = [
+const FILTER_OPTIONS = [
   { label: 'All', value: 'ALL' },
   { label: 'Pending', value: 'PENDING' },
-  { label: 'Confirmed', value: 'CONFIRMED' },
   { label: 'In Transit', value: 'IN_TRANSIT' },
   { label: 'Delivered', value: 'DELIVERED' },
-  { label: 'Cancelled', value: 'CANCELLED' },
-];
+] as const;
+
+type DashboardFilter = (typeof FILTER_OPTIONS)[number]['value'];
+
+const ORDERS_PAGE_SIZE = 10;
+const TRANSIT_STATUSES = ['CONFIRMED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'] as const;
+const completionFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
+
+function sortableTimestamp(timestamp: string) {
+  return timestamp.replace(/(?:\.(\d+))?Z$/, (_, fraction = '') => `.${fraction.padEnd(9, '0')}Z`);
+}
+
+async function getDashboardOrders(filter: DashboardFilter, page: number): Promise<PageResponse<MerchantDeliverySummary>> {
+  if (filter !== 'IN_TRANSIT') return getMerchantDeliveries(filter, page, ORDERS_PAGE_SIZE);
+
+  // Each status is already sorted by creation time and ID. Only its prefix can
+  // contribute to the requested page of the combined result.
+  const end = (page + 1) * ORDERS_PAGE_SIZE;
+  const batchSize = Math.min(end, 50);
+  const results = await Promise.all(TRANSIT_STATUSES.map(async (status) => {
+    const first = await getMerchantDeliveries(status, 0, batchSize);
+    const batches = Math.ceil(Math.min(end, first.totalElements) / batchSize);
+    const remaining = await Promise.all(Array.from(
+      { length: Math.max(0, batches - 1) },
+      (_, index) => getMerchantDeliveries(status, index + 1, batchSize),
+    ));
+    return { total: first.totalElements, orders: [first, ...remaining].flatMap((batch) => batch.content) };
+  }));
+  const totalElements = results.reduce((total, result) => total + result.total, 0);
+  const orders = results.flatMap((result) => result.orders.map((order) => ({
+    order,
+    timestamp: sortableTimestamp(order.createdAt),
+  })));
+  orders.sort((left, right) => {
+    if (left.timestamp === right.timestamp) return right.order.id - left.order.id;
+    return left.timestamp < right.timestamp ? 1 : -1;
+  });
+
+  return {
+    content: orders.slice(page * ORDERS_PAGE_SIZE, end).map(({ order }) => order),
+    page,
+    size: ORDERS_PAGE_SIZE,
+    totalElements,
+    totalPages: Math.ceil(totalElements / ORDERS_PAGE_SIZE),
+  };
+}
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
@@ -129,17 +172,23 @@ function RealMerchantDashboard({ claims: propClaims }: { claims?: AccessClaims }
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [totalsError, setTotalsError] = useState<string | null>(null);
   const ordersRequest = useRef(0);
-  const [statusFilter, setStatusFilter] = useState<DeliveryStatus | 'ALL'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<DashboardFilter>('ALL');
   const [currentPage, setCurrentPage] = useState<number>(0);
   const [selectedDeliveryId, setSelectedDeliveryId] = useState<number | null>(null);
 
-  const fetchOrders = useCallback(async (filter: DeliveryStatus | 'ALL', page: number) => {
+  const fetchOrders = useCallback(async (filter: DashboardFilter, page: number) => {
     const request = ++ordersRequest.current;
     setLoadingOrders(true);
     setOrdersError(null);
     try {
-      const result = await getMerchantDeliveries(filter, page, 10);
-      if (request === ordersRequest.current) setDeliveries(result);
+      let result = await getDashboardOrders(filter, page);
+      if (request !== ordersRequest.current) return;
+      const lastPage = Math.max(0, result.totalPages - 1);
+      if (page > lastPage) result = await getDashboardOrders(filter, lastPage);
+      if (request === ordersRequest.current) {
+        setDeliveries(result);
+        setCurrentPage(result.page);
+      }
     } catch (error) {
       if (request === ordersRequest.current) {
         setOrdersError(error instanceof Error ? error.message : 'Could not load store deliveries.');
@@ -186,7 +235,7 @@ function RealMerchantDashboard({ claims: propClaims }: { claims?: AccessClaims }
 
   useEffect(() => loadDashboard(), [loadDashboard]);
 
-  function handleFilterChange(newFilter: DeliveryStatus | 'ALL') {
+  function handleFilterChange(newFilter: DashboardFilter) {
     setStatusFilter(newFilter);
     setCurrentPage(0);
     void fetchOrders(newFilter, 0);
@@ -278,12 +327,15 @@ function RealMerchantDashboard({ claims: propClaims }: { claims?: AccessClaims }
 
   const { dashboard } = pageState;
   const tradingName = dashboard.businessName || 'Merchant Portal';
-  const statusCounts = Object.entries(STATUS_LABELS).map(([status, label]) => ({
-    status,
-    label,
-    count: dashboard.countsByStatus?.[status as DeliveryStatus] ?? 0,
-  }));
-  const largestStatusCount = Math.max(1, ...statusCounts.map(({ count }) => count));
+  const totalSubmitted = dashboard.totalOrders ?? 0;
+  const delivered = dashboard.deliveredOrders ?? 0;
+  const completion = totalSubmitted ? delivered / totalSubmitted * 100 : 0;
+  const fulfillment = [
+    { label: 'Total Submitted', tone: 'orange', count: totalSubmitted },
+    { label: 'In Transit', tone: 'blue', count: dashboard.inTransitOrders ?? 0 },
+    { label: 'Delivered', tone: 'green', count: delivered },
+    { label: 'Failed/Cancelled', tone: 'red', count: (dashboard.countsByStatus?.FAILED ?? 0) + (dashboard.countsByStatus?.CANCELLED ?? 0) },
+  ];
 
   const metricCards: { label: string; icon: MerchantIconName; tone: string; count: number }[] = [
     { label: 'Total Orders', icon: 'box', tone: 'orange', count: dashboard.totalOrders ?? 0 },
@@ -362,21 +414,30 @@ function RealMerchantDashboard({ claims: propClaims }: { claims?: AccessClaims }
         <button type="button" className={shared.button} onClick={() => void refreshTotals()}>Refresh totals</button>
       </div>}
 
-      {/* Orders Table Section */}
-      <section className={previewStyles.panel} aria-labelledby="delivery-statistics">
-        <h2 id="delivery-statistics">Delivery statistics</h2>
-        {statusCounts.some(({ count }) => count > 0) ? (
-          <ul className={previewStyles.distribution}>
-            {statusCounts.map(({ status, label, count }) => (
-              <li key={status}>
-                <span className={previewStyles.distributionLabel}>{label}<strong>{count.toLocaleString()}</strong></span>
-                <span className={previewStyles.distributionTrack} aria-hidden="true">
-                  <span style={{ width: `${count / largestStatusCount * 100}%` }} />
-                </span>
-              </li>
+      <section className={`${previewStyles.panel} ${previewStyles.fulfillment}`} aria-labelledby="fulfillment-summary">
+        <h2 id="fulfillment-summary">Fulfillment Summary</h2>
+        <div className={previewStyles.fulfillmentContent}>
+          <div className={previewStyles.gauge}>
+            <span
+              aria-hidden="true"
+              className={previewStyles.gaugeRing}
+              style={{ background: `conic-gradient(from 270deg, var(--merchant-accent) ${completion * 1.8}deg, var(--merchant-line) 0deg)` }}
+            />
+            <p className={previewStyles.gaugeValue}>
+              <strong>{completionFormat.format(completion)}%</strong>
+              <span>Delivery completion</span>
+            </p>
+          </div>
+          <dl className={previewStyles.fulfillmentLegend}>
+            {fulfillment.map(({ label, tone, count }) => (
+              <div key={label} className={previewStyles.legendRow} data-tone={tone}>
+                <dt>{label}</dt>
+                <dd>{count.toLocaleString()}</dd>
+              </div>
             ))}
-          </ul>
-        ) : <p>Delivery statistics will appear after you book shipments.</p>}
+          </dl>
+        </div>
+        {totalSubmitted === 0 && <p className={previewStyles.fulfillmentEmpty}>Your delivery summary will update after you book your first shipment.</p>}
       </section>
 
       <section className={previewStyles.panel} aria-labelledby="orders-title">
@@ -433,7 +494,7 @@ function RealMerchantDashboard({ claims: propClaims }: { claims?: AccessClaims }
               <>
                 <h3>No matching orders</h3>
                 <p>
-                  No deliveries found with status "{STATUS_LABELS[statusFilter]}".
+                  No orders match the {FILTER_OPTIONS.find((option) => option.value === statusFilter)?.label} filter.
                 </p>
                 <button type="button" className={shared.button} onClick={() => handleFilterChange('ALL')}>
                   Clear Filter
