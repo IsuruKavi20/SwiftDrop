@@ -1,10 +1,11 @@
 package com.swiftdrop.backend.ai.tool;
 
+import com.swiftdrop.backend.ai.dto.McpToolDefinition;
 import com.swiftdrop.backend.customer.entity.Delivery;
 import com.swiftdrop.backend.customer.entity.DeliveryStatus;
 import com.swiftdrop.backend.customer.entity.DeliveryType;
 import com.swiftdrop.backend.customer.entity.TrackingEvent;
-import com.swiftdrop.backend.ai.dto.McpToolDefinition;
+import com.swiftdrop.backend.pricing.DeliveryPricing;
 import jakarta.persistence.EntityManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,27 +23,14 @@ public class DeliveryAiTools {
     private static final Logger log = LoggerFactory.getLogger(DeliveryAiTools.class);
 
     private final EntityManager entityManager;
-
-    @Value("${swiftdrop.customer.pricing.same-district-base:350.00}")
-    private BigDecimal sameDistrictBase = new BigDecimal("350.00");
-
-    @Value("${swiftdrop.customer.pricing.other-district-base:650.00}")
-    private BigDecimal otherDistrictBase = new BigDecimal("650.00");
-
-    @Value("${swiftdrop.customer.pricing.additional-kg:120.00}")
-    private BigDecimal additionalKg = new BigDecimal("120.00");
-
-    @Value("${swiftdrop.customer.pricing.express-surcharge:350.00}")
-    private BigDecimal expressSurcharge = new BigDecimal("350.00");
-
-    @Value("${swiftdrop.customer.pricing.same-day-surcharge:650.00}")
-    private BigDecimal sameDaySurcharge = new BigDecimal("650.00");
+    private final DeliveryPricing deliveryPricing;
 
     @Value("${swiftdrop.frontend-url:http://localhost:5173}")
     private String frontendUrl = "http://localhost:5173";
 
-    public DeliveryAiTools(EntityManager entityManager) {
+    public DeliveryAiTools(EntityManager entityManager, DeliveryPricing deliveryPricing) {
         this.entityManager = entityManager;
+        this.deliveryPricing = deliveryPricing;
     }
 
     /**
@@ -61,7 +49,7 @@ public class DeliveryAiTools {
     }
 
     /**
-     * Tool 1: Calculate shipping fee based on weight, districts, and delivery type.
+     * Tool 1: Calculate shipping fee based on weight, districts/locations, and delivery type using DeliveryPricing.
      */
     public Map<String, Object> calculateDeliveryCost(Map<String, Object> args) {
         double weight = 1.0;
@@ -76,7 +64,9 @@ public class DeliveryAiTools {
         if (weight <= 0) weight = 1.0;
 
         String pickupDistrict = Objects.toString(args.getOrDefault("pickupDistrict", "Colombo"), "Colombo").trim();
+        String pickupCity = Objects.toString(args.getOrDefault("pickupCity", ""), "").trim();
         String destinationDistrict = Objects.toString(args.getOrDefault("destinationDistrict", "Colombo"), "Colombo").trim();
+        String destinationCity = Objects.toString(args.getOrDefault("destinationCity", ""), "").trim();
         String typeStr = Objects.toString(args.getOrDefault("deliveryType", "STANDARD"), "STANDARD").trim().toUpperCase();
 
         DeliveryType deliveryType = DeliveryType.STANDARD;
@@ -84,20 +74,25 @@ public class DeliveryAiTools {
             deliveryType = DeliveryType.valueOf(typeStr);
         } catch (IllegalArgumentException ignored) {}
 
-        boolean isLocal = pickupDistrict.equalsIgnoreCase(destinationDistrict);
-        BigDecimal base = isLocal ? sameDistrictBase : otherDistrictBase;
+        DeliveryPricing.Address pickupAddress = new DeliveryPricing.Address(
+                null,
+                pickupCity.isBlank() ? null : pickupCity,
+                pickupDistrict,
+                null
+        );
+        DeliveryPricing.Address destinationAddress = new DeliveryPricing.Address(
+                null,
+                destinationCity.isBlank() ? null : destinationCity,
+                destinationDistrict,
+                null
+        );
 
-        BigDecimal weightBd = BigDecimal.valueOf(weight);
-        BigDecimal extraKg = weightBd.subtract(BigDecimal.ONE).max(BigDecimal.ZERO);
-        BigDecimal weightFee = extraKg.multiply(additionalKg).setScale(2, RoundingMode.HALF_UP);
-
-        BigDecimal surcharge = switch (deliveryType) {
-            case STANDARD -> BigDecimal.ZERO;
-            case EXPRESS -> expressSurcharge;
-            case SAME_DAY -> sameDaySurcharge;
-        };
-
-        BigDecimal total = base.add(weightFee).add(surcharge).setScale(2, RoundingMode.HALF_UP);
+        DeliveryPricing.Quote quote = deliveryPricing.estimate(
+                pickupAddress,
+                destinationAddress,
+                deliveryType.name(),
+                List.of(BigDecimal.valueOf(weight))
+        );
 
         String estimatedTime = switch (deliveryType) {
             case STANDARD -> "2-3 business days";
@@ -106,18 +101,39 @@ public class DeliveryAiTools {
         };
 
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("currency", "LKR");
+        result.put("currency", quote.currency());
         result.put("weightKg", weight);
         result.put("pickupDistrict", pickupDistrict);
+        if (!pickupCity.isBlank()) {
+            result.put("pickupCity", pickupCity);
+        }
         result.put("destinationDistrict", destinationDistrict);
+        if (!destinationCity.isBlank()) {
+            result.put("destinationCity", destinationCity);
+        }
         result.put("deliveryType", deliveryType.name());
-        result.put("baseFee", base);
-        result.put("extraWeightFee", weightFee);
-        result.put("serviceSurcharge", surcharge);
-        result.put("totalEstimatedFee", total);
+
+        if (quote.distanceKm() != null) {
+            result.put("roadDistanceKm", quote.distanceKm());
+            result.put("distanceCharge", quote.distanceCharge());
+        }
+
+        result.put("baseFee", quote.baseFee());
+        result.put("extraWeightFee", quote.weightCharge());
+        result.put("serviceSurcharge", quote.serviceCharge());
+        result.put("totalEstimatedFee", quote.totalFee());
+        result.put("pricingExplanation", quote.explanation());
         result.put("estimatedTimeline", estimatedTime);
-        result.put("summary", String.format("Estimated shipping for %.1f kg from %s to %s (%s) is LKR %.2f.",
-                weight, pickupDistrict, destinationDistrict, deliveryType, total));
+
+        String summary;
+        if (quote.distanceKm() != null) {
+            summary = String.format("Estimated shipping for %.1f kg from %s to %s (%s, %.1f km road distance) is LKR %.2f.",
+                    weight, pickupDistrict, destinationDistrict, deliveryType, quote.distanceKm().doubleValue(), quote.totalFee());
+        } else {
+            summary = String.format("Estimated shipping for %.1f kg from %s to %s (%s) is LKR %.2f.",
+                    weight, pickupDistrict, destinationDistrict, deliveryType, quote.totalFee());
+        }
+        result.put("summary", summary);
         return result;
     }
 
@@ -257,13 +273,15 @@ public class DeliveryAiTools {
         return List.of(
                 new McpToolDefinition(
                         "calculateDeliveryCost",
-                        "Calculates shipping cost in LKR based on weight, pickup district, destination district, and delivery speed.",
+                        "Calculates shipping cost in LKR based on weight, pickup location/district, destination location/district, and delivery speed.",
                         Map.of(
                                 "type", "object",
                                 "properties", Map.of(
                                         "weightKg", Map.of("type", "number", "description", "Total weight in kilograms (e.g. 2.5)"),
                                         "pickupDistrict", Map.of("type", "string", "description", "Pickup district (default: Colombo)"),
+                                        "pickupCity", Map.of("type", "string", "description", "Optional pickup city or town (e.g. Dehiwala, Nugegoda)"),
                                         "destinationDistrict", Map.of("type", "string", "description", "Destination district in Sri Lanka (e.g. Kandy, Galle)"),
+                                        "destinationCity", Map.of("type", "string", "description", "Optional destination city or town (e.g. Peradeniya, Galle Fort)"),
                                         "deliveryType", Map.of("type", "string", "enum", List.of("STANDARD", "EXPRESS", "SAME_DAY"), "description", "Delivery speed tier")
                                 ),
                                 "required", List.of("weightKg", "destinationDistrict")

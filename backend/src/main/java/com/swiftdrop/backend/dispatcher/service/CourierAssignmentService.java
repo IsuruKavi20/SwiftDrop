@@ -8,6 +8,7 @@ import com.swiftdrop.backend.dispatcher.dto.DispatchDeliveryDetailsResponse;
 import com.swiftdrop.backend.dispatcher.entity.Courier;
 import com.swiftdrop.backend.dispatcher.entity.CourierAssignment;
 import com.swiftdrop.backend.dispatcher.entity.CourierAvailability;
+import com.swiftdrop.backend.dispatcher.event.CourierAssignedToDelivery;
 import com.swiftdrop.backend.dispatcher.event.MerchantCourierAssigned;
 import com.swiftdrop.backend.dispatcher.repository.CourierAssignmentRepository;
 import com.swiftdrop.backend.dispatcher.repository.CourierRepository;
@@ -110,6 +111,21 @@ public class CourierAssignmentService {
         CourierAssignment assignment = assignments.save(new CourierAssignment(delivery, courier, admin, now));
         delivery.assignCourier(person);
         deliveries.flush();
+
+        String dest = (delivery.getDestinationAddress().isPresent())
+                ? delivery.getDestinationAddress().get().getCity() + ", " + delivery.getDestinationAddress().get().getStreet()
+                : "Destination";
+        events.publishEvent(new CourierAssignedToDelivery(
+                assignment.getId(),
+                delivery.getId(),
+                delivery.getTrackingNumber(),
+                courier.getId(),
+                name,
+                courier.getPhoneNumber(),
+                dest,
+                now
+        ));
+
         if (delivery.getMerchantId() != null) {
             events.publishEvent(new MerchantCourierAssigned(assignment.getId(), delivery.getMerchantId(),
                     delivery.getId(), delivery.getTrackingNumber(), now));
