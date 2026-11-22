@@ -112,11 +112,50 @@
 .welcomeActions { display: flex; flex-wrap: wrap; gap: 0.65rem; margin-top: 1rem; }
 .metric, .panel { border-color: var(--color-border); border-radius: var(--radius-card); box-shadow: 0 12px 32px rgb(63 47 31 / 6%); }
 .metricValue { font-size: clamp(1.55rem, 3vw, 2rem); font-variant-numeric: tabular-nums; letter-spacing: -0.04em; }
-.distribution { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: 1rem 1.4rem; list-style: none; padding: 0; margin: 1rem 0 0; }
-.distributionLabel { display: flex; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.45rem; }
-.distributionTrack, .distributionTrack > span { display: block; height: 0.45rem; border-radius: 999px; }
-.distributionTrack { background: var(--color-page); }
-.distributionTrack > span { background: #b78c3e; }
+.fulfillment {
+  background: linear-gradient(135deg, var(--color-surface), var(--color-page));
+}
+
+.fulfillmentContent {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  align-items: center;
+  gap: clamp(1rem, 3vw, 2rem);
+  padding-block: 0.75rem 0.25rem;
+}
+
+.gauge {
+  position: relative;
+  display: grid;
+  align-items: end;
+  width: min(100%, 15rem);
+  aspect-ratio: 2;
+  margin-inline: auto;
+  overflow: hidden;
+  text-align: center;
+}
+
+.gaugeRing {
+  position: absolute;
+  inset: 0 0 auto;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  mask: radial-gradient(farthest-side, transparent calc(100% - 0.8rem), #000 calc(100% - 0.8rem));
+}
+
+.gauge .gaugeValue { display: grid; gap: 0.2rem; font-size: 0.82rem; line-height: 1.2; }
+.gaugeValue strong { font-size: clamp(1.7rem, 5vw, 2.7rem); font-variant-numeric: tabular-nums; }
+
+.fulfillmentLegend { display: grid; margin: 0; }
+.legendRow { display: flex; justify-content: space-between; gap: 0.75rem; padding: 0.55rem 0; }
+.legendRow + .legendRow { border-top: 1px solid var(--merchant-line); }
+.legendRow dt { display: flex; align-items: center; gap: 0.55rem; }
+.legendRow dt::before { content: ''; flex: none; width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--legend-color, var(--merchant-accent)); }
+.legendRow[data-tone='blue'] { --legend-color: #3e6ea5; }
+.legendRow[data-tone='green'] { --legend-color: #34775b; }
+.legendRow[data-tone='red'] { --legend-color: #a94b43; }
+.legendRow dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fulfillment .fulfillmentEmpty { margin-top: 0.75rem; }
 @container (max-width: 38rem) {
   .profileWarningBanner { align-items: flex-start; flex-direction: column; }
 }

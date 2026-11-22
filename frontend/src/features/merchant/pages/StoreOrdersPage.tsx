@@ -374,7 +374,7 @@ export function OrderDetailsPage({ orderId, preview }: { orderId: string; previe
   return (
     <section className={extra.shipment} aria-labelledby="order-details-title">
       <div className={extra.shipmentSummary}>
-        <h2 id="order-details-title" className={extra.trackingNumber}>{order.trackingNumber}</h2>
+        <h2 id="order-details-title">Tracking No: <span className={extra.trackingNumber}>{order.trackingNumber}</span></h2>
         <span className={`${extra.statusBadge} ${statusBadgeClass(order.status)}`}>
           {STATUS_FILTERS.find(({ value }) => value === order.status)?.label ?? order.status}
         </span>
@@ -385,6 +385,9 @@ export function OrderDetailsPage({ orderId, preview }: { orderId: string; previe
           <div><dt>Estimated delivery fee</dt><dd>{order.estimatedFee == null ? 'Not recorded' : formatMerchantFee(order.estimatedFee)}</dd></div>
           {order.deliveredAt && <div><dt>Delivered</dt><dd>{formatDateTime(order.deliveredAt)}</dd></div>}
         </dl>
+        {order.status === 'PENDING' && (
+          <p className={extra.confirmationGuidance}>Ready to dispatch? Review the details and click Confirm Order to proceed.</p>
+        )}
         <ConfirmMerchantOrder order={order} onConfirmed={setOrder} />
       </div>
 
