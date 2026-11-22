@@ -147,13 +147,49 @@ public class NotificationEventListener {
             }
             logRepository.save(logEntry);
         }
+
+        // Notify customer via email if available
+        if (delivery != null && delivery.getCustomer() != null) {
+            String customerEmail = delivery.getCustomer().getEmail();
+            if (customerEmail != null && !customerEmail.isBlank()) {
+                String courierName = event.courierName() != null ? event.courierName() : "A courier";
+                String subject = "SwiftDrop: Courier Assigned for #" + event.trackingNumber();
+                String trackingUrl = trackingLinks.forDelivery(delivery.getPublicTrackingToken(), delivery.getTrackingNumber());
+                String body = String.format("""
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                      <h2 style="color: #0f172a; margin-top: 0;">Courier Assigned!</h2>
+                      <p>Hello <b>%s</b>,</p>
+                      <p>Good news! Courier <b>%s</b> has been assigned to collect your parcel <b>#%s</b>.</p>
+                      <p><a href="%s" style="display: inline-block; padding: 12px 24px; background: #0f172a; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold;">Track Parcel</a></p>
+                      <p style="color: #94a3b8; font-size: 12px; margin-top: 30px;">Thank you for using SwiftDrop.</p>
+                    </div>
+                    """, delivery.getCustomer().getFullName() != null ? delivery.getCustomer().getFullName() : "Customer",
+                        courierName, event.trackingNumber(), trackingUrl);
+
+                NotificationLog custLog = new NotificationLog(
+                        delivery,
+                        customerEmail,
+                        RecipientRole.CUSTOMER,
+                        NotificationChannel.EMAIL,
+                        "COURIER_ASSIGNED",
+                        subject,
+                        body
+                );
+                logRepository.save(custLog);
+                try {
+                    emailSender.send(customerEmail, subject, body);
+                    custLog.markSent(Instant.now());
+                } catch (Exception ex) {
+                    custLog.markFailed(ex.getMessage());
+                }
+                logRepository.save(custLog);
+            }
+        }
     }
 
     private void sendCustomerEmail(DeliveryStatusChangedEvent event, Map<String, Object> vars, Delivery delivery) {
-        String defaultSubject = "SwiftDrop Delivery Update: " + event.trackingNumber() + " is " + event.status();
-        String defaultBody = "<p>Hello <b>" + vars.get("customerName") + "</b>,</p>"
-                + "<p>Your parcel status has been updated to: <b>" + event.status() + "</b>.</p>"
-                + "<p><a href=\"" + vars.get("trackingUrl") + "\">Click here to track your parcel</a></p>";
+        String defaultSubject = resolveDefaultEmailSubject(event.status(), event.trackingNumber());
+        String defaultBody = resolveDefaultEmailBody(event, vars);
 
         NotificationTemplate template = templateRepository
                 .findByEventTypeAndChannelAndActiveTrue(event.status(), NotificationChannel.EMAIL)
@@ -191,8 +227,7 @@ public class NotificationEventListener {
     }
 
     private void sendCustomerSms(DeliveryStatusChangedEvent event, Map<String, Object> vars, Delivery delivery) {
-        String defaultSms = "SwiftDrop: Parcel " + event.trackingNumber() + " is now " + event.status()
-                + ". Track: " + vars.get("trackingUrl");
+        String defaultSms = resolveDefaultCustomerSms(event, vars);
 
         NotificationTemplate template = templateRepository
                 .findByEventTypeAndChannelAndActiveTrue(event.status(), NotificationChannel.SMS)
@@ -223,8 +258,7 @@ public class NotificationEventListener {
     }
 
     private void sendRecipientSms(DeliveryStatusChangedEvent event, Map<String, Object> vars, Delivery delivery, String recipientPhone) {
-        String defaultSms = "SwiftDrop: Parcel " + event.trackingNumber() + " is now " + event.status()
-                + ". Track: " + vars.get("trackingUrl");
+        String defaultSms = resolveDefaultRecipientSms(event, vars);
 
         NotificationTemplate template = templateRepository
                 .findByEventTypeAndChannelAndActiveTrue(event.status(), NotificationChannel.SMS)
@@ -252,5 +286,123 @@ public class NotificationEventListener {
             logEntry.markFailed(ex.getMessage());
         }
         logRepository.save(logEntry);
+    }
+
+    private String resolveDefaultEmailSubject(String status, String trackingNumber) {
+        if (status == null) return "SwiftDrop Delivery Update: #" + trackingNumber;
+        return switch (status.toUpperCase()) {
+            case "CONFIRMED" -> "SwiftDrop: Booking Confirmed for #" + trackingNumber;
+            case "PICKED_UP" -> "SwiftDrop: Parcel #" + trackingNumber + " has been Picked Up";
+            case "IN_TRANSIT" -> "SwiftDrop: Parcel #" + trackingNumber + " is in Transit";
+            case "OUT_FOR_DELIVERY" -> "SwiftDrop: Parcel #" + trackingNumber + " is Out for Delivery!";
+            case "DELIVERED" -> "SwiftDrop: Parcel #" + trackingNumber + " Delivered Successfully";
+            case "FAILED" -> "SwiftDrop: Delivery Attempt Failed for #" + trackingNumber;
+            case "CANCELLED" -> "SwiftDrop: Booking Cancelled for #" + trackingNumber;
+            default -> "SwiftDrop Delivery Update: #" + trackingNumber + " is " + status;
+        };
+    }
+
+    private String resolveDefaultEmailBody(DeliveryStatusChangedEvent event, Map<String, Object> vars) {
+        String status = event.status() != null ? event.status().toUpperCase() : "UPDATED";
+        String customerName = java.util.Objects.toString(vars.get("customerName"), "Customer");
+        String trackingNumber = event.trackingNumber();
+        String trackingUrl = java.util.Objects.toString(vars.get("trackingUrl"), "#");
+        String courierName = java.util.Objects.toString(vars.get("courierName"), "our courier");
+        String description = java.util.Objects.toString(vars.get("description"), "");
+
+        String headline;
+        String message;
+        String color = "#0f172a";
+
+        switch (status) {
+            case "CONFIRMED" -> {
+                headline = "Booking Confirmed!";
+                message = "Your delivery booking has been successfully confirmed. We are assigning a courier to collect your parcel.";
+            }
+            case "PICKED_UP" -> {
+                headline = "Parcel Picked Up!";
+                message = "Our courier <b>" + courierName + "</b> has picked up your parcel and it is on the way to our sorting hub.";
+            }
+            case "IN_TRANSIT" -> {
+                headline = "In Transit";
+                message = "Your parcel <b>#" + trackingNumber + "</b> is currently on the move"
+                        + (!description.isBlank() ? ": " + description : ".");
+            }
+            case "OUT_FOR_DELIVERY" -> {
+                headline = "Out for Delivery Today!";
+                color = "#2563eb";
+                message = "Great news! Courier <b>" + courierName + "</b> is out for delivery with your parcel <b>#"
+                        + trackingNumber + "</b>. Please be available at the destination address to receive it.";
+            }
+            case "DELIVERED" -> {
+                headline = "Package Delivered!";
+                color = "#16a34a";
+                message = "Your parcel <b>#" + trackingNumber + "</b> has been successfully delivered. Thank you for choosing SwiftDrop!";
+            }
+            case "FAILED" -> {
+                headline = "Delivery Attempt Failed";
+                color = "#dc2626";
+                message = "We attempted to deliver your parcel <b>#" + trackingNumber + "</b>, but were unable to complete the delivery"
+                        + (!description.isBlank() ? " (" + description + ")" : "") + ". Our team will attempt redelivery.";
+            }
+            case "CANCELLED" -> {
+                headline = "Booking Cancelled";
+                color = "#64748b";
+                message = "Your delivery booking <b>#" + trackingNumber + "</b> has been cancelled.";
+            }
+            default -> {
+                headline = "Delivery Status: " + status;
+                message = "Your parcel status has been updated to: <b>" + status + "</b>.";
+            }
+        }
+
+        return String.format("""
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;">
+              <h2 style="color: %s; margin-top: 0;">%s</h2>
+              <p>Hello <b>%s</b>,</p>
+              <p>%s</p>
+              <div style="background: #f8fafc; padding: 16px; border-radius: 6px; margin: 20px 0;">
+                <p style="margin: 0; color: #64748b; font-size: 13px;">Tracking Number</p>
+                <p style="margin: 4px 0 0; font-size: 18px; font-weight: bold; color: #0f172a;">%s</p>
+              </div>
+              <p><a href="%s" style="display: inline-block; padding: 12px 24px; background: %s; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold;">Track Live on SwiftDrop</a></p>
+              <p style="color: #94a3b8; font-size: 12px; margin-top: 30px;">Thank you for using SwiftDrop Courier Service.</p>
+            </div>
+            """, color, headline, customerName, message, trackingNumber, trackingUrl, color);
+    }
+
+    private String resolveDefaultCustomerSms(DeliveryStatusChangedEvent event, Map<String, Object> vars) {
+        String status = event.status() != null ? event.status().toUpperCase() : "UPDATED";
+        String trackingNumber = event.trackingNumber();
+        String trackingUrl = java.util.Objects.toString(vars.get("trackingUrl"), "");
+        String courierName = java.util.Objects.toString(vars.get("courierName"), "courier");
+        String description = java.util.Objects.toString(vars.get("description"), "");
+
+        return switch (status) {
+            case "CONFIRMED" -> "SwiftDrop: Booking confirmed for parcel #" + trackingNumber + ". Track live at " + trackingUrl;
+            case "PICKED_UP" -> "SwiftDrop: Parcel #" + trackingNumber + " picked up by " + courierName + ". Track: " + trackingUrl;
+            case "IN_TRANSIT" -> "SwiftDrop: Parcel #" + trackingNumber + " is in transit" + (!description.isBlank() ? " (" + description + ")" : "") + ". Track: " + trackingUrl;
+            case "OUT_FOR_DELIVERY" -> "SwiftDrop: Parcel #" + trackingNumber + " is OUT FOR DELIVERY with " + courierName + ". Track: " + trackingUrl;
+            case "DELIVERED" -> "SwiftDrop: Parcel #" + trackingNumber + " was successfully delivered. Thank you for choosing SwiftDrop!";
+            case "FAILED" -> "SwiftDrop: Delivery attempt failed for parcel #" + trackingNumber + (!description.isBlank() ? " (" + description + ")" : "") + ". Track: " + trackingUrl;
+            case "CANCELLED" -> "SwiftDrop: Booking #" + trackingNumber + " has been cancelled.";
+            default -> "SwiftDrop: Parcel #" + trackingNumber + " is now " + status + ". Track: " + trackingUrl;
+        };
+    }
+
+    private String resolveDefaultRecipientSms(DeliveryStatusChangedEvent event, Map<String, Object> vars) {
+        String status = event.status() != null ? event.status().toUpperCase() : "UPDATED";
+        String trackingNumber = event.trackingNumber();
+        String trackingUrl = java.util.Objects.toString(vars.get("trackingUrl"), "");
+        String customerName = java.util.Objects.toString(vars.get("customerName"), "the sender");
+        String courierName = java.util.Objects.toString(vars.get("courierName"), "our courier");
+
+        return switch (status) {
+            case "CONFIRMED" -> "SwiftDrop: A parcel #" + trackingNumber + " is on its way to you from " + customerName + "! Track live: " + trackingUrl;
+            case "OUT_FOR_DELIVERY" -> "SwiftDrop: Parcel #" + trackingNumber + " is out for delivery to you today with courier " + courierName + ". Track: " + trackingUrl;
+            case "DELIVERED" -> "SwiftDrop: Parcel #" + trackingNumber + " has been delivered to your address! Enjoy your package.";
+            case "FAILED" -> "SwiftDrop: Delivery attempt failed for parcel #" + trackingNumber + ". We will re-attempt delivery shortly. Track: " + trackingUrl;
+            default -> "SwiftDrop: Parcel #" + trackingNumber + " update: " + status + ". Track: " + trackingUrl;
+        };
     }
 }

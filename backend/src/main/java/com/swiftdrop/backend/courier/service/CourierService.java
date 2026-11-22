@@ -12,6 +12,7 @@ import com.swiftdrop.backend.courier.entity.CourierProfile;
 import com.swiftdrop.backend.courier.entity.DeliveryFailure;
 import com.swiftdrop.backend.courier.entity.DeliveryProof;
 import com.swiftdrop.backend.courier.exception.InvalidStatusTransitionException;
+import com.swiftdrop.backend.courier.event.CourierDeliveryStatusChanged;
 import com.swiftdrop.backend.courier.event.MerchantCourierStatusChanged;
 import com.swiftdrop.backend.courier.exception.UnauthorizedDeliveryAccessException;
 import com.swiftdrop.backend.courier.repository.CourierDeliveryRepository;
@@ -436,16 +437,22 @@ public class CourierService {
 
     private void recordTransition(Delivery delivery, TrackingEvent tracking) {
         delivery.addTrackingEvent(tracking);
-        if (delivery.getMerchantId() == null) {
-            courierDeliveries.save(delivery);
-            return;
-        }
-
         Delivery saved = courierDeliveries.saveAndFlush(delivery);
         // Hibernate may replace the newly attached event with its managed copy.
         TrackingEvent persisted = saved.getTrackingEvents().getLast();
-        events.publishEvent(new MerchantCourierStatusChanged(saved.getMerchantId(), saved.getId(),
-                persisted.getId(), saved.getTrackingNumber(), persisted.getStatus(), persisted.getEventTime()));
+
+        events.publishEvent(new CourierDeliveryStatusChanged(
+                saved.getId(),
+                persisted.getId(),
+                saved.getTrackingNumber(),
+                persisted.getStatus(),
+                persisted.getEventTime()
+        ));
+
+        if (saved.getMerchantId() != null) {
+            events.publishEvent(new MerchantCourierStatusChanged(saved.getMerchantId(), saved.getId(),
+                    persisted.getId(), saved.getTrackingNumber(), persisted.getStatus(), persisted.getEventTime()));
+        }
     }
 }
 

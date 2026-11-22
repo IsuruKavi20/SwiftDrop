@@ -193,6 +193,9 @@ test.describe('Merchant Module Full Feature Set', () => {
     await expect(page.locator('text=View Order Details')).toBeVisible();
     await expect.poll(() => confirmations).toBe(0);
     await page.getByRole('link', { name: 'View Order Details' }).click();
+    await expect(page.getByRole('heading', { name: 'Tracking No: SD-TEA001' })).toBeVisible();
+    const guidance = page.getByText('Ready to dispatch? Review the details and click Confirm Order to proceed.', { exact: true });
+    await expect(guidance).toBeVisible();
     await page.getByRole('button', { name: 'Confirm Order', exact: true }).click();
     const confirmation = page.getByRole('dialog', { name: /Confirm shipment/ });
     await expect(confirmation).toContainText('Kamal Perera');
@@ -206,6 +209,7 @@ test.describe('Merchant Module Full Feature Set', () => {
     finishConfirmation();
     await expect(page.getByText('Booking confirmed by merchant')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Confirm Order', exact: true })).toHaveCount(0);
+    await expect(guidance).toHaveCount(0);
     expect(confirmations).toBe(1);
   });
 
@@ -356,7 +360,7 @@ test.describe('Merchant Module Full Feature Set', () => {
     });
 
     await page.goto('/merchant/orders/101');
-    await expect(page.locator('#order-details-title')).toHaveText('SD-TEA001');
+    await expect(page.locator('#order-details-title')).toHaveText('Tracking No: SD-TEA001');
     await expect(page.locator('li', { hasText: 'Contact:' })).toContainText('Sunil Shantha');
     await expect(page.locator('text=12 Flower Road')).toBeVisible();
     await expect(page.locator('li', { hasText: 'Recipient:' })).toContainText('Kamal Perera');

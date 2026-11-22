@@ -6,6 +6,9 @@ import com.swiftdrop.backend.customer.entity.Delivery;
 import com.swiftdrop.backend.customer.entity.DeliveryAddress;
 import com.swiftdrop.backend.customer.entity.DeliveryStatus;
 import com.swiftdrop.backend.customer.entity.DeliveryType;
+import com.swiftdrop.backend.pricing.DeliveryPricing;
+import com.swiftdrop.backend.pricing.DistanceSource.RouteDistance;
+import com.swiftdrop.backend.pricing.Tariff;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,7 +30,8 @@ class DeliveryAiToolsTest {
     @BeforeEach
     void setUp() {
         entityManager = Mockito.mock(EntityManager.class);
-        tools = new DeliveryAiTools(entityManager);
+        DeliveryPricing deliveryPricing = new DeliveryPricing(Tariff::defaults, (from, to) -> Optional.empty());
+        tools = new DeliveryAiTools(entityManager, deliveryPricing);
     }
 
     @Test
@@ -62,6 +66,34 @@ class DeliveryAiToolsTest {
         assertThat((BigDecimal) result.get("extraWeightFee")).isEqualByComparingTo("120.00");
         assertThat((BigDecimal) result.get("serviceSurcharge")).isEqualByComparingTo("350.00");
         assertThat((BigDecimal) result.get("totalEstimatedFee")).isEqualByComparingTo("1120.00");
+    }
+
+    @Test
+    void calculatesRoadDistancePricingWhenDistanceSourceResolves() {
+        // Distance: 15.0 km. First 5 km included in distanceBase (250.00).
+        // Extra 10.0 km * 6.00 = 60.00 distance charge.
+        // Weight: 1.0 kg (0 extra). STANDARD (0 surcharge).
+        // Total: 250 + 60 = 310.00 LKR.
+        DeliveryPricing distancePricing = new DeliveryPricing(
+                Tariff::defaults,
+                (from, to) -> Optional.of(new RouteDistance(new BigDecimal("15.0"), java.time.Duration.ofMinutes(30)))
+        );
+        DeliveryAiTools distanceTools = new DeliveryAiTools(entityManager, distancePricing);
+
+        Map<String, Object> result = distanceTools.calculateDeliveryCost(Map.of(
+                "weightKg", 1.0,
+                "pickupDistrict", "Colombo",
+                "pickupCity", "Colombo 03",
+                "destinationDistrict", "Colombo",
+                "destinationCity", "Moratuwa",
+                "deliveryType", "STANDARD"
+        ));
+
+        assertThat(result.get("currency")).isEqualTo("LKR");
+        assertThat((BigDecimal) result.get("roadDistanceKm")).isEqualByComparingTo("15.0");
+        assertThat((BigDecimal) result.get("baseFee")).isEqualByComparingTo("250.00");
+        assertThat((BigDecimal) result.get("distanceCharge")).isEqualByComparingTo("60.00");
+        assertThat((BigDecimal) result.get("totalEstimatedFee")).isEqualByComparingTo("310.00");
     }
 
     @Test

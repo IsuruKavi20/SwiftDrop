@@ -115,8 +115,11 @@ async function setupDashboardMocks(
     businessName?: string;
     dashboardStatus?: number;
     deliveriesStatus?: number;
+    orders?: typeof SAMPLE_ORDERS;
   } = {}
 ) {
+  const orders = options.orders ?? SAMPLE_ORDERS;
+  const count = (...statuses: string[]) => orders.filter((order) => statuses.includes(order.status)).length;
   const claims = options.claims ?? {
     sub: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d',
     name: 'Nimal Perera',
@@ -198,21 +201,12 @@ async function setupDashboardMocks(
       body: JSON.stringify({
         businessName,
         profileComplete: isComplete,
-        totalOrders: 3,
-        pendingOrders: 1,
-        inTransitOrders: 1,
-        deliveredOrders: 1,
-        countsByStatus: {
-          PENDING: 1,
-          CONFIRMED: 0,
-          PICKED_UP: 0,
-          IN_TRANSIT: 1,
-          OUT_FOR_DELIVERY: 0,
-          DELIVERED: 1,
-          FAILED: 0,
-          CANCELLED: 0,
-        },
-        recentOrders: SAMPLE_ORDERS,
+        totalOrders: orders.length,
+        pendingOrders: count('PENDING'),
+        inTransitOrders: count('CONFIRMED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'),
+        deliveredOrders: count('DELIVERED'),
+        countsByStatus: { FAILED: count('FAILED'), CANCELLED: count('CANCELLED') },
+        recentOrders: orders,
       }),
     });
   });
@@ -233,10 +227,10 @@ async function setupDashboardMocks(
       const statusParam = url.searchParams.get('status');
       const pageParam = parseInt(url.searchParams.get('page') || '0', 10);
 
-      let content = SAMPLE_ORDERS;
-      if (statusParam) {
-        content = SAMPLE_ORDERS.filter((o) => o.status === statusParam);
-      }
+      const size = Number(url.searchParams.get('size') || 10);
+      const matching = orders.filter((order) => !statusParam || order.status === statusParam)
+        .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt) || right.id - left.id);
+      const content = matching.slice(pageParam * size, (pageParam + 1) * size);
 
       await route.fulfill({
         status: 200,
@@ -244,9 +238,9 @@ async function setupDashboardMocks(
         body: JSON.stringify({
           content,
           page: pageParam,
-          size: 10,
-          totalElements: content.length,
-          totalPages: 1,
+          size,
+          totalElements: matching.length,
+          totalPages: Math.ceil(matching.length / size),
         }),
       });
       return;
@@ -288,6 +282,8 @@ test.describe('Merchant Dashboard E2E', () => {
     await expect(statsRegion.getByText('Pending', { exact: true })).toBeVisible();
     await expect(statsRegion.getByText('In Transit', { exact: true })).toBeVisible();
     await expect(statsRegion.getByText('Delivered', { exact: true })).toBeVisible();
+
+    await expect(page.getByRole('region', { name: 'Fulfillment Summary' })).toContainText('33.3%');
 
     // Orders table
     await expect(page.locator('text=SD-TEA001')).toBeVisible();
@@ -331,6 +327,60 @@ test.describe('Merchant Dashboard E2E', () => {
     await page.click('button:has-text("All")');
     await expect(page.locator('text=SD-TEA001')).toBeVisible();
     await expect(page.locator('text=SD-TEA002')).toBeVisible();
+  });
+
+  test('combines transit statuses before pagination and retains individual badges', async ({ page }) => {
+    const transit = ['CONFIRMED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'];
+    const orders = [...SAMPLE_ORDERS, ...Array.from({ length: 10 }, (_, index) => ({
+      ...SAMPLE_ORDERS[0],
+      id: 200 + index,
+      trackingNumber: `SD-TRANSIT-${index}`,
+      status: transit[index % transit.length],
+    })), ...['FAILED', 'CANCELLED'].map((status, index) => ({
+      ...SAMPLE_ORDERS[0],
+      id: 300 + index,
+      trackingNumber: `SD-${status}`,
+      status,
+    }))];
+    await setupDashboardMocks(page, { orders });
+    await injectSessionToken(page);
+    await page.goto('/merchant/dashboard');
+
+    const summary = page.getByRole('region', { name: 'Fulfillment Summary' });
+    await expect(summary.getByText('Failed/Cancelled').locator('..')).toHaveText('Failed/Cancelled2');
+    await expect(summary.getByText('Total Submitted').locator('..')).toHaveText('Total Submitted15');
+    const recent = page.getByRole('region', { name: 'Recent orders' });
+    const filters = recent.getByRole('group', { name: 'Order status filters' }).getByRole('button');
+    await expect(filters).toHaveText(['All', 'Pending', 'In Transit', 'Delivered']);
+    await expect(recent.getByText('SD-FAILED', { exact: true })).toBeVisible();
+    await expect(recent.getByText('SD-CANCELLED', { exact: true })).toBeVisible();
+
+    await recent.getByRole('button', { name: 'In Transit', exact: true }).click();
+    await expect(recent.getByText('Showing page 1 of 2 (11 orders total)')).toBeVisible();
+    for (const badge of ['Confirmed', 'Picked up', 'In transit', 'Out for delivery']) {
+      await expect(recent.getByRole('cell', { name: badge, exact: true }).first()).toBeVisible();
+    }
+    await expect(recent.getByText('SD-FAILED', { exact: true })).toHaveCount(0);
+    await recent.getByRole('button', { name: /^Next/ }).click();
+    await expect(recent.getByText('Showing page 2 of 2 (11 orders total)')).toBeVisible();
+    await expect(recent.getByRole('row')).toHaveCount(2);
+    await expect(recent.getByText('SD-TRANSIT-0', { exact: true })).toHaveCount(0);
+    await expect(recent.getByText('SD-TEA002', { exact: true })).toBeVisible();
+
+    await recent.getByRole('button', { name: 'Delivered', exact: true }).click();
+    await expect(recent.getByText('SD-TEA003', { exact: true })).toBeVisible();
+    await expect(recent.getByRole('row')).toHaveCount(2);
+  });
+
+  test('shows a zero completion gauge for a Merchant with no orders', async ({ page }) => {
+    await setupDashboardMocks(page, { orders: [] });
+    await injectSessionToken(page);
+    await page.goto('/merchant/dashboard');
+
+    const summary = page.getByRole('region', { name: 'Fulfillment Summary' });
+    await expect(summary.getByText('0%', { exact: true })).toBeVisible();
+    await expect(summary.getByText(/after you book your first shipment/)).toBeVisible();
+    await expect(summary.locator('dd')).toHaveText(['0', '0', '0', '0']);
   });
 
   test('4. Clicking an order row opens details modal with addresses, parcels, and timeline', async ({ page }) => {
