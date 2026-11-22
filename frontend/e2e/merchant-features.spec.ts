@@ -125,7 +125,7 @@ test.describe('Merchant Module Full Feature Set', () => {
     let confirmations = 0;
     let finishConfirmation: () => void = () => {};
     const holdConfirmation = new Promise<void>((resolve) => { finishConfirmation = resolve; });
-    const pending = { ...MOCK_ORDER_DETAIL, status: 'PENDING', estimatedFee: 520, trackingEvents: [] };
+    const pending = { ...MOCK_ORDER_DETAIL, status: 'PENDING', estimatedFee: 520, recipientEmail: 'recipient@example.test', trackingEvents: [] };
     await page.route('**/api/merchants/me/deliveries/estimate', (route) => route.fulfill({
       json: { currency: 'LKR', distanceKm: 15, routeFrom: 'Colombo', routeTo: 'Kandy', distanceCharge: 100, baseFee: 200, weightCharge: 100, serviceCharge: 120, totalFee: 520, explanation: '15 km by road' },
     }));
@@ -184,8 +184,22 @@ test.describe('Merchant Module Full Feature Set', () => {
     await page.fill('input[name="parcel-1.weightKg"]', '2.25');
     await expect(page.getByRole('status').filter({ hasText: 'Estimated delivery fee' })).toHaveCount(0);
 
+    const email = page.getByLabel('Recipient Email (optional)');
+    await expect(email).toHaveAttribute('type', 'email');
+    await expect(email).toHaveJSProperty('required', false);
+    await email.fill('invalid-email');
+    await page.getByRole('button', { name: 'Submit order' }).click();
+    await expect(email).toBeFocused();
+    await expect(email).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.getByText('Enter a valid email address.', { exact: true })).toBeVisible();
+    await email.fill('recipient@example.test');
+
     // Booking leaves the shipment pending until the Merchant confirms it.
-    await page.click('button:has-text("Submit order")');
+    const booking = page.waitForRequest((request) =>
+      request.method() === 'POST' && new URL(request.url()).pathname === '/api/merchants/me/deliveries');
+    await page.getByRole('button', { name: 'Submit order' }).click();
+    const payload = (await booking).postDataJSON();
+    expect(payload.recipientEmail).toBe('recipient@example.test');
 
     // Confirmation card
     await expect(page.locator('text=Shipment Booked Successfully!')).toBeVisible();
@@ -196,6 +210,7 @@ test.describe('Merchant Module Full Feature Set', () => {
     await expect(page.getByRole('heading', { name: 'Tracking No: SD-TEA001' })).toBeVisible();
     const guidance = page.getByText('Ready to dispatch? Review the details and click Confirm Order to proceed.', { exact: true });
     await expect(guidance).toBeVisible();
+    await expect(page.getByText('Recipient Email: recipient@example.test', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Confirm Order', exact: true }).click();
     const confirmation = page.getByRole('dialog', { name: /Confirm shipment/ });
     await expect(confirmation).toContainText('Kamal Perera');
@@ -361,6 +376,7 @@ test.describe('Merchant Module Full Feature Set', () => {
 
     await page.goto('/merchant/orders/101');
     await expect(page.locator('#order-details-title')).toHaveText('Tracking No: SD-TEA001');
+    await expect(page.getByText('Recipient Email: Not provided', { exact: true })).toBeVisible();
     await expect(page.locator('li', { hasText: 'Contact:' })).toContainText('Sunil Shantha');
     await expect(page.locator('text=12 Flower Road')).toBeVisible();
     await expect(page.locator('li', { hasText: 'Recipient:' })).toContainText('Kamal Perera');

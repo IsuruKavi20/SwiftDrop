@@ -303,6 +303,31 @@ class MerchantDeliveryApiTest {
     }
 
     @Test
+    void humanBookingStoresRecipientEmailAndReturnsItOnlyToTheOwner() throws Exception {
+        UUID owner = UUID.randomUUID();
+        String body = VALID_DELIVERY_JSON.replaceFirst("\\{", "{\"recipientEmail\":\" recipient@example.test \",");
+        var created = humanBooking(owner, "email-row", body);
+        assertThat(created.getResponse().getStatus()).isEqualTo(201);
+        JsonNode delivery = objectMapper.readTree(created.getResponse().getContentAsString());
+        long id = delivery.path("id").asLong();
+        assertThat(delivery.path("recipientEmail").asText()).isEqualTo("recipient@example.test");
+        assertThat(jdbc.queryForObject("SELECT recipient_email FROM delivery WHERE delivery_id = ?", String.class, id))
+                .isEqualTo("recipient@example.test");
+
+        mockMvc.perform(get("/api/merchants/me/deliveries/" + id).with(merchant(owner, "Owner")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.recipientEmail").value("recipient@example.test"));
+        mockMvc.perform(get("/api/merchants/me/deliveries/" + id).with(merchant(UUID.randomUUID(), "Other")))
+                .andExpect(status().isNotFound());
+        assertThat(humanBooking(owner, "email-row", body.replace(" recipient@example.test ", "recipient@example.test"))
+                .getResponse().getStatus()).isEqualTo(200);
+        assertThat(humanBooking(owner, "email-row", body.replace("recipient@example.test", "other@example.test"))
+                .getResponse().getStatus()).isEqualTo(409);
+        assertThat(humanBooking(owner, "invalid-email-row", body.replace("recipient@example.test", "invalid"))
+                .getResponse().getStatus()).isEqualTo(400);
+    }
+
+    @Test
     void humanBookingReplaysNormalizedRequestAndIsolatesMerchants() throws Exception {
         UUID owner = UUID.randomUUID();
         UUID other = UUID.randomUUID();
@@ -310,6 +335,7 @@ class MerchantDeliveryApiTest {
         assertThat(created.getResponse().getStatus()).isEqualTo(201);
         JsonNode delivery = objectMapper.readTree(created.getResponse().getContentAsString());
         long id = delivery.path("id").asLong();
+        assertThat(delivery.path("recipientEmail").isNull()).isTrue();
         assertThat(delivery.path("status").asText()).isEqualTo("PENDING");
         assertThat(delivery.path("trackingNumber").asText()).isNotBlank();
         assertThat(delivery.path("estimatedFee").asDouble()).isPositive();

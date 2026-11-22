@@ -86,6 +86,7 @@ public class MerchantDeliveryService {
     Delivery bookDelivery(Merchant merchant, AppUser recordedBy, CreateMerchantDeliveryRequest request) {
         Delivery delivery = new Delivery(merchant.getId(), uniqueTrackingNumber(), codes.newPublicTrackingToken(), request.deliveryType());
         delivery.setSpecialInstructions(blankToNull(request.specialInstructions()));
+        delivery.setRecipientEmail(request.recipientEmail());
         delivery.setEstimatedFee(estimate(request).totalFee());
         delivery.setEstimatedDeliveryDate(estimatedDeliveryDate(request.deliveryType()));
         delivery.setAddress(toDeliveryAddress(AddressType.PICKUP, request.pickup()));
