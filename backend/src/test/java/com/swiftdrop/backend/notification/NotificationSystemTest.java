@@ -7,6 +7,7 @@ import com.swiftdrop.backend.notification.entity.NotificationTemplate;
 import com.swiftdrop.backend.notification.event.DeliveryStatusChangedEvent;
 import com.swiftdrop.backend.notification.event.MerchantAssignmentWebhook;
 import com.swiftdrop.backend.notification.event.MerchantConfirmedWebhook;
+import com.swiftdrop.backend.notification.event.MerchantLifecycleWebhook;
 import org.mockito.ArgumentCaptor;
 import com.swiftdrop.backend.notification.repository.MerchantWebhookConfigRepository;
 import com.swiftdrop.backend.notification.repository.NotificationLogRepository;
@@ -114,6 +115,18 @@ class NotificationSystemTest {
         var json = new ObjectMapper().readTree(body.getValue());
         org.assertj.core.api.Assertions.assertThat(json.propertyNames())
                 .containsExactlyInAnyOrder("eventId", "deliveryId", "trackingNumber", "eventType", "timestamp");
+        verifyNoInteractions(emailSender, smsSender);
+    }
+
+    @Test
+    void lifecycleWebhookSendsOnlyTheMerchantFacingFields() {
+        var at = Instant.parse("2026-01-01T00:00:00Z");
+        new MerchantWebhookListener(webhookDispatcher, new ObjectMapper()).handle(new MerchantLifecycleWebhook(42L,
+                new MerchantLifecycleWebhook.Payload("delivery-status-8", 5L, "SD-123", "DELIVERED", at)));
+        var body = ArgumentCaptor.forClass(String.class);
+        verify(webhookDispatcher).dispatchWebhook(eq(42L), eq(5L), eq("DELIVERED"), body.capture(), eq("delivery-status-8"));
+        org.assertj.core.api.Assertions.assertThat(new ObjectMapper().readTree(body.getValue()).propertyNames())
+                .containsExactlyInAnyOrder("eventId", "deliveryId", "trackingNumber", "status", "timestamp");
         verifyNoInteractions(emailSender, smsSender);
     }
 

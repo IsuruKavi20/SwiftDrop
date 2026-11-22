@@ -1,4 +1,5 @@
 import { routes } from '../../../app/router';
+import { areasFor } from '../../auth/lib/areas';
 import type { AccessClaims } from '../../auth/lib/session';
 import { merchantPath } from '../merchantRoutes';
 import { MerchantIcon } from './MerchantIcon';
@@ -15,7 +16,7 @@ interface MerchantHeaderProps {
 
 export function MerchantHeader({ claims, name, title, preview, onSignOut }: MerchantHeaderProps) {
   const initials = name?.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'M';
-  const hasCustomerAccess = Boolean(claims?.entitlements?.includes('parcel:read-own'));
+  const customerArea = areasFor(claims?.entitlements ?? []).find((area) => area.id === 'customer');
 
   return (
     <header className={styles.header}>
@@ -31,8 +32,8 @@ export function MerchantHeader({ claims, name, title, preview, onSignOut }: Merc
             <MerchantIcon name="down" size={15} />
           </summary>
           <div className={styles.accountMenu}>
-            {hasCustomerAccess && (
-              <MerchantLink href={routes.customerDashboard}>Customer View</MerchantLink>
+            {customerArea && (
+              <MerchantLink href={customerArea.path}>Customer View</MerchantLink>
             )}
             <MerchantLink href={routes.account}>Account</MerchantLink>
             <button type="button" onClick={onSignOut}>Sign Out</button>

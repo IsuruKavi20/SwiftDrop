@@ -466,7 +466,9 @@ test.describe('Merchant Dashboard E2E', () => {
 
     await page.goto('/merchant/dashboard');
 
-    await expect(page).toHaveURL(/\/account/);
+    await expect(page).toHaveURL(/\/customer\/dashboard$/);
+    await expect(page.getByText('CUSTOMER / OVERVIEW')).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Order summary statistics' })).toHaveCount(0);
   });
 
   test('8. Mobile viewport adapts layout cleanly', async ({ page }) => {

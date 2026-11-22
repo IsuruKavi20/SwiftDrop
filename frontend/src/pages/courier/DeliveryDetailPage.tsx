@@ -322,7 +322,7 @@ export const DeliveryDetailPage: React.FC = () => {
                 )}
               </button>
             </div>
-            <span className="detail-assigned-time">Assigned at: {delivery.assignedAt || 'Today, 08:00 AM'}</span>
+            <span className="detail-assigned-time">Assigned at: {delivery.assignedAt || 'Recently assigned'}</span>
           </div>
 
           <div className="detail-quick-actions">
