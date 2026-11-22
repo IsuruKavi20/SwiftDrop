@@ -1,6 +1,8 @@
 package com.swiftdrop.backend.notification.service;
 
 import com.swiftdrop.backend.customer.entity.Delivery;
+import com.swiftdrop.backend.courier.event.MerchantCourierStatusChanged;
+import com.swiftdrop.backend.notification.event.MerchantLifecycleWebhook;
 import com.swiftdrop.backend.dispatcher.event.MerchantCourierAssigned;
 import com.swiftdrop.backend.notification.event.MerchantAssignmentWebhook;
 import com.swiftdrop.backend.merchant.event.MerchantDeliveryConfirmed;
@@ -50,6 +52,13 @@ class MerchantStatusListener {
         var payload = new MerchantAssignmentWebhook.Payload("courier-assignment-" + event.assignmentId(),
                 event.deliveryId(), event.trackingNumber(), MerchantAssignmentWebhook.EVENT_TYPE, event.timestamp());
         publishWebhook(MerchantAssignmentWebhook.ROUTING_KEY, new MerchantAssignmentWebhook(event.merchantId(), payload));
+    }
+
+    @ApplicationModuleListener
+    void publishLifecycleWebhook(MerchantCourierStatusChanged event) throws Exception {
+        var payload = new MerchantLifecycleWebhook.Payload("delivery-status-" + event.trackingEventId(),
+                event.deliveryId(), event.trackingNumber(), event.status().name(), event.timestamp());
+        publishWebhook(MerchantLifecycleWebhook.ROUTING_KEY, new MerchantLifecycleWebhook(event.merchantId(), payload));
     }
 
     private void publishWebhook(String routingKey, Object message) throws Exception {

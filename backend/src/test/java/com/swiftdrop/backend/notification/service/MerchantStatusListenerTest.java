@@ -1,6 +1,10 @@
 package com.swiftdrop.backend.notification.service;
 
+import com.swiftdrop.backend.courier.event.MerchantCourierStatusChanged;
 import com.swiftdrop.backend.customer.entity.Delivery;
+import com.swiftdrop.backend.customer.entity.DeliveryStatus;
+import com.swiftdrop.backend.notification.event.MerchantLifecycleWebhook;
+import org.springframework.amqp.core.ReturnedMessage;
 import com.swiftdrop.backend.customer.entity.TrackingEvent;
 import com.swiftdrop.backend.merchant.event.MerchantStatusChange;
 import jakarta.persistence.EntityManager;
@@ -22,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -55,6 +60,31 @@ class MerchantStatusListenerTest {
 
         verify(rabbit, times(2)).convertAndSend(eq(RabbitMqConfig.EXCHANGE_SWIFTDROP),
                 eq(MerchantAssignmentWebhook.ROUTING_KEY), eq(message), any(CorrelationData.class));
+    }
+
+    @Test
+    void brokerReturnOverridesAcknowledgementAndRetryKeepsLifecycleEventId() throws Exception {
+        Instant timestamp = Instant.parse("2026-01-01T00:00:00Z");
+        var event = new MerchantCourierStatusChanged(42L, 5L, 7L, "SD-123", DeliveryStatus.PICKED_UP, timestamp);
+        var message = new MerchantLifecycleWebhook(42L, new MerchantLifecycleWebhook.Payload(
+                "delivery-status-7", 5L, "SD-123", "PICKED_UP", timestamp));
+
+        doAnswer(invocation -> {
+            CorrelationData correlation = invocation.getArgument(3);
+            correlation.setReturned(mock(ReturnedMessage.class));
+            correlation.getFuture().complete(new CorrelationData.Confirm(true, null));
+            return null;
+        }).doAnswer(invocation -> {
+            CorrelationData correlation = invocation.getArgument(3);
+            correlation.getFuture().complete(new CorrelationData.Confirm(true, null));
+            return null;
+        }).when(rabbit).convertAndSend(eq(RabbitMqConfig.EXCHANGE_SWIFTDROP),
+                eq(MerchantLifecycleWebhook.ROUTING_KEY), eq(message), any(CorrelationData.class));
+
+        assertThrows(IllegalStateException.class, () -> listener.publishLifecycleWebhook(event));
+        listener.publishLifecycleWebhook(event);
+        verify(rabbit, times(2)).convertAndSend(eq(RabbitMqConfig.EXCHANGE_SWIFTDROP),
+                eq(MerchantLifecycleWebhook.ROUTING_KEY), eq(message), any(CorrelationData.class));
     }
 
     @Test
