@@ -19,6 +19,8 @@ import java.util.Map;
 import java.util.UUID;
 
 import static com.swiftdrop.backend.identity.service.IdentityEventApplier.ACCOUNT_DISABLED;
+import static com.swiftdrop.backend.identity.service.IdentityEventApplier.ACCOUNT_ENABLED;
+import static com.swiftdrop.backend.identity.service.IdentityEventApplier.IDENTIFIER_CHANGED;
 import static com.swiftdrop.backend.identity.service.IdentityEventApplier.ACCOUNT_PURGED;
 import static com.swiftdrop.backend.identity.service.IdentityEventApplier.PROFILE_UPDATED;
 import static com.swiftdrop.backend.identity.service.IdentityEventApplier.ROLES_CHANGED;
@@ -179,6 +181,70 @@ public class IdentityEventApplierTest {
 
         assertThat(jdbc.queryForObject("SELECT last_event_version FROM app_users WHERE id = ?", Long.class, kasun))
                 .isEqualTo(5);
+    }
+
+    @Test
+    void reEnablingMakesThePersonUsableAgain() {
+        registered();
+        applier.apply(event("e2", ACCOUNT_DISABLED, 2, Map.of()));
+
+        applier.apply(event("e3", ACCOUNT_ENABLED, 3, Map.of()));
+
+        AppUser person = userDirectory.get(kasun).orElseThrow();
+        assertThat(person.isActive()).isTrue();
+        assertThat(person.getStatus()).isEqualTo(AppUserStatus.ACTIVE);
+    }
+
+    @Test
+    void aPurgeOfSomeoneWeNeverSawCreatesNothing() {
+        applier.apply(event("e1", ACCOUNT_PURGED, 1, Map.of()));
+
+        // nothing to erase, and no empty row made for them
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM app_users WHERE id = ?", Integer.class, kasun)).isZero();
+    }
+
+    @Test
+    void aNewPhotoIsCopied() {
+        registered();
+
+        applier.apply(event("e2", PROFILE_UPDATED, 2, Map.of("picture", "https://lh3.googleusercontent.com/k")));
+
+        assertThat(userDirectory.get(kasun).orElseThrow().getPictureUrl()).contains("https://lh3.googleusercontent.com/k");
+        assertThat(name()).isEqualTo("Kasun Silva");   // name was not in the event: unchanged
+    }
+
+    @Test
+    void anUnknownStatusNeverMakesSomeoneUsable() {
+        applier.apply(event("e1", USER_REGISTERED, 1, Map.of("name", "X", "status", "SOMETHING_NEW")));
+
+        assertThat(userDirectory.get(kasun).orElseThrow().isActive()).isFalse();
+    }
+
+    @Test
+    void aLockedStatusIsKeptAsLocked() {
+        applier.apply(event("e1", USER_REGISTERED, 1, Map.of("name", "X", "status", "LOCKED")));
+
+        assertThat(userDirectory.get(kasun).orElseThrow().getStatus()).isEqualTo(AppUserStatus.LOCKED);
+    }
+
+    @Test
+    void eventsWithNothingToCopyAndUnknownTypesChangeNothing() {
+        registered();
+
+        applier.apply(event("e2", IDENTIFIER_CHANGED, 2, Map.of()));   // email changed: we don't store emails
+        applier.apply(event("e3", "https://schemas.example/new-kind-of-event", 3, Map.of("name", "Hacker")));
+
+        assertThat(name()).isEqualTo("Kasun Silva");
+        assertThat(userDirectory.get(kasun).orElseThrow().isActive()).isTrue();
+    }
+
+    @Test
+    void rolesThatAreNotAListAreTreatedAsNoRoles() {
+        registered();
+
+        applier.apply(event("e2", ROLES_CHANGED, 2, Map.of("roles", "ADMIN")));   // a string, not a list
+
+        assertThat(userDirectory.get(kasun).orElseThrow().hasRole("ADMIN")).isFalse();
     }
 
     private void registered() {
