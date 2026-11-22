@@ -3,6 +3,7 @@ package com.swiftdrop.backend.notification.service;
 import com.swiftdrop.backend.notification.config.RabbitMqConfig;
 import com.swiftdrop.backend.notification.event.MerchantAssignmentWebhook;
 import com.swiftdrop.backend.notification.event.MerchantConfirmedWebhook;
+import com.swiftdrop.backend.notification.event.MerchantLifecycleWebhook;
 import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.rabbit.annotation.RabbitHandler;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -31,6 +32,13 @@ public class MerchantWebhookListener {
     public void handle(MerchantAssignmentWebhook event) {
         var payload = event.payload();
         dispatcher.dispatchWebhook(event.merchantId(), payload.deliveryId(), payload.eventType(),
+                mapper.writeValueAsString(payload), payload.eventId());
+    }
+
+    @RabbitHandler
+    public void handle(MerchantLifecycleWebhook event) {
+        var payload = event.payload();
+        dispatcher.dispatchWebhook(event.merchantId(), payload.deliveryId(), payload.status(),
                 mapper.writeValueAsString(payload), payload.eventId());
     }
 

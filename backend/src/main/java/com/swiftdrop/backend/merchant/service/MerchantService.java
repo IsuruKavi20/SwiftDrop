@@ -7,6 +7,8 @@ import com.swiftdrop.backend.merchant.repository.MerchantRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
+
 /**
  * The merchant's business profile. No separate registration: an approved merchant's profile is created empty on
  * their first visit, then they complete it.
@@ -20,10 +22,16 @@ public class MerchantService {
         this.merchants = merchants;
     }
 
+    /** Looks up the owner's profile without creating one. */
+    @Transactional(readOnly = true)
+    public Optional<Merchant> findProfile(AppUser owner) {
+        return merchants.findByOwnerId(owner.getId());
+    }
+
     /** The owner's profile, creating an empty one the first time. */
     @Transactional
     public Merchant profileOf(AppUser owner) {
-        return merchants.findByOwnerId(owner.getId()).orElseGet(() -> createFor(owner));
+        return findProfile(owner).orElseGet(() -> createFor(owner));
     }
 
     @Transactional

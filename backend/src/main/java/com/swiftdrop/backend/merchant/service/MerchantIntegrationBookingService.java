@@ -49,7 +49,7 @@ public class MerchantIntegrationBookingService {
 
         // Serialize retries before looking up the key, including when no audit row exists yet.
         var merchant = merchants.lockByOwnerId(caller.ownerId())
-                .filter(profile -> profile.getOwner().isActive())
+                .filter(profile -> profile.getOwner().isActive() && profile.getOwner().hasRole("MERCHANT"))
                 .orElseThrow(() -> new AccessDeniedException("Merchant business is unavailable"));
         String hash = fingerprint(request);
         var existing = audit.findByMerchantIdAndClientIdAndIdempotencyKey(merchant.getId(), caller.clientId(), key);

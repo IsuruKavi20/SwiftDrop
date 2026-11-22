@@ -2,6 +2,8 @@ package com.swiftdrop.backend.courier.repository;
 
 import com.swiftdrop.backend.customer.entity.Delivery;
 import com.swiftdrop.backend.customer.entity.DeliveryStatus;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -26,6 +28,10 @@ public interface CourierDeliveryRepository extends JpaRepository<Delivery, Long>
 
     /** Loads a delivery by tracking number regardless of assignment. */
     Optional<Delivery> findByTrackingNumber(String trackingNumber);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select d from Delivery d where d.trackingNumber = :trackingNumber")
+    Optional<Delivery> lockByTrackingNumber(@Param("trackingNumber") String trackingNumber);
 
     /** Loads a specific delivery only if assigned to this courier (horizontal privilege check). */
     @Query("SELECT d FROM Delivery d WHERE d.trackingNumber = :trackingNumber AND d.courier.id = :courierId")
