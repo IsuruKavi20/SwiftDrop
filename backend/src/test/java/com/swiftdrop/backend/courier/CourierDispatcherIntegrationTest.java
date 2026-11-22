@@ -434,48 +434,68 @@ class CourierDispatcherIntegrationTest {
 
         String trackingProof = "SD-TX-PROOF-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         UUID committedCourierId = UUID.randomUUID();
+        UUID committedCustUserId = UUID.randomUUID();
+        java.util.concurrent.atomic.AtomicReference<Long> proofDeliveryIdRef = new java.util.concurrent.atomic.AtomicReference<>();
+        java.util.concurrent.atomic.AtomicReference<Long> custIdRef = new java.util.concurrent.atomic.AtomicReference<>();
 
-        // Transaction 1: Create delivery, assign, advance to OUT_FOR_DELIVERY and confirm delivery with proof
-        Long proofDeliveryId = requiresNewTx.execute(status -> {
-            AppUser testCourier = TestPeople.saved(em, committedCourierId, "Tx Courier", "COURIER");
-            AppUser testCustUser = TestPeople.saved(em, UUID.randomUUID(), "Tx Customer User", "CUSTOMER");
-            Customer cust = new Customer(testCustUser, "0770000000");
-            em.persist(cust);
+        try {
+            // Transaction 1: Create delivery, assign, advance to OUT_FOR_DELIVERY and confirm delivery with proof
+            requiresNewTx.executeWithoutResult(status -> {
+                AppUser testCourier = TestPeople.saved(em, committedCourierId, "Tx Courier", "COURIER");
+                AppUser testCustUser = TestPeople.saved(em, committedCustUserId, "Tx Customer User", "CUSTOMER");
+                Customer cust = new Customer(testCustUser, "0770000000");
+                em.persist(cust);
+                em.flush();
+                custIdRef.set(cust.getId());
 
-            Delivery d = new Delivery(cust, trackingProof, "tok-" + trackingProof, DeliveryType.STANDARD);
-            d.setStatus(DeliveryStatus.CONFIRMED);
-            d.assignCourier(testCourier);
-            em.persist(d);
-            em.flush();
+                Delivery d = new Delivery(cust, trackingProof, "tok-" + trackingProof, DeliveryType.STANDARD);
+                d.setStatus(DeliveryStatus.CONFIRMED);
+                d.assignCourier(testCourier);
+                em.persist(d);
+                em.flush();
+                proofDeliveryIdRef.set(d.getId());
 
-            courierService.updateDeliveryStatus(committedCourierId, trackingProof,
-                    new CourierStatusUpdateRequest(DeliveryStatus.PICKED_UP, "Picked up", "Hub"));
-            courierService.updateDeliveryStatus(committedCourierId, trackingProof,
-                    new CourierStatusUpdateRequest(DeliveryStatus.IN_TRANSIT, "In transit", "Main Highway"));
-            courierService.updateDeliveryStatus(committedCourierId, trackingProof,
-                    new CourierStatusUpdateRequest(DeliveryStatus.OUT_FOR_DELIVERY, "Out for delivery", "Zone 1"));
-            courierService.confirmDelivery(committedCourierId, trackingProof,
-                    new DeliveryConfirmationRequest("Alice Verified", "SIGNATURE", "Signed at door", null, "Doorstep"));
-            return d.getId();
-        });
+                courierService.updateDeliveryStatus(committedCourierId, trackingProof,
+                        new CourierStatusUpdateRequest(DeliveryStatus.PICKED_UP, "Picked up", "Hub"));
+                courierService.updateDeliveryStatus(committedCourierId, trackingProof,
+                        new CourierStatusUpdateRequest(DeliveryStatus.IN_TRANSIT, "In transit", "Main Highway"));
+                courierService.updateDeliveryStatus(committedCourierId, trackingProof,
+                        new CourierStatusUpdateRequest(DeliveryStatus.OUT_FOR_DELIVERY, "Out for delivery", "Zone 1"));
+                courierService.confirmDelivery(committedCourierId, trackingProof,
+                        new DeliveryConfirmationRequest("Alice Verified", "SIGNATURE", "Signed at door", null, "Doorstep"));
+            });
 
-        assertThat(proofDeliveryId).isNotNull();
+            Long proofDeliveryId = proofDeliveryIdRef.get();
+            assertThat(proofDeliveryId).isNotNull();
 
-        // Transaction 2: Brand new transaction reads back from database to verify physical commit
-        requiresNewTx.executeWithoutResult(status -> {
-            Delivery loaded = deliveryRepository.findById(proofDeliveryId).orElseThrow();
-            assertThat(loaded.getStatus()).isEqualTo(DeliveryStatus.DELIVERED);
+            // Transaction 2: Brand new transaction reads back from database to verify physical commit
+            requiresNewTx.executeWithoutResult(status -> {
+                Delivery loaded = deliveryRepository.findById(proofDeliveryId).orElseThrow();
+                assertThat(loaded.getStatus()).isEqualTo(DeliveryStatus.DELIVERED);
 
-            DeliveryProof p = proofRepository.findByDeliveryId(proofDeliveryId).orElseThrow();
-            assertThat(p.getRecipientSignName()).isEqualTo("Alice Verified");
-            assertThat(p.getProofType()).isEqualTo("SIGNATURE");
-            assertThat(p.getCourier().getId()).isEqualTo(committedCourierId);
-        });
-
-        // Cleanup in Transaction 3
-        requiresNewTx.executeWithoutResult(status -> {
-            proofRepository.findByDeliveryId(proofDeliveryId).ifPresent(proofRepository::delete);
-            deliveryRepository.findById(proofDeliveryId).ifPresent(deliveryRepository::delete);
-        });
+                DeliveryProof p = proofRepository.findByDeliveryId(proofDeliveryId).orElseThrow();
+                assertThat(p.getRecipientSignName()).isEqualTo("Alice Verified");
+                assertThat(p.getProofType()).isEqualTo("SIGNATURE");
+                assertThat(p.getCourier().getId()).isEqualTo(committedCourierId);
+            });
+        } finally {
+            // Cleanup in separate transaction so no committed test entities leak into subsequent tests
+            requiresNewTx.executeWithoutResult(status -> {
+                Long proofDeliveryId = proofDeliveryIdRef.get();
+                if (proofDeliveryId != null) {
+                    proofRepository.findByDeliveryId(proofDeliveryId).ifPresent(proofRepository::delete);
+                    deliveryRepository.findById(proofDeliveryId).ifPresent(deliveryRepository::delete);
+                }
+                Long custId = custIdRef.get();
+                if (custId != null) {
+                    Customer c = em.find(Customer.class, custId);
+                    if (c != null) em.remove(c);
+                }
+                AppUser u1 = em.find(AppUser.class, committedCourierId);
+                if (u1 != null) em.remove(u1);
+                AppUser u2 = em.find(AppUser.class, committedCustUserId);
+                if (u2 != null) em.remove(u2);
+            });
+        }
     }
 }
