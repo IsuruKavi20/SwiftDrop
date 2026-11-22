@@ -132,8 +132,11 @@ public class MerchantDeliveryService {
      */
     @Transactional(readOnly = true)
     public PageResponse<MerchantDeliverySummaryResponse> getDeliveries(AppUser owner, DeliveryStatus status, int page, int size) {
-        Merchant merchant = merchantService.profileOf(owner);
         PageRequest pageRequest = PageRequest.of(Math.max(page, 0), Math.clamp(size, 1, MAX_PAGE_SIZE));
+        Merchant merchant = merchantService.findProfile(owner).orElse(null);
+        if (merchant == null) {
+            return PageResponse.from(Page.<Delivery>empty(pageRequest), MerchantDeliverySummaryResponse::from);
+        }
 
         Page<Delivery> results = status != null
                 ? deliveries.findByMerchantIdAndStatusOrderByCreatedAtDescIdDesc(merchant.getId(), status, pageRequest)
@@ -147,8 +150,8 @@ public class MerchantDeliveryService {
      */
     @Transactional(readOnly = true)
     public MerchantDeliveryDetailResponse getDeliveryDetail(AppUser owner, Long deliveryId) {
-        Merchant merchant = merchantService.profileOf(owner);
-        return deliveries.findByIdAndMerchantId(deliveryId, merchant.getId())
+        return merchantService.findProfile(owner)
+                .flatMap(merchant -> deliveries.findByIdAndMerchantId(deliveryId, merchant.getId()))
                 .map(MerchantDeliveryDetailResponse::from)
                 .orElseThrow(() -> new NotFoundException("Delivery not found"));
     }
@@ -158,7 +161,11 @@ public class MerchantDeliveryService {
      */
     @Transactional(readOnly = true)
     public MerchantDashboardResponse getDashboard(AppUser owner) {
-        Merchant merchant = merchantService.profileOf(owner);
+        Merchant merchant = merchantService.findProfile(owner).orElse(null);
+        if (merchant == null) {
+            return MerchantDashboardResponse.of(new Merchant(owner), List.of(), List.of());
+        }
+
         List<StatusCount> counts = deliveries.countByStatus(merchant.getId());
         List<MerchantDeliverySummaryResponse> recent = deliveries
                 .findByMerchantIdOrderByCreatedAtDescIdDesc(merchant.getId(), PageRequest.of(0, 5))

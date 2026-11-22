@@ -28,6 +28,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 /** Polling against a fake auth server: real signed SETs, the real applier and database. */
@@ -107,6 +108,44 @@ public class IdentityEventPollerTest {
 
         assertThat(poller.pollUntilEmpty()).isZero();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM app_users WHERE id = ?", Integer.class, kasun)).isZero();
+        auth.verify();
+    }
+
+    @Test
+    void aRefusedEventWithAStrangeIdIsNeverEchoedBack() throws Exception {
+        UUID kasun = UUID.randomUUID();
+        RSAKey stranger = new RSAKeyGenerator(2048).keyID("auth-key").generate();
+        String forged = SetVerifierTest.sign(stranger, "secevent+jwt", claims("not-a-uuid", kasun, 1, "Evil").build());
+        auth.expect(requestTo(AUTH + "/oauth2/token")).andRespond(withSuccess(TOKEN, MediaType.APPLICATION_JSON));
+        auth.expect(requestTo(AUTH + "/api/v1/events/poll"))
+                .andRespond(withSuccess(pollAnswer(false, "not-a-uuid", forged), MediaType.APPLICATION_JSON));
+        // No second call: nothing to acknowledge, and an id that isn't auth's (a UUID) is never sent back
+
+        assertThat(poller.pollUntilEmpty()).isZero();
+        auth.verify();
+    }
+
+    @Test
+    void aLostAcknowledgementIsHarmless() throws Exception {
+        UUID kasun = UUID.randomUUID();
+        String jti = UUID.randomUUID().toString();
+        auth.expect(requestTo(AUTH + "/oauth2/token")).andRespond(withSuccess(TOKEN, MediaType.APPLICATION_JSON));
+        auth.expect(requestTo(AUTH + "/api/v1/events/poll"))
+                .andRespond(withSuccess(pollAnswer(false, jti, set(jti, kasun, 1, "Kasun Silva")), MediaType.APPLICATION_JSON));
+        auth.expect(requestTo(AUTH + "/api/v1/events/poll")).andRespond(withServerError());   // the ack fails
+
+        // Applied anyway; auth sends it again later and it comes back as a harmless repeat
+        assertThat(poller.pollUntilEmpty()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT name FROM app_users WHERE id = ?", String.class, kasun))
+                .isEqualTo("Kasun Silva");
+    }
+
+    @Test
+    void theScheduledPollSurvivesAuthBeingDown() {
+        auth.expect(requestTo(AUTH + "/oauth2/token")).andRespond(withServerError());
+
+        poller.scheduled();   // logs a warning and waits for the next round: never throws
+
         auth.verify();
     }
 

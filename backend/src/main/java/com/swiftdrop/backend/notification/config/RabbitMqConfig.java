@@ -1,6 +1,9 @@
 package com.swiftdrop.backend.notification.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.swiftdrop.backend.notification.event.MerchantAssignmentWebhook;
+import com.swiftdrop.backend.notification.event.MerchantConfirmedWebhook;
+import com.swiftdrop.backend.notification.event.MerchantLifecycleWebhook;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.amqp.core.*;
@@ -110,7 +113,10 @@ public class RabbitMqConfig {
     public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory, MessageConverter messageConverter) {
         RabbitTemplate template = new RabbitTemplate(connectionFactory);
         template.setMessageConverter(messageConverter);
-        template.setMandatoryExpressionString("messageProperties.receivedRoutingKey != null");
+        // Outgoing messages have no received routing key. Require a broker return for unroutable webhook messages.
+        template.setMandatoryExpressionString("{'" + MerchantConfirmedWebhook.class.getName() + "','"
+                + MerchantAssignmentWebhook.class.getName() + "','" + MerchantLifecycleWebhook.class.getName()
+                + "'}.contains(messageProperties.headers['__TypeId__'])");
         return template;
     }
 }
